@@ -108,6 +108,7 @@ export const SchemaRule = RuleBase.extend({
    */
   schema: z.unknown(),
 });
+export type SchemaRule = z.infer<typeof SchemaRule>;
 
 /**
  * Pattern rule — regex/glob check against file contents.
@@ -125,6 +126,7 @@ export const PatternRule = RuleBase.extend({
   /** Optional anti-glob (don't examine these files even within `inGlob`). */
   notInGlob: z.string().optional(),
 });
+export type PatternRule = z.infer<typeof PatternRule>;
 
 /**
  * Lane rule — file-boundary enforcement based on scope.editable.
@@ -145,6 +147,7 @@ export const LaneRule = RuleBase.extend({
    */
   alwaysAllow: z.array(z.string()).optional(),
 });
+export type LaneRule = z.infer<typeof LaneRule>;
 
 /**
  * Spec rule — checks that named test cases declared in a spec actually appear
@@ -160,6 +163,7 @@ export const SpecRule = RuleBase.extend({
     'no-extra-tests-claiming-spec', // tests not in spec don't pretend to satisfy it
   ]),
 });
+export type SpecRule = z.infer<typeof SpecRule>;
 
 /**
  * Toolchain rule — wraps an external tool. The rule runs the tool against
@@ -187,6 +191,7 @@ export const ToolchainRule = RuleBase.extend({
     'count-non-zero', // tool reports any finding → rule fails
   ]),
 });
+export type ToolchainRule = z.infer<typeof ToolchainRule>;
 
 /**
  * Custom rule — escape hatch for project-specific checks the built-in kinds
@@ -201,6 +206,7 @@ export const CustomRule = RuleBase.extend({
   /** Reference to a function exported from effective.config.ts. */
   checkRef: z.string(),
 });
+export type CustomRule = z.infer<typeof CustomRule>;
 
 export const Rule = z.discriminatedUnion('kind', [
   SchemaRule,

@@ -7,7 +7,13 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text', 'html', 'lcov'],
       include: ['src/**/*.ts', 'schemas/**/*.ts'],
-      exclude: ['**/*.d.ts', '**/index.ts', 'src/cli.ts'],
+      exclude: [
+        '**/*.d.ts',
+        '**/index.ts',
+        'src/cli.ts',
+        // Type-only modules — no executable code, nothing to cover.
+        'src/source/types.ts',
+      ],
       thresholds: {
         lines: 90,
         functions: 90,

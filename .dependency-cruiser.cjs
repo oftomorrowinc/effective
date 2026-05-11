@@ -41,9 +41,10 @@ module.exports = {
     {
       name: 'no-dev-deps-in-runtime',
       severity: 'error',
-      comment: 'Source code must not import from devDependencies at runtime.',
+      comment:
+        'Source code must not import from devDependencies at runtime. Peer dependencies (zod) are allowed.',
       from: { path: '^src/', pathNot: String.raw`\.test\.ts$` },
-      to: { dependencyTypes: ['npm-dev'] },
+      to: { dependencyTypes: ['npm-dev'], dependencyTypesNot: ['npm-peer'] },
     },
   ],
   options: {

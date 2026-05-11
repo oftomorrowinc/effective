@@ -64,40 +64,108 @@ describe('severity vocabulary', () => {
   });
 });
 
-describe('phase-0 stubs: clear failure mode', () => {
+describe('phase-1 progress: orchestrators reachable', () => {
   const stubScope = { goal: 'noop', editable: [], role: 'free-form' as const };
-  const stubConfig = { rules: [] } as never;
 
-  it('prepare() throws a phase-0 stub error', () => {
-    expect(() => prepare({ scope: stubScope, config: stubConfig, original: 'x' })).toThrowError(
-      /phase 1 stub/,
+  it('prepare() returns a non-empty augmented prompt', () => {
+    const out = prepare({
+      scope: stubScope,
+      config: {
+        rules: [
+          {
+            kind: 'pattern',
+            id: 'demo',
+            category: 'custom',
+            defaultSeverity: 'CRITICAL',
+            description: 'demo',
+            pattern: /x/,
+            forbidden: true,
+            inGlob: '**/*',
+            prompt: { summary: 'demo', guidance: 'demo guidance' },
+          },
+        ],
+      } as never,
+      original: 'x',
+    });
+    expect(typeof out).toBe('string');
+    expect(out.length).toBeGreaterThan(0);
+  });
+
+  it('verify() resolves to a pass verdict on an empty diff with a non-empty constitution', async () => {
+    const result = await verify({
+      scope: stubScope,
+      config: {
+        rules: [
+          {
+            kind: 'pattern',
+            id: 'p',
+            category: 'custom',
+            defaultSeverity: 'CRITICAL',
+            description: 'd',
+            pattern: /never/,
+            forbidden: true,
+            inGlob: '**/*',
+            prompt: { summary: 's', guidance: 'g' },
+          },
+        ],
+      } as never,
+      source: { kind: 'inline', changedFiles: [] },
+    });
+    expect(result.verdict).toBe('pass');
+    expect(result.findings).toEqual([]);
+  });
+
+  it('kickBack() returns a non-empty follow-up prompt', () => {
+    const out = kickBack({ findings: [], previousPrompt: 'original task' });
+    expect(typeof out).toBe('string');
+    expect(out.length).toBeGreaterThan(0);
+  });
+});
+
+describe('rule factories: build well-formed rule objects', () => {
+  it('rule.forbidPattern returns a PatternRule with forbidden=true', () => {
+    const r = rule.forbidPattern(/console\.log/);
+    expect(r.kind).toBe('pattern');
+    expect(r.forbidden).toBe(true);
+    expect(r.inGlob).toBe('**/*');
+    expect(r.prompt.summary.length).toBeGreaterThan(0);
+  });
+
+  it('rule.requirePattern returns a PatternRule with forbidden=false', () => {
+    const r = rule.requirePattern(/import .* from 'zod'/, { in: 'schemas/**' });
+    expect(r.kind).toBe('pattern');
+    expect(r.forbidden).toBe(false);
+    expect(r.inGlob).toBe('schemas/**');
+  });
+
+  it('rule.lane returns a LaneRule with sane defaults', () => {
+    const r = rule.lane();
+    expect(r.kind).toBe('lane');
+    expect(r.flagDeletions).toBe(true);
+    expect(r.id).toBe('lane.editable-respected');
+  });
+
+  it('rule.toolchain rejects custom without name', () => {
+    expect(() => rule.toolchain({ tool: 'custom', failOn: 'non-zero-exit' })).toThrowError(
+      /tool: "custom".*name/,
     );
   });
 
-  it('verify() throws a phase-0 stub error', () => {
-    expect(() =>
-      verify({
-        scope: stubScope,
-        config: stubConfig,
-        source: { kind: 'inline', changedFiles: [] },
-      }),
-    ).toThrowError(/phase 1 stub/);
+  it('rule.toolchain accepts custom with name', () => {
+    const r = rule.toolchain({ tool: 'custom', name: 'my-tool', failOn: 'any-output' });
+    expect(r.kind).toBe('toolchain');
+    expect(r.tool).toBe('custom');
+    expect(r.name).toBe('my-tool');
   });
 
-  it('kickBack() throws a phase-0 stub error', () => {
-    expect(() => kickBack({ findings: [], previousPrompt: '' })).toThrowError(/phase 1 stub/);
-  });
-
-  it('rule.forbidPattern throws a phase-0 stub error', () => {
-    expect(() => rule.forbidPattern(/x/)).toThrowError(/phase 1 stub/);
-  });
-
-  it('rule.requirePattern throws a phase-0 stub error', () => {
-    expect(() => rule.requirePattern(/x/)).toThrowError(/phase 1 stub/);
-  });
-
-  it('rule.custom throws a phase-0 stub error', () => {
-    expect(() => rule.custom({})).toThrowError(/phase 1 stub/);
+  it('rule.custom returns a CustomRule with the provided checkRef', () => {
+    const r = rule.custom({
+      id: 'no-default-exports-in-services',
+      checkRef: 'noDefaultExportsInServices',
+      prompt: { summary: 'Use named exports.', guidance: 'Avoid default exports in services/**.' },
+    });
+    expect(r.kind).toBe('custom');
+    expect(r.checkRef).toBe('noDefaultExportsInServices');
   });
 });
 

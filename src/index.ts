@@ -1,7 +1,9 @@
 export { prepare } from './prepare.js';
 export type { PrepareInput } from './prepare.js';
 export { verify } from './verify.js';
-export type { VerifyInput, VerifySource } from './verify.js';
+export type { GitSource, StagedSource, VerifyInput, VerifySource } from './verify.js';
+export type { FindingSummary } from './verdict.js';
+export { computeVerdict, summarizeFindings } from './verdict.js';
 export { kickBack } from './kickBack.js';
 export type { KickBackInput } from './kickBack.js';
 export { defineConfig } from './config.js';

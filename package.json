@@ -82,6 +82,7 @@
     "@eslint/js": "10.0.1",
     "@secretlint/secretlint-rule-preset-recommend": "^9.0.0",
     "@types/node": "^22.10.5",
+    "@types/picomatch": "4.0.3",
     "@vitest/coverage-v8": "^3.2.4",
     "audit-ci": "^7.1.0",
     "dependency-cruiser": "^16.7.0",
@@ -120,5 +121,8 @@
     "*": [
       "secretlint"
     ]
+  },
+  "dependencies": {
+    "picomatch": "4.0.4"
   }
 }
