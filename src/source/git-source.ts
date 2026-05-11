@@ -1,11 +1,17 @@
 import { compilePatterns } from '../glob.js';
-import { loadGitDiff, loadStagedDiff } from './git.js';
+import { loadCommitMetadata, loadGitDiff, loadStagedDiff } from './git.js';
 import { runCommand } from '../toolchain/run.js';
 import { resolveParser } from '../toolchain/parsers/index.js';
 import type { ToolName } from '../toolchain/parsers/index.js';
 import type { Parser } from '../toolchain/parsers/index.js';
 import type { ResolvedConstitution, ResolvedScope } from '../resolve.js';
-import type { ChangedFile, CustomCheck, ToolchainResult, VerifyContext } from './types.js';
+import type {
+  ChangedFile,
+  CommitMetadata,
+  CustomCheck,
+  ToolchainResult,
+  VerifyContext,
+} from './types.js';
 import type { ExceptionRegistry } from '../schemas.js';
 import { prepareWorktree } from '../worktree.js';
 
@@ -91,9 +97,11 @@ export async function loadGitSource(input: LoadGitSourceInput): Promise<LoadedSo
     input.resolved.toolchain.coverage !== undefined ||
     Object.keys(input.resolved.toolchain.custom ?? {}).length > 0;
 
+  const commitMetadata = await loadCommitMetadata(input.repo, input.work);
+
   if (!hasToolchain) {
     return {
-      ctx: assembleContext(input, changedFiles, {}),
+      ctx: assembleContext(input, changedFiles, {}, commitMetadata),
       cleanup: () => Promise.resolve(),
     };
   }
@@ -101,7 +109,7 @@ export async function loadGitSource(input: LoadGitSourceInput): Promise<LoadedSo
   const handle = await prepareWorktree({ repo: input.repo, work: input.work });
   const toolchainResults = await collectToolchainResults(input.resolved, handle.path);
   return {
-    ctx: assembleContext(input, changedFiles, toolchainResults),
+    ctx: assembleContext(input, changedFiles, toolchainResults, commitMetadata),
     cleanup: async (): Promise<void> => {
       await handle.cleanup();
     },
@@ -117,6 +125,7 @@ function assembleContext(
   },
   changedFiles: readonly ChangedFile[],
   toolchainResults: Readonly<Record<string, ToolchainResult>>,
+  commitMetadata?: CommitMetadata,
 ): VerifyContext {
   return {
     changedFiles,
@@ -126,6 +135,7 @@ function assembleContext(
     toolchainResults,
     customChecks: input.customChecks,
     exceptionRegistry: input.exceptions,
+    ...(commitMetadata === undefined ? {} : { commitMetadata }),
   };
 }
 
@@ -141,8 +151,12 @@ export interface LoadStagedSourceInput {
 export async function loadStagedSource(input: LoadStagedSourceInput): Promise<LoadedSource> {
   const changedFiles = await loadStagedDiff({ repo: input.repo });
   const toolchainResults = await collectToolchainResults(input.resolved, input.repo);
+  // Staged source = pre-commit. HEAD is the previous commit; there's no
+  // commit yet for the staged changes. Read HEAD's metadata as useful
+  // context (author, attempt would come from VerifyInput).
+  const commitMetadata = await loadCommitMetadata(input.repo, 'HEAD');
   return {
-    ctx: assembleContext(input, changedFiles, toolchainResults),
+    ctx: assembleContext(input, changedFiles, toolchainResults, commitMetadata),
     cleanup: () => Promise.resolve(),
   };
 }

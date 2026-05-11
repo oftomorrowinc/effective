@@ -34,6 +34,31 @@ export type CustomCheck = (
   ctx: VerifyContext,
 ) => Finding[] | Promise<Finding[]>;
 
+/**
+ * Commit-time metadata that some rules need beyond the diff itself —
+ * commit message (for cited-decision rules), retry attempt number (for
+ * retry-scope-expansion rules), authorship, raw SHA + date.
+ *
+ * Every field is optional. Rules that need a specific field check for
+ * it explicitly and skip (or fall back) when absent.
+ */
+export interface CommitMetadata {
+  /** Full commit message (subject + body), or just the subject if body unavailable. */
+  readonly message?: string;
+  /** Commit SHA. */
+  readonly sha?: string;
+  /** Author handle / name. */
+  readonly author?: string;
+  /** ISO date the commit was authored. */
+  readonly date?: string;
+  /**
+   * Retry attempt number, when this verify call is part of a retry
+   * loop. 1 = first attempt; N ≥ 2 = retry. Used by retry-scope-
+   * expansion-into-architectural-config and related retry-aware rules.
+   */
+  readonly attempt?: number;
+}
+
 export interface VerifyContext {
   readonly changedFiles: readonly ChangedFile[];
   readonly editableMatcher: PathMatcher;
@@ -49,4 +74,9 @@ export interface VerifyContext {
    * the report available.
    */
   readonly agentReport?: string;
+  /**
+   * Optional commit-time metadata. Rules that need it check for the
+   * specific field they consume and fall back gracefully when absent.
+   */
+  readonly commitMetadata?: CommitMetadata;
 }

@@ -1,7 +1,7 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { runCommand } from '../toolchain/run.js';
-import type { ChangedFile, ChangedFileStatus } from './types.js';
+import type { ChangedFile, ChangedFileStatus, CommitMetadata } from './types.js';
 
 export interface GitDiffInput {
   /** Absolute path to the git repo (the directory containing .git). */
@@ -92,6 +92,35 @@ export async function loadGitDiff(input: GitDiffInput): Promise<ChangedFile[]> {
 export interface StagedDiffInput {
   /** Absolute path to the git repo. */
   repo: string;
+}
+
+/**
+ * Read commit-time metadata for a given ref. Returns undefined when
+ * the ref doesn't resolve (e.g., an empty repo or a misspelled ref);
+ * downstream rules check for the specific field they consume.
+ *
+ * Output format: `%s%n%H%n%an%n%aI` (subject, sha, author, ISO date),
+ * one field per line. The message is the SUBJECT only — the full body
+ * is fetched separately when needed.
+ */
+export async function loadCommitMetadata(
+  repo: string,
+  ref: string,
+): Promise<CommitMetadata | undefined> {
+  const FIELD_SEP = '%n----%n';
+  const result = await runCommand({
+    command: `git log -1 --format=%s${FIELD_SEP}%H${FIELD_SEP}%an${FIELD_SEP}%aI ${shellQuote(ref)}`,
+    cwd: repo,
+  });
+  if (result.exitCode !== 0) return undefined;
+  const [message, sha, author, date] = result.stdout.split('\n----\n').map((s) => s.trim());
+  if (message === undefined || sha === undefined) return undefined;
+  return {
+    ...(message.length > 0 ? { message } : {}),
+    ...(sha.length > 0 ? { sha } : {}),
+    ...(author !== undefined && author.length > 0 ? { author } : {}),
+    ...(date !== undefined && date.length > 0 ? { date } : {}),
+  };
 }
 
 export async function loadStagedDiff(input: StagedDiffInput): Promise<ChangedFile[]> {

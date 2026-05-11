@@ -8,7 +8,7 @@ import { loadGitSource, loadStagedSource } from './source/git-source.js';
 import { computeVerdict, summarizeFindings } from './verdict.js';
 import { builtInChecks, presets } from './presets/index.js';
 import type { Constitution, ExceptionRegistry, Finding, Scope, VerifyResult } from './schemas.js';
-import type { CustomCheck } from './source/types.js';
+import type { CommitMetadata, CustomCheck } from './source/types.js';
 
 function withBuiltInPresets(options: ResolveOptions): ResolveOptions {
   return {
@@ -61,6 +61,13 @@ export interface VerifyInput {
    * MetaRule checks read this; when absent, meta rules silently skip.
    */
   agentReport?: string;
+  /**
+   * Optional commit-time metadata. For git sources, auto-populated
+   * from `git log` against the work ref when this field is absent;
+   * the caller's value (when present) wins. For inline sources, the
+   * caller supplies whatever is available.
+   */
+  commitMetadata?: CommitMetadata;
 }
 
 function dedupeBySignature(findings: readonly Finding[]): Finding[] {
@@ -134,6 +141,12 @@ export async function verify(input: VerifyInput): Promise<VerifyResult> {
 
     if (input.agentReport !== undefined) {
       ctx = { ...ctx, agentReport: input.agentReport };
+    }
+    if (input.commitMetadata !== undefined) {
+      // Caller-supplied wins; if the source loader populated commitMetadata
+      // from `git log` for a git source, this either keeps that or replaces
+      // it with the caller's explicit value.
+      ctx = { ...ctx, commitMetadata: { ...ctx.commitMetadata, ...input.commitMetadata } };
     }
 
     const findings: Finding[] = [];
