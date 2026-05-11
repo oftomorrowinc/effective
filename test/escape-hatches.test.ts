@@ -12,6 +12,7 @@ function exception(over: Partial<Exception> = {}): Exception {
   return {
     id: 'sample',
     category: 'cli-fatal-exit',
+    mechanism: 'c8-ignore',
     context: 'sample',
     retirementCondition: 'never',
     addedDate: '2026-05-11',
@@ -135,6 +136,31 @@ describe('validateEscapeHatches', () => {
       registry,
     });
     expect(findings[0]?.severity).toBe('HIGH');
+  });
+
+  it('CRITICALs a hatch whose mechanism does not match the cited exception', () => {
+    const findings = validateEscapeHatches({
+      escapeHatches: [
+        hatch({
+          kind: 'eslint-disable',
+          exceptionId: 'cli-fatal-exit', // registered as c8-ignore
+        }),
+      ],
+      registry,
+    });
+    expect(findings.length).toBe(1);
+    expect(findings[0]?.severity).toBe('CRITICAL');
+    expect(findings[0]?.evidence).toMatch(/c8-ignore, not eslint-disable/);
+  });
+
+  it('accepts mechanism-agnostic exceptions (mechanism: null) on any hatch kind', () => {
+    const findings = validateEscapeHatches({
+      escapeHatches: [hatch({ kind: 'prettier-ignore', exceptionId: 'broad-rule' })],
+      registry: {
+        'broad-rule': exception({ id: 'broad-rule', mechanism: null }),
+      },
+    });
+    expect(findings).toEqual([]);
   });
 
   it('respects severity overrides', () => {

@@ -18,11 +18,20 @@ import type { Exception, ExceptionRegistry } from './exception.js';
  *
  * Each entry below uses 'exception-' prefix on the ID so they're clearly
  * distinguishable from project-specific exception IDs.
+ *
+ * The `mechanism` field on each entry binds it to a specific suppression
+ * comment shape. Citing a `mechanism: 'c8-ignore'` exception from an
+ * `eslint-disable` comment fails validation with a clear "wrong-mechanism"
+ * finding — catches the case where a suppression cites a plausible-
+ * sounding but mechanism-mismatched exception. Entries with `mechanism:
+ * null` operate at config level (file-pattern exclusions, naming
+ * conventions) rather than at an inline-comment site.
  */
 
 const cliFatalExit: Exception = {
   id: 'exception-cli-fatal-exit',
   category: 'cli-fatal-exit',
+  mechanism: 'c8-ignore',
   context:
     "CLI entrypoints have an `if (process.argv[1] === fileURLToPath(import.meta.url))` (or similar `require.main === module`) dispatch branch that fires only when the file is invoked directly via tsx/node, never when imported as a module by tests. The branch typically calls a top-level orchestration function and translates its result into process.exit(N). Both halves are exercised by integration tests that shell out to the CLI; the unit-coverage gate doesn't see them.",
   retirementCondition:
@@ -34,6 +43,7 @@ const cliFatalExit: Exception = {
 const externalLibraryDriftDefense: Exception = {
   id: 'exception-external-library-drift-defense',
   category: 'external-library-drift-defense',
+  mechanism: 'c8-ignore',
   context:
     'Wrappers around third-party SDKs include defensive branches against the SDK passing through values its TypeScript declarations claim are non-nullable (or vice versa). The branches exist to fail loudly under SDK drift; they are not callable from production code paths under correct SDK behavior. Common examples: MCP SDK callers always supplying an arguments object so the args === undefined arm fires only against SDK API drift; library functions whose ?? {} fallback exists in case the wrapper escapes the documented contract.',
   retirementCondition:
@@ -45,6 +55,7 @@ const externalLibraryDriftDefense: Exception = {
 const typeNarrowingOfImpossible: Exception = {
   id: 'exception-type-narrowing-of-impossible',
   category: 'type-narrowing-of-impossible',
+  mechanism: 'c8-ignore',
   context:
     "TypeScript's flow analysis sometimes can't see that a value is non-null at the use site because the pre-filter happened in a different function or behind a runtime invariant the type system doesn't track. The narrowing branch (if (foo === undefined) return; etc.) exists for type narrowing but is structurally unreachable given the caller's pre-conditions. Common examples: optional-spread ternaries where exactOptionalPropertyTypes: true requires field !== undefined ? { field } : {} but every call site is already pre-filtered; map-lookup-after-set patterns where the entry is guaranteed present.",
   retirementCondition:
@@ -56,6 +67,7 @@ const typeNarrowingOfImpossible: Exception = {
 const raceConditionDefense: Exception = {
   id: 'exception-race-condition-defense',
   category: 'race-condition-defense',
+  mechanism: 'c8-ignore',
   context:
     "Some layers tolerate partial-write states from hand-edited files (an editor saving a half-typed YAML/JSON block) and debounce windows in file watchers can yield stale event payloads. The defensive branches catch these states and fail-soft or re-read; they don't fire under deterministic test fixtures because the tests don't introduce filesystem races.",
   retirementCondition:
@@ -67,6 +79,7 @@ const raceConditionDefense: Exception = {
 const ttyBound: Exception = {
   id: 'exception-tty-bound',
   category: 'tty-bound',
+  mechanism: 'c8-ignore',
   context:
     'Pretty-print and interactive code paths that only run when stdout is a TTY (process.stdout.isTTY === true). Test runners typically run in a non-TTY subprocess; the TTY-bound code path is structurally unreachable in tests.',
   retirementCondition:
@@ -78,6 +91,7 @@ const ttyBound: Exception = {
 const zodInternalIntrospection: Exception = {
   id: 'exception-zod-internal-introspection',
   category: 'zod-internal-introspection',
+  mechanism: 'ts-expect-error',
   context:
     "Schema-walking infrastructure (registry loaders, form generators, type introspectors) sometimes needs to access Zod's internal _def shape. Zod's public types intentionally hide _def from consumers; the introspection requires an `as unknown as <internal-shape>` bridge per call site. The shape is stable across Zod 3.x patch versions (verified empirically) but isn't a public contract.",
   retirementCondition:
@@ -89,6 +103,7 @@ const zodInternalIntrospection: Exception = {
 const looseGenericBridge: Exception = {
   id: 'exception-loose-generic-bridge',
   category: 'loose-generic-bridge',
+  mechanism: 'ts-expect-error',
   context:
     "Some libraries return loose record shapes (e.g., gray-matter returns { data: { [key: string]: any }, content: string }). The codebase's typed shapes are stricter. The cast bridges the two on the canonical-write boundary.",
   retirementCondition:
@@ -100,6 +115,7 @@ const looseGenericBridge: Exception = {
 const sequentialByDesignAwait: Exception = {
   id: 'exception-sequential-by-design-await',
   category: 'sequential-by-design-await',
+  mechanism: 'eslint-disable',
   context:
     "Some loops MUST run sequentially: per-task dispatch where each iteration's side effects feed the next, per-attempt frontmatter writes with ordering invariants, per-file format/lint passes against shared state. Parallelizing them via Promise.all would change semantics; the no-await-in-loop rule fires on the (correct) sequential shape.",
   retirementCondition:
@@ -111,6 +127,7 @@ const sequentialByDesignAwait: Exception = {
 const typedPrivateDotNotation: Exception = {
   id: 'exception-typed-private-dot-notation',
   category: 'typed-private-dot-notation',
+  mechanism: 'eslint-disable',
   context:
     "ESLint's dot-notation rule prefers obj.foo over obj['foo'] for static keys. When obj is typed with a [key: string]: T index signature plus specific named members, TypeScript requires bracket notation for the index-signature keys but the lint rule wants dots. The disable is on the legitimate bracket notation.",
   retirementCondition:
@@ -122,6 +139,7 @@ const typedPrivateDotNotation: Exception = {
 const canonicalUnderscoreDiscriminator: Exception = {
   id: 'exception-canonical-underscore-discriminator',
   category: 'canonical-underscore-discriminator',
+  mechanism: 'eslint-disable',
   context:
     "Schema discipline often uses leading-underscore field names (_kind, _version, _schema) to mark canonical-frame metadata distinct from domain fields. ESLint's no-underscore-dangle rule fires on the leading underscore. Project-specific allowlists at the rule level would also work, but the per-site disable is acceptable.",
   retirementCondition:
@@ -133,6 +151,7 @@ const canonicalUnderscoreDiscriminator: Exception = {
 const mutuallyRecursiveWalker: Exception = {
   id: 'exception-mutually-recursive-walker',
   category: 'mutually-recursive-walker',
+  mechanism: 'eslint-disable',
   context:
     "Tree-walker dispatch helpers (walkSchema + per-kind sub-walkers; walkAndPrompt + per-shape sub-prompters) are mutually recursive: the dispatch function calls each sub-walker, and each sub-walker calls back into the dispatch function for child nodes. ESLint's no-use-before-define fires on the forward reference; reordering definitions would force one function to be inlined (defeating extraction) or push the dispatch fn to the bottom (defeating top-down readability).",
   retirementCondition:
@@ -144,6 +163,7 @@ const mutuallyRecursiveWalker: Exception = {
 const earlyExitContinue: Exception = {
   id: 'exception-early-exit-continue',
   category: 'early-exit-continue',
+  mechanism: 'eslint-disable',
   context:
     "Filesystem walk loops and scan loops over directive lines use `continue;` for early-exit guards (entry-not-a-directory, line-not-a-table-row, ref-already-seen). ESLint's no-continue rule fires on the legitimate guard; refactoring to nested if blocks deepens cyclomatic complexity and reduces readability.",
   retirementCondition:
@@ -155,6 +175,7 @@ const earlyExitContinue: Exception = {
 const mutatedBindingNoDestructure: Exception = {
   id: 'exception-mutated-binding-no-destructure',
   category: 'mutated-binding-no-destructure',
+  mechanism: 'eslint-disable',
   context:
     'A loop body or conditional that reassigns a variable holding the result of a function call would, under prefer-destructuring, be rewritten as `const { field } = obj;` followed by a separate `let result = field;` reassignment chain — splitting one statement into two and forcing readers to track the binding across lines. Sites where the binding is shadowed and mutated within the same block keep the pre-destructure form for readability.',
   retirementCondition:
@@ -166,11 +187,60 @@ const mutatedBindingNoDestructure: Exception = {
 const migrationBootstrapTimestamp: Exception = {
   id: 'exception-migration-bootstrap-timestamp',
   category: 'migration-bootstrap-timestamp',
+  mechanism: null,
   context:
-    'The first migration in a schema history may use an explicit zero-padded sort-prefix (00000000000001_bootstrap.sql) rather than a real UTC timestamp so the bootstrap migration sorts first regardless of clock drift. Every subsequent migration uses a real UTC timestamp.',
+    'The first migration in a schema history may use an explicit zero-padded sort-prefix (00000000000001_bootstrap.sql) rather than a real UTC timestamp so the bootstrap migration sorts first regardless of clock drift. Every subsequent migration uses a real UTC timestamp. The exception applies at the migration-filename convention level, not at any suppression-comment site, so `mechanism` is null.',
   retirementCondition:
     "Does not retire — by definition there is one bootstrap migration per schema history. The exception's scope is bounded.",
   addedDate: '2026-04-22',
+  status: 'active',
+};
+
+const coverageExcludedPatterns: Exception = {
+  id: 'exception-coverage-excluded-patterns',
+  category: 'coverage-excluded-patterns',
+  mechanism: null,
+  context:
+    'Several file classes produce no runtime behavior worth testing: test files and fixtures, emitted build output, pure type-declaration files (`*.d.ts`, `*.types.ts`), tool configuration (`*.config.{ts,js,...}`), and pure re-export barrels (`**/index.ts`). Including them in the coverage denominator artificially deflates the metric and incentivizes meaningless test-writing. The exclude is configured at the coverage-tool level (vitest, c8, istanbul) rather than at any individual code site; `mechanism` is null. Coverage exclusions are still subject to linting and type-checking — exclusion is from the coverage denominator only.',
+  retirementCondition:
+    "Does not retire — this is a permanent class of file-pattern exclusion. Specific patterns may rotate as the project's structure evolves, but the exception category itself stays active.",
+  addedDate: '2026-04-22',
+  status: 'active',
+};
+
+const prettierAlignedDataTables: Exception = {
+  id: 'exception-prettier-aligned-data-tables',
+  category: 'prettier-aligned-data-tables',
+  mechanism: 'prettier-ignore',
+  context:
+    'Constant tables, lookup maps, and Markdown tables where column alignment aids reading at a glance. Prettier would re-flow the columns and break the visual alignment. Use sparingly — blocks should be short (a few lines, not a function body).',
+  retirementCondition:
+    'Retire per-site when prettier learns column-aware reflow for table-shaped data, or when the data moves to a real serialized format (JSON, YAML) rendered with a different tool.',
+  addedDate: '2026-05-11',
+  status: 'active',
+};
+
+const prettierAsciiDiagrams: Exception = {
+  id: 'exception-prettier-ascii-diagrams',
+  category: 'prettier-ascii-diagrams',
+  mechanism: 'prettier-ignore',
+  context:
+    'ASCII-art rendering of state machines, event flows, or directory layouts inside comments or docstrings. Prettier mangles box-drawing characters and breaks the diagram.',
+  retirementCondition:
+    'Retire per-site if the diagram moves to a dedicated diagramming format (Mermaid, PlantUML) rendered with a different tool.',
+  addedDate: '2026-05-11',
+  status: 'active',
+};
+
+const prettierMarkdownAlignment: Exception = {
+  id: 'exception-prettier-markdown-alignment',
+  category: 'prettier-markdown-alignment',
+  mechanism: 'prettier-ignore',
+  context:
+    'Markdown prose where paragraph or list-item alignment carries visual meaning prettier would re-flow away (e.g. parallel-structure bullets the reader scans column-wise, intentional double-spacing between sections).',
+  retirementCondition:
+    'Retire per-site when the alignment migrates to explicit structure (HTML, tables) that prettier preserves.',
+  addedDate: '2026-05-11',
   status: 'active',
 };
 
@@ -180,16 +250,19 @@ const migrationBootstrapTimestamp: Exception = {
  *
  * Example usage in a project's .effective/exceptions.ts:
  *
- *   import { defineExceptions, builtin } from 'effective';
+ *   import { defineExceptions, seeds } from 'effective';
  *
  *   export default defineExceptions({
- *     ...builtin.exceptions,
+ *     ...seeds.builtInExceptions,
  *
  *     'our-postgres-driver-quirk': {
+ *       id: 'our-postgres-driver-quirk',
  *       category: 'external-library-drift-defense',
+ *       mechanism: 'c8-ignore',
  *       context: '...',
  *       retirementCondition: '...',
  *       addedDate: '2026-05-15',
+ *       status: 'active',
  *     },
  *   });
  */
@@ -208,4 +281,8 @@ export const builtInExceptions: ExceptionRegistry = {
   [earlyExitContinue.id]: earlyExitContinue,
   [mutatedBindingNoDestructure.id]: mutatedBindingNoDestructure,
   [migrationBootstrapTimestamp.id]: migrationBootstrapTimestamp,
+  [coverageExcludedPatterns.id]: coverageExcludedPatterns,
+  [prettierAlignedDataTables.id]: prettierAlignedDataTables,
+  [prettierAsciiDiagrams.id]: prettierAsciiDiagrams,
+  [prettierMarkdownAlignment.id]: prettierMarkdownAlignment,
 };

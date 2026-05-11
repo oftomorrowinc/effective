@@ -11,6 +11,12 @@ export interface ValidateInput {
   readonly unknownRefSeverity?: Severity;
   /** Severity to emit when the cited exception id is `deprecated`. */
   readonly deprecatedRefSeverity?: Severity;
+  /**
+   * Severity to emit when the cited exception's `mechanism` doesn't match
+   * the hatch's actual mechanism (e.g. citing a `c8-ignore` exception
+   * from an `eslint-disable` comment).
+   */
+  readonly wrongMechanismSeverity?: Severity;
   /** Rule id to put on each emitted finding. */
   readonly ruleId?: string;
   /** Category to put on each emitted finding. */
@@ -119,6 +125,19 @@ export function validateEscapeHatches(input: ValidateInput): Finding[] {
           `exception-id "${hatch.exceptionId}" is deprecated`,
           `${describeKind(hatch)} cites \`exception-id: ${hatch.exceptionId}\` which is ` +
             '`status: "deprecated"`. Migrate to the replacement exception or remove the suppression.',
+        ),
+      );
+    }
+    if (exception.mechanism !== null && exception.mechanism !== hatch.kind) {
+      findings.push(
+        asFinding(
+          hatch,
+          input,
+          input.wrongMechanismSeverity ?? 'CRITICAL',
+          `exception-id "${hatch.exceptionId}" applies to ${exception.mechanism}, not ${hatch.kind}`,
+          `${describeKind(hatch)} cites \`exception-id: ${hatch.exceptionId}\`, but that ` +
+            `exception is registered for \`${exception.mechanism}\` suppressions, not \`${hatch.kind}\`. ` +
+            'Either change the suppression to the right mechanism or cite a different exception that covers this one.',
         ),
       );
     }

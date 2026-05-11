@@ -88,6 +88,7 @@ describe('verify() — extends: ["recommended"] auto-loads the built-in preset',
         'sample-allowed': {
           id: 'sample-allowed',
           category: 'external-library-drift-defense',
+          mechanism: 'ts-expect-error',
           context: 'Sample for the test.',
           retirementCondition: 'When the legacy code is replaced.',
           addedDate: '2026-05-11',

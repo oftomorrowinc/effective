@@ -96,6 +96,20 @@ export const BuiltInExceptionCategory = z.enum([
   // use real timestamps.
   'migration-bootstrap-timestamp',
 
+  // File-pattern exclusions from coverage measurement. Test fixtures,
+  // emitted build output, type-only declaration files, tool configs, and
+  // pure re-export barrels produce no runtime behavior worth testing;
+  // including them in the coverage denominator deflates the metric and
+  // incentivizes meaningless test-writing.
+  'coverage-excluded-patterns',
+
+  // Prettier carve-outs for hand-aligned structured data, ASCII diagrams,
+  // and intentional markdown alignment — content where prettier's reflow
+  // would destroy meaningful visual structure.
+  'prettier-aligned-data-tables',
+  'prettier-ascii-diagrams',
+  'prettier-markdown-alignment',
+
   // Project-specific catch-all. Use when the exception doesn't fit a
   // built-in category. Should be rare; prefer extending the built-in list
   // upstream if a project hits the same shape repeatedly.
@@ -117,12 +131,36 @@ export type ExceptionCategory = z.infer<typeof ExceptionCategory>;
 export const ExceptionStatus = z.enum(['active', 'deprecated', 'retired']);
 export type ExceptionStatus = z.infer<typeof ExceptionStatus>;
 
+/**
+ * Which escape-hatch mechanism an exception covers. Mirrors `EscapeHatch.kind`
+ * exactly, plus `null` for exceptions that don't bind to a comment-style
+ * mechanism (e.g. coverage-file exclusions that operate at config level
+ * rather than at a suppression-comment site).
+ *
+ * The validator uses this to enforce mechanism-matches-citation: an
+ * exception with `mechanism: 'c8-ignore'` cited from an `eslint-disable`
+ * comment produces a "wrong-mechanism" finding. Catches cases where a
+ * suppression cites a plausible-sounding but mechanism-mismatched
+ * exception.
+ */
+export const ExceptionMechanism = z
+  .enum(['c8-ignore', 'ts-expect-error', 'eslint-disable', 'prettier-ignore'])
+  .nullable();
+export type ExceptionMechanism = z.infer<typeof ExceptionMechanism>;
+
 export const Exception = z.object({
   /** Unique ID within the registry. Format: lowercase, kebab-case. */
   id: KebabId,
 
   /** Which category of exception this is. */
   category: ExceptionCategory,
+
+  /**
+   * Which escape-hatch mechanism this exception covers. `null` for
+   * exceptions that operate at config level (file-pattern exclusions,
+   * tool-config carve-outs) rather than at an inline-comment site.
+   */
+  mechanism: ExceptionMechanism,
 
   /**
    * Why this exception exists. Required and non-empty. The justification is

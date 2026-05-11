@@ -214,6 +214,7 @@ describe('defineConfig + defineExceptions: Zod parse passthrough', () => {
       'sample-exception': {
         id: 'sample-exception',
         category: 'cli-fatal-exit',
+        mechanism: 'c8-ignore',
         context: 'Sample context to satisfy the schema.',
         retirementCondition: 'When the sample is no longer needed.',
         addedDate: '2026-05-11',
