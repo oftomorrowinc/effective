@@ -246,6 +246,25 @@ describe('seed data integrity', () => {
     }
   });
 
+  it('seed catalogue includes the 7 reviewer-pattern entries', () => {
+    const ids = new Set(Object.keys(seeds.seedCatalogue));
+    expect(ids).toContain('throw-swallowed-by-catch');
+    expect(ids).toContain('primed-shell-verification');
+    expect(ids).toContain('wrapper-over-first-class-primitive');
+    expect(ids).toContain('write-then-validate-without-transaction');
+    expect(ids).toContain('sketch-contradiction-self-correction');
+    expect(ids).toContain('retry-scope-expansion-into-architectural-config');
+    expect(ids).toContain('files-scoped-override-requires-cited-decision');
+  });
+
+  it('sketch-contradiction-self-correction is the only positive-signal entry', () => {
+    const positives = Object.values(seeds.seedCatalogue).filter(
+      (e) => e.valence === 'positive-signal',
+    );
+    expect(positives.length).toBe(1);
+    expect(positives[0]?.id).toBe('sketch-contradiction-self-correction');
+  });
+
   it('seed principles have context and decision text', () => {
     const principles = Object.values(seeds.seedPrinciples);
     expect(principles.length).toBeGreaterThan(0);

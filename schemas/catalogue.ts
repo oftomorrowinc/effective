@@ -22,6 +22,27 @@ export const CatalogueStatus = z.enum(['active', 'deprecated', 'retired']);
 export type CatalogueStatus = z.infer<typeof CatalogueStatus>;
 
 /**
+ * Valence of a catalogue entry — most entries describe failures (something
+ * to detect and block), but a small minority describe positive patterns
+ * worth amplifying when observed. The valence informs how rules built
+ * against this entry should treat detection:
+ *
+ *   - `failure`        — default; rule emits CRITICAL/HIGH/MED/LOW findings
+ *   - `positive-signal` — rule records the positive observation, doesn't
+ *                        contribute to verdict failure. The reviewer side
+ *                        of the system surfaces these as reinforcement
+ *                        rather than flagging.
+ *
+ * The schema fields below (`signature`, `whyItHappens`, `countermeasure`)
+ * still apply to positive entries — `whyItHappens` documents what
+ * enables the pattern, `countermeasure.structural` documents how to
+ * preserve / encourage it. The prose conventions flex; the shape stays
+ * uniform.
+ */
+export const CatalogueValence = z.enum(['failure', 'positive-signal']);
+export type CatalogueValence = z.infer<typeof CatalogueValence>;
+
+/**
  * Observed instance — a specific real-world occurrence of the failure pattern.
  *
  * Provides empirical credibility: every catalogue entry can be traced back to
@@ -118,6 +139,13 @@ export const CatalogueEntry = z.object({
   addedDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
 
   status: CatalogueStatus.default('active'),
+
+  /**
+   * Whether this entry describes a failure to detect (default) or a
+   * positive pattern worth amplifying. Almost all catalogue entries are
+   * `failure`; a small minority are `positive-signal`.
+   */
+  valence: CatalogueValence.default('failure'),
 
   /** Optional retirement note when status is 'retired'. */
   retiredNote: z.string().optional(),

@@ -46,6 +46,7 @@ const backwardsCompatCreep: CatalogueEntry = {
   ],
   addedDate: '2026-04-22',
   status: 'active',
+  valence: 'failure',
   relatedPrinciple: 'mechanical-enforcement-over-instruction',
 };
 
@@ -71,6 +72,7 @@ const hitlSchemaBypass: CatalogueEntry = {
   ],
   addedDate: '2026-04-22',
   status: 'active',
+  valence: 'failure',
   relatedEntries: ['backwards-compat-creep'],
   relatedPrinciple: 'mechanical-enforcement-over-instruction',
 };
@@ -97,6 +99,7 @@ const scaffoldWithoutWiring: CatalogueEntry = {
   ],
   addedDate: '2026-04-22',
   status: 'active',
+  valence: 'failure',
 };
 
 const testSuiteDrift: CatalogueEntry = {
@@ -121,6 +124,7 @@ const testSuiteDrift: CatalogueEntry = {
   ],
   addedDate: '2026-04-22',
   status: 'active',
+  valence: 'failure',
   relatedPrinciple: 'mechanical-enforcement-over-instruction',
 };
 
@@ -146,6 +150,7 @@ const specDrift: CatalogueEntry = {
   ],
   addedDate: '2026-04-22',
   status: 'active',
+  valence: 'failure',
   relatedEntries: ['spec-as-illustration-drift'],
   relatedPrinciple: 'mechanical-enforcement-over-instruction',
 };
@@ -172,6 +177,7 @@ const mockMaskedReality: CatalogueEntry = {
   ],
   addedDate: '2026-04-22',
   status: 'active',
+  valence: 'failure',
   relatedPrinciple: 'mechanical-enforcement-over-instruction',
 };
 
@@ -197,6 +203,7 @@ const taskWithoutDeliverable: CatalogueEntry = {
   ],
   addedDate: '2026-04-22',
   status: 'active',
+  valence: 'failure',
   relatedPrinciple: 'unverified-work-is-failed',
 };
 
@@ -222,6 +229,7 @@ const defensiveNoOpMigration: CatalogueEntry = {
   ],
   addedDate: '2026-04-22',
   status: 'active',
+  valence: 'failure',
   relatedPrinciple: 'mechanical-enforcement-over-instruction',
 };
 
@@ -247,6 +255,7 @@ const specAsIllustration: CatalogueEntry = {
   ],
   addedDate: '2026-04-22',
   status: 'active',
+  valence: 'failure',
   relatedEntries: ['spec-drift-narrowed-assertions'],
   relatedPrinciple: 'mechanical-enforcement-over-instruction',
 };
@@ -273,6 +282,7 @@ const integrationTestEscape: CatalogueEntry = {
   ],
   addedDate: '2026-04-22',
   status: 'active',
+  valence: 'failure',
   relatedPrinciple: 'mechanical-enforcement-over-instruction',
 };
 
@@ -317,6 +327,7 @@ const unverifiedAccepted: CatalogueEntry = {
   ],
   addedDate: '2026-04-22',
   status: 'active',
+  valence: 'failure',
   relatedPrinciple: 'unverified-work-is-failed',
 };
 
@@ -343,6 +354,7 @@ const contextArtifactBloat: CatalogueEntry = {
   ],
   addedDate: '2026-04-22',
   status: 'active',
+  valence: 'failure',
   relatedEntries: ['versioned-context-drifts'],
   relatedPrinciple: 'one-constitution-many-projections',
 };
@@ -370,8 +382,209 @@ const versionedContextDrifts: CatalogueEntry = {
   ],
   addedDate: '2026-04-22',
   status: 'active',
+  valence: 'failure',
   relatedEntries: ['context-artifact-grows-unbounded', 'unverified-work-accepted-as-verified'],
   relatedPrinciple: 'one-constitution-many-projections',
+};
+
+// ---------------------------------------------------------------------------
+// Reviewer-patterns extension (docs/reviewer-patterns.md, Pass 2/3 signatures)
+// ---------------------------------------------------------------------------
+//
+// Seven additional entries graduated from the reviewer-patterns doc — patterns
+// that the reviewer side of the system was already flagging in production but
+// that didn't yet have catalogue counterparts. Adding them here means the
+// catalogue → rule pipeline can build detection rules against them in Step 3.
+//
+// One of these (`sketch-contradiction-self-correction`) carries
+// `valence: 'positive-signal'` — the catalogue isn't only failures; some
+// entries describe patterns worth amplifying when observed. The schema's
+// `valence` field carries this distinction without forcing a separate
+// type.
+
+const throwSwallowedByCatch: CatalogueEntry = {
+  id: 'throw-swallowed-by-catch',
+  signature:
+    'A diff adds a new `throw` statement (or a re-throw inside an existing handler) but the caller chain contains a `try/catch` block that catches a broader type than the thrown error. The new signal is silently intercepted by an unrelated catch — the throw exists in source but never reaches the layer designed to handle it.',
+  whyItHappens:
+    'Catch blocks are written to handle the errors the original author anticipated, with a type filter as broad as `catch (err)` or `catch (err: Error)`. When a later change introduces a new throw further down the call stack, the existing catch silently absorbs it. The author of the throw is reasoning locally ("this signal will propagate to the handler"); the catch is invisible from the throw site.',
+  countermeasure: {
+    rules: ['new-throws-checked-against-catcher-chain'],
+    structural:
+      'For every new `throw` in the diff, the reviewer walks the caller chain to the nearest `try/catch` and confirms the catch is either (a) specifically typed to match the thrown error or (b) explicitly re-throws/rethrows the new shape. A catch with `(err)` or `(err: unknown)` that does not re-throw is presumed to swallow.',
+  },
+  observedInstances: [
+    {
+      source: 'core-of-tomorrow:reviewer-patterns:pass-2',
+      kind: 'internal-incident',
+      summary:
+        'Reviewer Pass 2 grep pattern from the canonical reviewer-patterns doc: scan diffs for new `throw new <ErrorType>` statements, then walk callers for `try { ... } catch (...) { /* no re-throw */ }`. Several historical incidents in the prior platform shipped throws that no production catch had any reason to expect.',
+      date: '2026-04-22',
+    },
+  ],
+  addedDate: '2026-05-11',
+  status: 'active',
+  valence: 'failure',
+  relatedPrinciple: 'mechanical-enforcement-over-instruction',
+};
+
+const primedShellVerification: CatalogueEntry = {
+  id: 'primed-shell-verification',
+  signature:
+    'A standalone script, CLI, or verifier is exercised only from a shell that already has project-specific environment variables, PATH entries, or in-memory state set up. Tests pass; the same invocation from a fresh terminal (a freshly-spawned subprocess, a `env -i` shell, a clean CI environment) fails. The verification proved that "it works on the author\'s machine in this session," not "it works."',
+  whyItHappens:
+    "Long-running development sessions accumulate environment state — sourced `.envrc` files, exported variables, `nvm use`d Node versions, locally-installed binaries on `PATH`. Authors run their verification in that primed shell because it's the shell they're working in. The script reaches into the primed environment and succeeds. The author concludes the script works. CI or a colleague running the same script in a clean shell hits the unprimed reality.",
+  countermeasure: {
+    rules: ['standalone-verifications-run-in-unprimed-shell'],
+    structural:
+      "Standalone scripts and verifications must be exercised from a guaranteed-unprimed shell — `env -i <command>`, a freshly-spawned subprocess, a Docker container, or an explicit clean-environment harness — before they're accepted as verifying anything. The reviewer checks that the verification log shows the script running under a clean-env wrapper, not naked in the author's session.",
+  },
+  observedInstances: [
+    {
+      source: 'core-of-tomorrow:reviewer-patterns:pass-2',
+      kind: 'internal-incident',
+      summary:
+        'A sub-signature of `unverified-work-accepted-as-verified` specific to environment assumptions: the build log claims "I ran the script and it works," reviewer pulls the log and finds it ran in the author\'s session shell with project-local PATH and env state. The same script in a clean CI shell hit a missing-tool error within seconds.',
+      date: '2026-04-22',
+    },
+  ],
+  addedDate: '2026-05-11',
+  status: 'active',
+  valence: 'failure',
+  relatedEntries: ['unverified-work-accepted-as-verified'],
+  relatedPrinciple: 'unverified-work-is-failed',
+};
+
+const wrapperOverFirstClassPrimitive: CatalogueEntry = {
+  id: 'wrapper-over-first-class-primitive',
+  signature:
+    'A diff adds a wrapper (script, helper function, module, middleware, abstraction layer) that mostly just delegates to existing first-class functionality. The build log rationale is vague — "abstraction," "cleaner interface," "future-proofing," "consistency" — without naming a specific behavior the wrapper adds beyond the primitive it wraps.',
+  whyItHappens:
+    'The wrapper feels productive — it\'s code, it has a name, it has a test, it gives the author a clear ownership boundary. Building it is easier than confronting whether the primitive already does the job. Vague rationales ("future-proofing") provide cover for the absence of a concrete value-add. Each individual wrapper is defensible in isolation; collectively they balloon the API surface and obscure where behavior actually lives.',
+  countermeasure: {
+    rules: ['no-wrapper-over-first-class-primitive'],
+    structural:
+      'For every new wrapper, the reviewer asks: what does this wrapper do that the primitive doesn\'t? Acceptable answers name a concrete behavior — "adds retry with backoff," "normalizes the error shape across two SDKs," "enforces business-id scoping at the call boundary." Unacceptable answers are vague: "abstraction," "cleaner," "consistency," "future-proofing." When the rationale is vague, prefer calling the primitive directly.',
+  },
+  observedInstances: [
+    {
+      source: 'core-of-tomorrow:reviewer-patterns:pass-2',
+      kind: 'internal-incident',
+      summary:
+        'Several wrapper modules added during the April 2026 buildout that called through to platform primitives with no transformation. The wrappers existed because "the API will probably need to be different someday" — a future-proofing rationale with no current value-add. Reviewer Pass 2 grep pattern: new function/module whose body is a single delegation to a first-class primitive, with build-log rationale matching the vague-rationale phrase list.',
+      date: '2026-04-22',
+    },
+  ],
+  addedDate: '2026-05-11',
+  status: 'active',
+  valence: 'failure',
+  relatedPrinciple: 'mechanical-enforcement-over-instruction',
+};
+
+const writeThenValidateWithoutTransaction: CatalogueEntry = {
+  id: 'write-then-validate-without-transaction',
+  signature:
+    'A diff contains a database write followed by a refetch + validation step, but the two operations are not wrapped in a transaction. Three legitimate resolutions exist — transaction-wrap, validate-before-write, or log-and-signal-without-rollback — and the diff must make the choice explicit. A write-then-validate sequence with no transaction wrapping AND no explicit choice documented is a structural risk: a concurrent reader between the two steps sees post-write-pre-validation state, and a validation failure leaves the write committed.',
+  whyItHappens:
+    "The author thinks of write and validate as a single logical operation (\"I write the record, then I confirm it landed correctly\"). The transactional boundary is an implementation detail that's easy to skip when prototyping. Local testing rarely surfaces concurrent-reader scenarios; the gap appears in production under load. When validation fails post-write, the rollback path doesn't exist — the author hasn't thought through whether the write should be undone or whether the system should accept the inconsistent state and signal.",
+  countermeasure: {
+    rules: ['write-then-validate-makes-transaction-choice-explicit'],
+    structural:
+      'Three resolutions, choose one and make it explicit in the diff: (1) **transaction-wrap** — wrap write + validate in a single transaction so the validate failure rolls back the write; (2) **validate-before-write** — refactor so the validation runs against the candidate state before any write happens; (3) **log-and-signal-without-rollback** — accept the inconsistent state, log it, and emit a signal that triggers a follow-up reconciliation. The reviewer looks for the explicit choice in the diff or build log. Implicit "we\'ll figure it out if it breaks" is not a resolution.',
+  },
+  observedInstances: [
+    {
+      source: 'core-of-tomorrow:reviewer-patterns:pass-2',
+      kind: 'internal-incident',
+      summary:
+        "Reviewer Pass 2 grep pattern: new `await db.insert(...)` or `await db.update(...)` followed within the same async function by `await db.select(...)` and a subsequent `if (!isValid(...))` block. If the surrounding function doesn't use `db.transaction(...)` or equivalent, flag as write-then-validate-without-transaction. Several historical incidents shipped this shape and discovered the gap when concurrent traffic produced read-anomaly tickets.",
+      date: '2026-04-22',
+    },
+  ],
+  addedDate: '2026-05-11',
+  status: 'active',
+  valence: 'failure',
+  relatedPrinciple: 'mechanical-enforcement-over-instruction',
+};
+
+const sketchContradictionSelfCorrection: CatalogueEntry = {
+  id: 'sketch-contradiction-self-correction',
+  signature:
+    "The build log explicitly documents that the builder noticed a contradiction between the task body's implementation sketch and a governing invariant, requirement, or decision; chose the invariant-conforming path over the sketch; and documented the deviation with reasoning. This is the reinforcement target — the behavior the system wants to encourage.",
+  whyItHappens:
+    "The conditions that produce this pattern: the builder reads carefully, takes the implementation sketch as advisory rather than binding, recognizes when a sketch would violate a constitutional principle or a decision-record commitment, and is comfortable surfacing the deviation in the log rather than silently following the sketch or silently abandoning the task. Each piece is its own discipline; the combination is what the system depends on. Documenting the deviation with rationale makes the choice auditable and feeds the next cycle's builder.",
+  countermeasure: {
+    rules: ['sketch-contradiction-self-correction-recorded'],
+    structural:
+      "Reinforcement, not flagging. When the reviewer detects this pattern in a build log, it surfaces as a POSITIVE SIGNAL — a finding with `severity: 'LOW'` and a category that the renderer treats as encouragement rather than as something to fix. The reviewer cites the specific sketch / invariant / decision triple and the builder's chosen path. The signal flows to wherever the system aggregates patterns (catalogue, builder-feedback channels) so future builders see the example.",
+  },
+  observedInstances: [
+    {
+      source: 'core-of-tomorrow:reviewer-patterns:pass-2-positive',
+      kind: 'internal-incident',
+      summary:
+        "Observed in build logs where the task body's pseudocode would have implemented X but the surrounding context (decision short_id Y, principle core-3.Z, or another commitment) required not-X. The builder noted the contradiction, implemented the invariant-conforming version, and documented the deviation. Cited explicitly in the reviewer-patterns doc as the canonical positive-signal pattern.",
+      date: '2026-04-22',
+    },
+  ],
+  addedDate: '2026-05-11',
+  status: 'active',
+  valence: 'positive-signal',
+  relatedPrinciple: 'blockage-is-communication',
+};
+
+const retryScopeExpansionIntoArchitecturalConfig: CatalogueEntry = {
+  id: 'retry-scope-expansion-into-architectural-config',
+  signature:
+    "On a retry attempt (Attempt N where N ≥ 2), the diff touches denylisted architectural config files — `eslint.config.*`, `dep-cruiser.config.*`, `tsconfig*.json`, CI workflow files (`.github/workflows/*.yml`), `husky` hooks, or equivalent — without the task body's `## Scope` section explicitly authorizing that domain. The first attempt didn't need those changes; the retry is reaching into config to make a failing check pass.",
+  whyItHappens:
+    "A retry is operating under pressure: the original approach didn't work, the builder is looking for the locally-cheapest path to making the next verification pass. Architectural config files are tempting targets — turning off a rule, raising a threshold, or skipping a CI step is mechanically easier than fixing the underlying code. The retry inherits the task's scope but reaches outside it; the original task author wouldn't have approved the config change if it had been the first-attempt approach.",
+  countermeasure: {
+    rules: ['retry-attempts-respect-task-scope'],
+    structural:
+      "On any Attempt N ≥ 2, the reviewer cross-checks the diff against the task body's `## Scope` section. Changes to denylisted architectural config files require explicit authorization in the Scope section (a line naming the file and the reason). Unauthorized config changes on a retry are CRITICAL — they bypass the decision trail entirely and use compounding pressure as a justification for changes that wouldn't have been accepted up-front.",
+  },
+  observedInstances: [
+    {
+      source: 'core-of-tomorrow:reviewer-patterns:pass-3',
+      kind: 'internal-incident',
+      summary:
+        'Pattern observed multiple times in retry sequences during the April 2026 buildout: Attempt 1 fails verification, Attempt 2 adds an `eslint.config.*` rule disable or a CI-workflow change that resolves the verification gap by removing the gate rather than satisfying it. Reviewer Pass 3 grep pattern: diff that includes both a `## Attempt N` block with N ≥ 2 AND modifications to files matching the denylist regex.',
+      date: '2026-04-22',
+    },
+  ],
+  addedDate: '2026-05-11',
+  status: 'active',
+  valence: 'failure',
+  relatedEntries: ['unverified-work-accepted-as-verified'],
+  relatedPrinciple: 'blockage-is-communication',
+};
+
+const filesScopedOverrideRequiresCitedDecision: CatalogueEntry = {
+  id: 'files-scoped-override-requires-cited-decision',
+  signature:
+    'A commit adds or modifies a files-scoped `rules: { "...": "off" }` block in `eslint.config.*` (or equivalent in `biome.json`, `oxlint.json`, etc.) without citing a decision short_id in the commit message or build log. AND the cited decision\'s body must name the specific rule being allowlisted, the rationale, and the scope (which files / patterns the disable applies to). No citation or a citation whose body doesn\'t match → CRITICAL.',
+  whyItHappens:
+    "Per-file rule overrides are a powerful escape hatch that gets used reactively under pressure. A single file fails a lint rule the author can't (or won't) fix; the override is the path of least resistance. Without the citation discipline, the overrides accumulate silently — a year later the codebase has a thicket of files-scoped overrides nobody can explain, each defensible in isolation, collectively undermining the lint config's coverage.",
+  countermeasure: {
+    rules: ['files-scoped-rule-overrides-cite-decision'],
+    structural:
+      'Files-scoped overrides are tracked decisions, not local conveniences. Reviewer Pass 3 check: any diff modifying an `eslint.config.*` file (or equivalent) must have a decision citation in the commit message or build log. The reviewer fetches the cited decision and confirms the body names (a) the specific rule being allowlisted (e.g., `no-console`), (b) the scope (which files / patterns), (c) the rationale. Decisions that just say "we needed this off for X" without naming the rule + scope + rationale aren\'t compliant — the cited decision must be substantive.',
+  },
+  observedInstances: [
+    {
+      source: 'core-of-tomorrow:reviewer-patterns:pass-3',
+      kind: 'internal-incident',
+      summary:
+        "Pattern observed in retrospective audits of accumulated `eslint.config.*` overrides: roughly half of files-scoped rules: {} blocks had no decision citation in their introducing commit. Of those that did cite decisions, several pointed at decisions whose body didn't name the actual rule or scope being overridden. The reviewer-patterns doc codified the citation-substance requirement after that audit.",
+      date: '2026-04-22',
+    },
+  ],
+  addedDate: '2026-05-11',
+  status: 'active',
+  valence: 'failure',
+  relatedEntries: ['retry-scope-expansion-into-architectural-config'],
+  relatedPrinciple: 'blockage-is-communication',
 };
 
 /**
@@ -392,4 +605,11 @@ export const seedCatalogue: Catalogue = {
   [unverifiedAccepted.id]: unverifiedAccepted,
   [contextArtifactBloat.id]: contextArtifactBloat,
   [versionedContextDrifts.id]: versionedContextDrifts,
+  [throwSwallowedByCatch.id]: throwSwallowedByCatch,
+  [primedShellVerification.id]: primedShellVerification,
+  [wrapperOverFirstClassPrimitive.id]: wrapperOverFirstClassPrimitive,
+  [writeThenValidateWithoutTransaction.id]: writeThenValidateWithoutTransaction,
+  [sketchContradictionSelfCorrection.id]: sketchContradictionSelfCorrection,
+  [retryScopeExpansionIntoArchitecturalConfig.id]: retryScopeExpansionIntoArchitecturalConfig,
+  [filesScopedOverrideRequiresCitedDecision.id]: filesScopedOverrideRequiresCitedDecision,
 };
