@@ -3,12 +3,16 @@ import type { ResolveOptions } from './resolve.js';
 import { checkRule } from './rules/check.js';
 import { loadInlineSource } from './source/inline.js';
 import type { InlineSource } from './source/inline.js';
+import { loadGitSource, loadStagedSource } from './source/git-source.js';
 import { computeVerdict, summarizeFindings } from './verdict.js';
-import type { Constitution, Finding, Scope, VerifyResult } from './schemas.js';
+import type { Constitution, ExceptionRegistry, Finding, Scope, VerifyResult } from './schemas.js';
+import type { CustomCheck } from './source/types.js';
 
 /**
- * Git-backed source. Reserved by the public API for phase 2; verify() throws
- * at runtime if it receives one in phase 1.
+ * Git-backed source. `verify()` creates an isolated worktree at
+ * `.effective/work` pointed at `work`, runs the configured toolchain
+ * commands there, parses their output, then runs every rule against
+ * the diff (work vs baseline).
  */
 export interface GitSource {
   readonly kind: 'git';
@@ -18,7 +22,9 @@ export interface GitSource {
 }
 
 /**
- * Staged-changes source. Reserved for phase 2 (powers `effective verify --staged`).
+ * Staged-changes source. Powers `effective verify --staged`. Toolchain
+ * commands run in the repo working tree (not in a worktree). Use only
+ * for pre-commit verification where the index is the authoritative diff.
  */
 export interface StagedSource {
   readonly kind: 'staged';
@@ -32,6 +38,12 @@ export interface VerifyInput {
   config: Constitution;
   source: VerifySource;
   resolveOptions?: ResolveOptions;
+  /** Custom check functions referenced by CustomRule.checkRef. */
+  customChecks?: Readonly<Record<string, CustomCheck>>;
+  /** Project's exception registry (defineExceptions() output). */
+  exceptions?: ExceptionRegistry;
+  /** Structured artifacts (e.g., spec body keyed by path). */
+  artifacts?: Readonly<Record<string, unknown>>;
 }
 
 function dedupeBySignature(findings: readonly Finding[]): Finding[] {
@@ -57,24 +69,69 @@ function dedupeBySignature(findings: readonly Finding[]): Finding[] {
 export async function verify(input: VerifyInput): Promise<VerifyResult> {
   const resolved = resolveConstitution(input.config, input.resolveOptions ?? {});
   const scope = resolveScope(input.scope, resolved);
+  const customChecks = input.customChecks ?? {};
+  const artifacts = input.artifacts ?? {};
+  const exceptions = input.exceptions ?? {};
 
-  if (input.source.kind !== 'inline') {
-    throw new Error(
-      `verify() received a source of kind "${input.source.kind}" but only "inline" is supported in phase 1.`,
-    );
+  let cleanup: () => Promise<void> = () => Promise.resolve();
+  let ctx;
+  try {
+    if (input.source.kind === 'inline') {
+      ctx = loadInlineSource(
+        {
+          ...input.source,
+          customChecks: { ...customChecks, ...input.source.customChecks },
+          artifacts: { ...artifacts, ...input.source.artifacts },
+          exceptionRegistry: input.source.exceptionRegistry ?? exceptions,
+        },
+        scope,
+      );
+    } else if (input.source.kind === 'git') {
+      const loaded = await loadGitSource({
+        repo: input.source.repo,
+        work: input.source.work,
+        baseline: input.source.baseline,
+        resolved,
+        scope,
+        customChecks,
+        artifacts,
+        exceptions,
+      });
+      ctx = loaded.ctx;
+      cleanup = loaded.cleanup;
+    } else {
+      const loaded = await loadStagedSource({
+        repo: input.source.repo,
+        resolved,
+        scope,
+        customChecks,
+        artifacts,
+        exceptions,
+      });
+      ctx = loaded.ctx;
+      cleanup = loaded.cleanup;
+    }
+
+    const findings: Finding[] = [];
+    for (const rule of resolved.rules.values()) {
+      const ruleFindings = await checkRule(rule, ctx);
+      findings.push(...ruleFindings);
+    }
+    // On a passing run, fold in pre-parsed toolchain findings that no rule
+    // explicitly consumed — they're still valuable signal.
+    for (const toolResult of Object.values(ctx.toolchainResults)) {
+      for (const finding of toolResult.findings ?? []) {
+        findings.push(finding);
+      }
+    }
+
+    const deduped = dedupeBySignature(findings);
+    return {
+      verdict: computeVerdict(deduped),
+      findings: deduped,
+      summary: summarizeFindings(deduped),
+    };
+  } finally {
+    await cleanup();
   }
-  const ctx = loadInlineSource(input.source, scope);
-
-  const findings: Finding[] = [];
-  for (const rule of resolved.rules.values()) {
-    const ruleFindings = await checkRule(rule, ctx);
-    findings.push(...ruleFindings);
-  }
-
-  const deduped = dedupeBySignature(findings);
-  return {
-    verdict: computeVerdict(deduped),
-    findings: deduped,
-    summary: summarizeFindings(deduped),
-  };
 }

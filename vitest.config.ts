@@ -13,6 +13,7 @@ export default defineConfig({
         'src/cli.ts',
         // Type-only modules — no executable code, nothing to cover.
         'src/source/types.ts',
+        'src/toolchain/parsers/types.ts',
       ],
       thresholds: {
         lines: 90,

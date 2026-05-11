@@ -55,6 +55,36 @@ export default defineConfig([
       '@typescript-eslint/no-unsafe-member-access': 'off',
       '@typescript-eslint/no-magic-numbers': 'off',
       'security/detect-object-injection': 'off',
+      // Test fixtures legitimately write to derived paths in tmpdir.
+      'security/detect-non-literal-fs-filename': 'off',
+    },
+  },
+  // Engine modules that legitimately access filesystem paths and keyed maps
+  // derived from project-trusted configuration (rule ids, scope.spec, tool
+  // names, worktree paths). The threat model treats these inputs as trusted
+  // code, not untrusted user input — see DESIGN.md on why `effective.config.ts`
+  // is part of the trusted base.
+  {
+    files: [
+      'src/worktree.ts',
+      'src/source/**/*.ts',
+      'src/escape-hatches/**/*.ts',
+      'src/toolchain/parsers/**/*.ts',
+      'src/rules/kinds/**/*.ts',
+    ],
+    rules: {
+      'security/detect-non-literal-fs-filename': 'off',
+      'security/detect-object-injection': 'off',
+    },
+  },
+  // The escape-hatch scanner relies on a curated set of pattern regexes that
+  // are statically declared in the module. safe-regex's heuristic flags them
+  // as nested-quantifier-suspect, but they target a small, fixed alphabet of
+  // suppression-comment shapes — no user input feeds the regex bodies.
+  {
+    files: ['src/escape-hatches/scan.ts'],
+    rules: {
+      'security/detect-unsafe-regex': 'off',
     },
   },
   {

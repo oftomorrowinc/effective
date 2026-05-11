@@ -54,7 +54,7 @@ export function checkSpec(rule: SpecRule, ctx: VerifyContext): Finding[] {
   }
   // ctx.artifacts is a string-keyed Record; access by a key derived from the
   // resolved scope is intentional and the scope is project-controlled.
-  // eslint-disable-next-line security/detect-object-injection
+
   const specArtifact = ctx.artifacts[spec];
   if (typeof specArtifact !== 'string') {
     return [

@@ -88,14 +88,16 @@ describe('verify — end-to-end', () => {
     expect(result.findings).toEqual([]);
   });
 
-  it('throws when a non-inline source kind is supplied (phase 2 territory)', async () => {
+  it('surfaces git errors when refs do not exist', async () => {
+    // verify() attempts to run `git diff` with the given refs; an invalid
+    // ref should produce a clear failure rather than a silent pass.
     await expect(
       verify({
         scope: scope('free-form'),
         config: singleRuleConfig('no-todo'),
-        source: { kind: 'git', repo: '.', work: 'x', baseline: 'main' },
+        source: { kind: 'git', repo: '.', work: 'nope-x', baseline: 'nope-y' },
       }),
-    ).rejects.toThrowError(/only "inline" is supported in phase 1/);
+    ).rejects.toThrowError(/git/);
   });
 
   it('dedupes identical findings emitted by multiple paths', async () => {

@@ -43,7 +43,7 @@ export function checkToolchain(rule: ToolchainRule, ctx: VerifyContext): Finding
   const key = resultKey(rule);
   // Key derives from the rule's tool field (an enum) or rule.name (declared in
   // the rule definition). Both come from trusted project config.
-  // eslint-disable-next-line security/detect-object-injection
+
   const result = ctx.toolchainResults[key];
   if (result === undefined) {
     return [
