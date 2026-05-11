@@ -1,6 +1,17 @@
 import { resolveConstitution, resolveScope } from './resolve.js';
 import type { ResolveOptions, ResolvedConstitution, ResolvedScope } from './resolve.js';
+import { presets } from './presets/index.js';
 import type { Constitution, Rule, Scope } from './schemas.js';
+
+function withBuiltInPresets(options: ResolveOptions): ResolveOptions {
+  return {
+    ...options,
+    presetRegistry: {
+      recommended: presets.recommended,
+      ...options.presetRegistry,
+    },
+  };
+}
 
 export interface PrepareInput {
   scope: Scope;
@@ -51,7 +62,10 @@ function formatEditable(scope: ResolvedScope): string {
 }
 
 export function prepare(input: PrepareInput): string {
-  const resolved = resolveConstitution(input.config, input.resolveOptions ?? {});
+  const resolved = resolveConstitution(
+    input.config,
+    withBuiltInPresets(input.resolveOptions ?? {}),
+  );
   const scope = resolveScope(input.scope, resolved);
   const rules = selectApplicableRules(scope, resolved);
 

@@ -41,16 +41,10 @@ export function checkSpec(rule: SpecRule, ctx: VerifyContext): Finding[] {
   }
   const spec = ctx.scope.spec;
   if (spec === undefined) {
-    return [
-      {
-        ruleId: rule.id,
-        severity: rule.defaultSeverity,
-        category: rule.category,
-        evidence: '(scope.spec is not set)',
-        message: `Spec rule "${rule.id}" requires scope.spec but none was provided. ${rule.prompt.guidance}`,
-        source: { kind: 'rule', ruleId: rule.id },
-      },
-    ];
+    // Spec rules are scope-conditional: they only apply when a spec is
+    // declared. Without scope.spec, the rule is a no-op rather than a
+    // false-positive finding.
+    return [];
   }
   // ctx.artifacts is a string-keyed Record; access by a key derived from the
   // resolved scope is intentional and the scope is project-controlled.

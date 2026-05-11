@@ -71,10 +71,15 @@ export default defineConfig([
       'src/escape-hatches/**/*.ts',
       'src/toolchain/parsers/**/*.ts',
       'src/rules/kinds/**/*.ts',
+      'src/cli/**/*.ts',
+      'src/config/**/*.ts',
     ],
     rules: {
       'security/detect-non-literal-fs-filename': 'off',
       'security/detect-object-injection': 'off',
+      // CLI argv parsing is not security-sensitive; the rule fires on
+      // mundane string-equality checks against literal flag tokens.
+      'security/detect-possible-timing-attacks': 'off',
     },
   },
   // The escape-hatch scanner relies on a curated set of pattern regexes that

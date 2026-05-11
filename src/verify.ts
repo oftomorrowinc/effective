@@ -5,8 +5,19 @@ import { loadInlineSource } from './source/inline.js';
 import type { InlineSource } from './source/inline.js';
 import { loadGitSource, loadStagedSource } from './source/git-source.js';
 import { computeVerdict, summarizeFindings } from './verdict.js';
+import { builtInChecks, presets } from './presets/index.js';
 import type { Constitution, ExceptionRegistry, Finding, Scope, VerifyResult } from './schemas.js';
 import type { CustomCheck } from './source/types.js';
+
+function withBuiltInPresets(options: ResolveOptions): ResolveOptions {
+  return {
+    ...options,
+    presetRegistry: {
+      recommended: presets.recommended,
+      ...options.presetRegistry,
+    },
+  };
+}
 
 /**
  * Git-backed source. `verify()` creates an isolated worktree at
@@ -67,9 +78,12 @@ function dedupeBySignature(findings: readonly Finding[]): Finding[] {
 }
 
 export async function verify(input: VerifyInput): Promise<VerifyResult> {
-  const resolved = resolveConstitution(input.config, input.resolveOptions ?? {});
+  const resolved = resolveConstitution(
+    input.config,
+    withBuiltInPresets(input.resolveOptions ?? {}),
+  );
   const scope = resolveScope(input.scope, resolved);
-  const customChecks = input.customChecks ?? {};
+  const customChecks = { ...builtInChecks, ...input.customChecks };
   const artifacts = input.artifacts ?? {};
   const exceptions = input.exceptions ?? {};
 

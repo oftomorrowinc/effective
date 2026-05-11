@@ -299,8 +299,8 @@ describe('checkSpec — test-names-land-verbatim', () => {
     expect(findings[0]?.evidence).toMatch(/returns 429 when exceeded/);
   });
 
-  it('flags missing scope.spec', () => {
-    expect(checkSpec(baseRule, ctx())[0]?.evidence).toMatch(/scope.spec is not set/);
+  it('is a no-op when scope.spec is not set (scope-conditional)', () => {
+    expect(checkSpec(baseRule, ctx())).toEqual([]);
   });
 
   it('flags missing spec artifact', () => {
