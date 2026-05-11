@@ -1,0 +1,17 @@
+{
+  "threshold": 0.5,
+  "minTokens": 50,
+  "minLines": 5,
+  "absolute": false,
+  "reporters": ["console"],
+  "ignore": [
+    "**/node_modules/**",
+    "**/dist/**",
+    "**/coverage/**",
+    "**/.effective/**",
+    "**/*.md",
+    "**/test/fixtures/**"
+  ],
+  "format": ["typescript", "javascript"],
+  "gitignore": true
+}

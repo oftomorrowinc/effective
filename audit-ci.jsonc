@@ -1,0 +1,7 @@
+{
+  "moderate": true,
+  "package-manager": "pnpm",
+  "report-type": "important",
+  "show-found": false,
+  "allowlist": ["GHSA-4w7w-66w2-5vf9", "GHSA-67mh-4wv8-2f99"],
+}

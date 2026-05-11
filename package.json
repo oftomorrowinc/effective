@@ -1,0 +1,124 @@
+{
+  "name": "effective",
+  "version": "0.0.0",
+  "description": "A shared constitution for collaborative work on a codebase, with mechanical enforcement that runs against any worker's output — agent, human, or script.",
+  "keywords": [
+    "constitution",
+    "rules",
+    "verify",
+    "lint",
+    "agent",
+    "llm",
+    "quality",
+    "governance"
+  ],
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "packageManager": "pnpm@10.33.2",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "effective": "./dist/cli.mjs"
+  },
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    },
+    "./schemas": {
+      "import": {
+        "types": "./dist/schemas.d.ts",
+        "default": "./dist/schemas.js"
+      },
+      "require": {
+        "types": "./dist/schemas.d.cts",
+        "default": "./dist/schemas.cjs"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint . --max-warnings 0",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "dup": "jscpd",
+    "unused": "knip",
+    "deps:check": "depcruise src",
+    "secrets": "secretlint '**/*'",
+    "audit:ci": "audit-ci --config audit-ci.jsonc",
+    "pack:check": "publint && attw --pack --profile node16",
+    "prepublishOnly": "pnpm run build",
+    "prepare": "simple-git-hooks"
+  },
+  "peerDependencies": {
+    "zod": ">=3.22.0 <5"
+  },
+  "devDependencies": {
+    "@arethetypeswrong/cli": "^0.18.2",
+    "@commitlint/cli": "^19.6.1",
+    "@commitlint/config-conventional": "^19.6.0",
+    "@eslint/js": "10.0.1",
+    "@secretlint/secretlint-rule-preset-recommend": "^9.0.0",
+    "@types/node": "^22.10.5",
+    "@vitest/coverage-v8": "^3.2.4",
+    "audit-ci": "^7.1.0",
+    "dependency-cruiser": "^16.7.0",
+    "eslint": "^9.17.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-import": "^2.31.0",
+    "eslint-plugin-n": "^17.15.1",
+    "eslint-plugin-promise": "^7.2.1",
+    "eslint-plugin-security": "^3.0.1",
+    "eslint-plugin-unicorn": "^56.0.1",
+    "jscpd": "^4.0.5",
+    "knip": "^5.41.1",
+    "lint-staged": "^15.3.0",
+    "prettier": "^3.4.2",
+    "publint": "^0.3.0",
+    "secretlint": "^9.0.0",
+    "simple-git-hooks": "^2.11.1",
+    "tsup": "^8.3.5",
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.19.1",
+    "vitest": "^3.2.4",
+    "zod": "^3.24.1"
+  },
+  "simple-git-hooks": {
+    "pre-commit": "pnpm exec lint-staged",
+    "commit-msg": "pnpm exec commitlint --edit \"$1\""
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,mjs,cjs}": [
+      "prettier --write",
+      "eslint --fix --max-warnings 0"
+    ],
+    "*.{md,json,yml,yaml}": [
+      "prettier --write"
+    ],
+    "*": [
+      "secretlint"
+    ]
+  }
+}
