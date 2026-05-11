@@ -14,7 +14,63 @@ describe('presets.recommended — shape', () => {
     expect(ids).toContain('toolchain.typecheck-clean');
     expect(ids).toContain('toolchain.tests-pass');
     expect(ids).toContain('toolchain.coverage-non-decreasing');
-    expect(ids).toContain('spec.test-names-land-verbatim');
+    expect(ids).toContain('specd-test-names-land-verbatim');
+  });
+
+  it('contains the catalogue-driven architecture rules', () => {
+    const ids = new Set(presets.recommended.rules?.map((r) => r.id) ?? []);
+    expect(ids).toContain('no-parallel-systems-without-migration');
+    expect(ids).toContain('retirement-task-declared-as-dependency');
+    expect(ids).toContain('canonical-validation-not-bypassed');
+    expect(ids).toContain('new-exports-have-non-test-callers');
+    expect(ids).toContain('no-wrapper-over-first-class-primitive');
+  });
+
+  it('contains the catalogue-driven test-discipline rules', () => {
+    const ids = new Set(presets.recommended.rules?.map((r) => r.id) ?? []);
+    expect(ids).toContain('no-disabled-tests-without-exception');
+    expect(ids).toContain('test-count-non-decreasing');
+    expect(ids).toContain('mocks-only-at-external-boundaries');
+    expect(ids).toContain('mocks-must-be-type-bound');
+    expect(ids).toContain('task-has-durable-test-artifact');
+    expect(ids).toContain('no-alternative-tests-claiming-spec');
+    expect(ids).toContain('assertions-not-narrowed');
+  });
+
+  it('contains the catalogue-driven data-discipline rules', () => {
+    const ids = new Set(presets.recommended.rules?.map((r) => r.id) ?? []);
+    expect(ids).toContain('migration-has-exercising-test');
+    expect(ids).toContain('integration-test-writes-scope-wrapped');
+    expect(ids).toContain('test-harness-default-business-id-override');
+    expect(ids).toContain('write-then-validate-makes-transaction-choice-explicit');
+  });
+
+  it('contains the catalogue-driven governance rules', () => {
+    const ids = new Set(presets.recommended.rules?.map((r) => r.id) ?? []);
+    expect(ids).toContain('context-artifact-size-monitored');
+    expect(ids).toContain('constitution-version-hash-verified-at-boot');
+    expect(ids).toContain('new-throws-checked-against-catcher-chain');
+    expect(ids).toContain('files-scoped-rule-overrides-cite-decision');
+  });
+
+  it('every catalogue-driven rule cites a catalogueEntry + relatedPrinciple', () => {
+    const rules = presets.recommended.rules ?? [];
+    // Foundation rules (lane, exceptions, toolchain) don't necessarily cite a
+    // catalogue entry — they're shipped infrastructure. Catalogue-driven rules
+    // (everything else) must cite both fields.
+    const FOUNDATION_IDS = new Set([
+      'lane.editable-respected',
+      'exceptions.must-cite-justification',
+      'toolchain.lint-clean',
+      'toolchain.typecheck-clean',
+      'toolchain.tests-pass',
+      'toolchain.coverage-non-decreasing',
+    ]);
+    for (const r of rules) {
+      if (FOUNDATION_IDS.has(r.id)) continue;
+      expect(r.catalogueEntry, `rule ${r.id} cites catalogueEntry`).toBeDefined();
+      expect(r.relatedPrinciple, `rule ${r.id} cites relatedPrinciple`).toBeDefined();
+    }
   });
 
   it('resolves cleanly via resolveConstitution with the built-in registry', () => {
@@ -23,6 +79,64 @@ describe('presets.recommended — shape', () => {
       { presetRegistry: { recommended: presets.recommended } },
     );
     expect(resolved.rules.has('lane.editable-respected')).toBe(true);
+    expect(resolved.rules.has('no-parallel-systems-without-migration')).toBe(true);
+  });
+});
+
+describe('appliesToRoles — role filtering', () => {
+  it('skips role-restricted rules during verify() when the scope.role is excluded', async () => {
+    // Test-discipline rules have appliesToRoles: ['test-writer','code-writer','free-form']
+    // — a 'reviewer' scope should NOT trip them.
+    const config: Constitution = {
+      extends: ['recommended'],
+      disable: {
+        // Disable toolchain rules so we focus on the catalogue rules.
+        'toolchain.lint-clean': 'inline source — no toolchain results',
+        'toolchain.typecheck-clean': 'inline source — no toolchain results',
+        'toolchain.tests-pass': 'inline source — no toolchain results',
+        'toolchain.coverage-non-decreasing': 'inline source — no toolchain results',
+      },
+    };
+    const reviewerScope = scope('reviewer', { editable: [] });
+    const result = await verify({
+      scope: reviewerScope,
+      config,
+      // A diff that WOULD trip test-discipline rules — a test file with .skip
+      source: {
+        kind: 'inline',
+        changedFiles: [changed('test/a.test.ts', "it.skip('x', () => {});", 'modified')],
+      },
+    });
+    // Reviewer doesn't write tests, so test-discipline rules don't apply.
+    // The .skip pattern is in a test file but the rule isn't fired for this role.
+    const noTodoFiring = result.findings.find(
+      (f) => f.ruleId === 'no-disabled-tests-without-exception',
+    );
+    expect(noTodoFiring).toBeUndefined();
+  });
+
+  it('still fires role-restricted rules when scope.role matches', async () => {
+    const config: Constitution = {
+      extends: ['recommended'],
+      disable: {
+        'toolchain.lint-clean': 'inline source — no toolchain results',
+        'toolchain.typecheck-clean': 'inline source — no toolchain results',
+        'toolchain.tests-pass': 'inline source — no toolchain results',
+        'toolchain.coverage-non-decreasing': 'inline source — no toolchain results',
+        'lane.editable-respected': 'wide editable for this test',
+      },
+    };
+    const result = await verify({
+      scope: scope('test-writer', { editable: ['**/*'] }),
+      config,
+      source: {
+        kind: 'inline',
+        changedFiles: [changed('test/a.test.ts', "it.skip('x', () => {});", 'modified')],
+      },
+    });
+    expect(result.findings.some((f) => f.ruleId === 'no-disabled-tests-without-exception')).toBe(
+      true,
+    );
   });
 });
 

@@ -13,7 +13,15 @@ import type {
 import type { z } from 'zod';
 
 type FactoryDefaults = Partial<
-  Pick<Rule, 'category' | 'defaultSeverity' | 'description' | 'catalogueEntry' | 'relatedPrinciple'>
+  Pick<
+    Rule,
+    | 'category'
+    | 'defaultSeverity'
+    | 'description'
+    | 'catalogueEntry'
+    | 'relatedPrinciple'
+    | 'appliesToRoles'
+  >
 >;
 
 interface PatternOptions extends FactoryDefaults {
@@ -95,6 +103,7 @@ function withDefaults<T extends Rule>(
     ...(defaults.relatedPrinciple === undefined
       ? {}
       : { relatedPrinciple: defaults.relatedPrinciple }),
+    ...(defaults.appliesToRoles === undefined ? {} : { appliesToRoles: defaults.appliesToRoles }),
   };
 }
 

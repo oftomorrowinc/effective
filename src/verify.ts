@@ -1,6 +1,7 @@
 import { resolveConstitution, resolveScope } from './resolve.js';
 import type { ResolveOptions } from './resolve.js';
 import { checkRule } from './rules/check.js';
+import { ruleAppliesToRole } from './rules/selection.js';
 import { loadInlineSource } from './source/inline.js';
 import type { InlineSource } from './source/inline.js';
 import { loadGitSource, loadStagedSource } from './source/git-source.js';
@@ -128,6 +129,7 @@ export async function verify(input: VerifyInput): Promise<VerifyResult> {
 
     const findings: Finding[] = [];
     for (const rule of resolved.rules.values()) {
+      if (!ruleAppliesToRole(rule, scope.role)) continue;
       const ruleFindings = await checkRule(rule, ctx);
       findings.push(...ruleFindings);
     }

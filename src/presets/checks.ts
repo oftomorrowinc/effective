@@ -1,5 +1,6 @@
 import { scanFilesForEscapeHatches } from '../escape-hatches/scan.js';
 import { validateEscapeHatches } from '../escape-hatches/validate.js';
+import { catalogueStubChecks } from './rules/stubs.js';
 import type { CustomCheck } from '../source/types.js';
 
 /**
@@ -20,6 +21,15 @@ export const exceptionsMustCiteJustification: CustomCheck = (rule, ctx) => {
   });
 };
 
+/**
+ * Built-in custom-check registry. Merged into every verify() call by
+ * default; users can override any entry by passing their own
+ * `customChecks` map to verify(). Includes both the substantive
+ * `exceptionsMustCiteJustification` check and the catalogue-rule stubs
+ * (which return no findings until project-specific implementations
+ * land).
+ */
 export const builtInChecks: Readonly<Record<string, CustomCheck>> = {
   exceptionsMustCiteJustification,
+  ...catalogueStubChecks,
 };

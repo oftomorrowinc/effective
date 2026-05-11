@@ -1,6 +1,7 @@
 import { resolveConstitution, resolveScope } from './resolve.js';
-import type { ResolveOptions, ResolvedConstitution, ResolvedScope } from './resolve.js';
+import type { ResolveOptions, ResolvedScope } from './resolve.js';
 import { presets } from './presets/index.js';
+import { selectApplicableRules } from './rules/selection.js';
 import type { Constitution, Rule, Scope } from './schemas.js';
 
 function withBuiltInPresets(options: ResolveOptions): ResolveOptions {
@@ -18,18 +19,6 @@ export interface PrepareInput {
   config: Constitution;
   original: string;
   resolveOptions?: ResolveOptions;
-}
-
-function selectApplicableRules(scope: ResolvedScope, resolved: ResolvedConstitution): Rule[] {
-  if (scope.relatedRules !== undefined && scope.relatedRules.length > 0) {
-    const explicit: Rule[] = [];
-    for (const id of scope.relatedRules) {
-      const rule = resolved.rules.get(id);
-      if (rule) explicit.push(rule);
-    }
-    return explicit;
-  }
-  return [...resolved.rules.values()];
 }
 
 function formatRule(rule: Rule): string {

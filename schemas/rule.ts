@@ -81,6 +81,18 @@ const RuleBase = z.object({
   catalogueEntry: z.string().optional(),
   /** Linked principle, if this rule operationalizes one. */
   relatedPrinciple: z.string().optional(),
+  /**
+   * Roles for which this rule should appear in `prepare()` output and
+   * apply during `verify()`. If absent, the rule applies to every role.
+   * The checklist renderer intersects scope.role with this list when
+   * selecting rules to surface for a worker; rules that don't apply to
+   * the current role are silently skipped during rule dispatch.
+   *
+   * Format: role names as strings — built-in roles ('test-writer',
+   * 'code-writer', 'reviewer', 'free-form') or custom role names
+   * registered in `config.roles`.
+   */
+  appliesToRoles: z.array(z.string()).optional(),
   /** How this rule appears in `prepare()` output. */
   prompt: PromptProjection,
 });
