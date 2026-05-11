@@ -220,6 +220,42 @@ export const CustomRule = RuleBase.extend({
 });
 export type CustomRule = z.infer<typeof CustomRule>;
 
+/**
+ * Meta rule — reads the worker's own report (build log, attempt log,
+ * verification commands run) rather than the diff itself. Distinct from
+ * the other kinds because the input shape is different: instead of
+ * `(diff) → Finding[]`, a meta rule's check is
+ * `(diff, agentReport) → Finding[]`.
+ *
+ * Use for self-report checks: transparent-unverification (log claims
+ * "couldn't verify X" while saying Result: Success), fabricated-
+ * verification (log claims a verification the commit state contradicts),
+ * narrow-verification (verification covers a narrower scope than the
+ * task's exit criterion), retry-scope-expansion (attempt N ≥ 2 touches
+ * denylisted config files), sketch-contradiction-self-correction
+ * (positive-signal pattern), primed-shell-verification, exit-bar-claims-
+ * mechanically-verified.
+ *
+ * The agent report is supplied via `VerifyInput.agentReport` (free-form
+ * string — typically the build log markdown). When `agentReport` is
+ * absent, meta rules emit no findings; the check is opt-in to scopes
+ * that have the report available.
+ */
+export const MetaRule = RuleBase.extend({
+  kind: z.literal('meta'),
+  /** Reference to a meta-check function exported from effective.config.ts. */
+  checkRef: z.string(),
+  /**
+   * Optional marker for positive-signal meta rules. When true, findings
+   * emitted by this rule are surfaces of reinforcement (the worker did
+   * the right thing) rather than failures to fix. The finding still
+   * appears in `VerifyResult.findings` but its severity is typically
+   * 'LOW' and the renderer treats it differently.
+   */
+  positiveSignal: z.boolean().optional(),
+});
+export type MetaRule = z.infer<typeof MetaRule>;
+
 export const Rule = z.discriminatedUnion('kind', [
   SchemaRule,
   PatternRule,
@@ -227,6 +263,7 @@ export const Rule = z.discriminatedUnion('kind', [
   SpecRule,
   ToolchainRule,
   CustomRule,
+  MetaRule,
 ]);
 export type Rule = z.infer<typeof Rule>;
 

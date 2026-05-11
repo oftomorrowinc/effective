@@ -2,6 +2,7 @@ import { resolveConstitution, resolveScope } from './resolve.js';
 import type { ResolveOptions, ResolvedScope } from './resolve.js';
 import { presets } from './presets/index.js';
 import { selectApplicableRules } from './rules/selection.js';
+import { renderChecklist } from './checklist.js';
 import type { Constitution, Rule, Scope } from './schemas.js';
 
 function withBuiltInPresets(options: ResolveOptions): ResolveOptions {
@@ -95,6 +96,12 @@ export function prepare(input: PrepareInput): string {
   }
 
   sections.push(
+    '',
+    renderChecklist({
+      scope,
+      applicableRules: rules,
+      allRules: [...resolved.rules.values()],
+    }),
     '',
     '## How verification will run',
     'After you submit, `verify()` runs every rule above against your diff plus the project toolchain (lint, typecheck, tests, coverage). ' +

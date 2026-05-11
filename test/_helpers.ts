@@ -1,5 +1,6 @@
+import { compilePatterns } from '../src/glob.js';
 import type { Constitution, Rule, Scope } from '../src/schemas.js';
-import type { ChangedFile } from '../src/source/types.js';
+import type { ChangedFile, VerifyContext } from '../src/source/types.js';
 
 export function patternRule(id: string, overrides: Partial<Rule> = {}): Rule {
   return {
@@ -47,4 +48,18 @@ export function changed(
 
 export function singleRuleConfig(id: string, overrides: Partial<Rule> = {}): Constitution {
   return { rules: [patternRule(id, overrides)] };
+}
+
+/** Shared VerifyContext builder used by tests that drive rule-kind checkers directly. */
+export function ctx(overrides: Partial<VerifyContext> = {}): VerifyContext {
+  return {
+    changedFiles: [],
+    editableMatcher: compilePatterns(['**/*']),
+    scope: { goal: '', editable: ['**/*'], role: 'free-form', expectations: {} },
+    artifacts: {},
+    toolchainResults: {},
+    customChecks: {},
+    exceptionRegistry: {},
+    ...overrides,
+  };
 }

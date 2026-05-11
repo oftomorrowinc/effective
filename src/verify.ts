@@ -50,12 +50,17 @@ export interface VerifyInput {
   config: Constitution;
   source: VerifySource;
   resolveOptions?: ResolveOptions;
-  /** Custom check functions referenced by CustomRule.checkRef. */
+  /** Custom check functions referenced by CustomRule.checkRef and MetaRule.checkRef. */
   customChecks?: Readonly<Record<string, CustomCheck>>;
   /** Project's exception registry (defineExceptions() output). */
   exceptions?: ExceptionRegistry;
   /** Structured artifacts (e.g., spec body keyed by path). */
   artifacts?: Readonly<Record<string, unknown>>;
+  /**
+   * Optional worker self-report — typically the build log markdown.
+   * MetaRule checks read this; when absent, meta rules silently skip.
+   */
+  agentReport?: string;
 }
 
 function dedupeBySignature(findings: readonly Finding[]): Finding[] {
@@ -125,6 +130,10 @@ export async function verify(input: VerifyInput): Promise<VerifyResult> {
       });
       ctx = loaded.ctx;
       cleanup = loaded.cleanup;
+    }
+
+    if (input.agentReport !== undefined) {
+      ctx = { ...ctx, agentReport: input.agentReport };
     }
 
     const findings: Finding[] = [];

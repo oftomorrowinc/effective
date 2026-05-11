@@ -1,21 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { checkRule } from '../src/rules/check.js';
 import { compilePatterns } from '../src/glob.js';
+import { ctx } from './_helpers.js';
 import type { Rule } from '../src/schemas.js';
-import type { ChangedFile, VerifyContext } from '../src/source/types.js';
-
-function ctx(overrides: Partial<VerifyContext> = {}): VerifyContext {
-  return {
-    changedFiles: [],
-    editableMatcher: compilePatterns(['**/*']),
-    scope: { goal: '', editable: ['**/*'], role: 'free-form', expectations: {} },
-    artifacts: {},
-    toolchainResults: {},
-    customChecks: {},
-    exceptionRegistry: {},
-    ...overrides,
-  };
-}
+import type { ChangedFile } from '../src/source/types.js';
 
 describe('checkRule — dispatch covers every kind', () => {
   it('routes pattern → checkPattern', async () => {

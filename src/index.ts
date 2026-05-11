@@ -43,6 +43,8 @@ export { defineConfig } from './config.js';
 export { defineExceptions } from './exceptions.js';
 export { rule } from './rules/factories.js';
 export { presets, builtInChecks, exceptionsMustCiteJustification } from './presets/index.js';
+export { renderChecklist } from './checklist.js';
+export type { ChecklistInput } from './checklist.js';
 export { loadConfig, loadConfigFromPath, findConfigFile } from './config/load.js';
 export type { LoadedConfig } from './config/load.js';
 export { runVerifyCommand } from './cli/verify.js';

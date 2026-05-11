@@ -2,6 +2,7 @@ import type { Finding, Rule } from '../schemas.js';
 import type { VerifyContext } from '../source/types.js';
 import { checkCustom } from './kinds/custom.js';
 import { checkLane } from './kinds/lane.js';
+import { checkMeta } from './kinds/meta.js';
 import { checkPattern } from './kinds/pattern.js';
 import { checkSchema } from './kinds/schema.js';
 import { checkSpec } from './kinds/spec.js';
@@ -30,6 +31,9 @@ export async function checkRule(rule: Rule, ctx: VerifyContext): Promise<Finding
     }
     case 'custom': {
       return await checkCustom(rule, ctx);
+    }
+    case 'meta': {
+      return await checkMeta(rule, ctx);
     }
   }
 }

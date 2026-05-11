@@ -26,6 +26,7 @@ import type { CustomCheck } from '../../source/types.js';
 const noop: CustomCheck = () => [];
 
 export const catalogueStubChecks: Readonly<Record<string, CustomCheck>> = {
+  // Custom-rule stubs (Step 3 catalogue rules):
   noParallelSystemsWithoutMigration: noop,
   retirementTaskDeclaredAsDependency: noop,
   canonicalValidationNotBypassed: noop,
@@ -42,4 +43,15 @@ export const catalogueStubChecks: Readonly<Record<string, CustomCheck>> = {
   constitutionVersionHashVerifiedAtBoot: noop,
   newThrowsCheckedAgainstCatcherChain: noop,
   filesScopedRuleOverridesCiteDecision: noop,
+  // Meta-rule stubs (Step 4 self-report checks). MetaRules silently
+  // skip when `ctx.agentReport` is undefined; these stubs only fire
+  // when an agent report is supplied AND no project-specific
+  // implementation overrides them.
+  exitBarClaimsMechanicallyVerified: noop,
+  transparentUnverificationBlocks: noop,
+  fabricatedVerificationDetected: noop,
+  narrowVerificationScopeMismatch: noop,
+  retryAttemptsRespectTaskScope: noop,
+  standaloneVerificationsRunInUnprimedShell: noop,
+  sketchContradictionSelfCorrectionRecorded: noop,
 };

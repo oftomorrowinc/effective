@@ -3,6 +3,7 @@ import { architectureRules } from './rules/architecture.js';
 import { testDisciplineRules } from './rules/test-discipline.js';
 import { dataDisciplineRules } from './rules/data-discipline.js';
 import { governanceRules } from './rules/governance.js';
+import { metaRules } from './rules/meta-rules.js';
 import type { Constitution, Rule } from '../schemas.js';
 
 /**
@@ -99,6 +100,7 @@ export const recommended: Constitution = {
     ...testDisciplineRules,
     ...dataDisciplineRules,
     ...governanceRules,
+    ...metaRules,
   ],
   meta: {
     name: 'effective/recommended',
