@@ -391,7 +391,7 @@ the verdict computation trivial: `any CRITICAL in findings → fail`.
 
 ### Rule as a discriminated union
 
-The `Rule` type is a discriminated union of six kinds:
+The `Rule` type is a discriminated union of seven kinds:
 
 ```ts
 type Rule =
@@ -400,6 +400,7 @@ type Rule =
   | LaneRule // file-boundary enforcement from scope.editable
   | SpecRule // test-name presence, assertion shape, spec conformance
   | ToolchainRule // wraps external tool output; translates to findings
+  | MetaRule // reflexive check against agent self-report
   | CustomRule; // escape hatch; arbitrary user-provided check function
 ```
 
@@ -408,17 +409,39 @@ Each kind has a fixed shape with kind-specific fields plus a shared `RuleBase`
 kind is a major API change; adding new rules within existing kinds is
 additive.
 
-**Why six kinds and not more (or fewer)?**
+**Why seven kinds and not more (or fewer)?**
 
-Six is what survived after collapsing the rules in the seed catalogue into
-their structural shapes. Earlier drafts had a separate `ExceptionRule` kind
-for the escape-hatch-must-cite-justification rule; we collapsed it into
+Six of the seven survived after collapsing the rules in the seed catalogue
+into their structural shapes. Earlier drafts had a separate `ExceptionRule`
+kind for the escape-hatch-must-cite-justification rule; we collapsed it into
 `PatternRule` because the structural check is the same (grep for the pattern,
 resolve each match against the exception registry). The exception-resolution
 logic lives in the engine, not in the type.
 
+The seventh kind — `MetaRule` — is genuinely different in shape. Most rules
+take a diff and produce findings: `(diff) => Finding[]`. Meta-rules take a
+diff _and_ the agent's self-report, and produce findings by comparing the
+two: `(diff, agentReport) => Finding[]`. They cover reflexive checks like
+"the status line matches what actually shipped" and "claims in the build log
+are corroborated by the commit state" — checks where the failure mode is the
+agent's _description_ of its work diverging from the work itself, not the
+work being wrong.
+
+We could have extended the other rule kinds to accept an optional
+`agentReport` argument that meta-rules read. We chose not to because:
+
+1. Most rules don't need access to the agent report. Threading it through
+   every check function adds API surface for no benefit.
+2. Meta-rules have a distinct mental model. A pattern rule grepping the diff
+   for `.skip` is a different _kind of thing_ than a meta-rule comparing the
+   build log's claims to the diff's actual content. Giving them separate
+   kinds makes that distinction explicit.
+3. There are only a handful of meta-rules (roughly 5-7 in the seed
+   constitution). A small new kind for a small set of rules is cleaner than
+   extending every existing kind to handle them.
+
 The `CustomRule` kind is the escape hatch. When a project has a check that
-genuinely doesn't fit any of the other five kinds, it provides a function
+genuinely doesn't fit any of the other six kinds, it provides a function
 reference in `effective.config.ts`. We didn't make `CustomRule` more
 elaborate (no required input/output schemas beyond `Finding[]`) because
 constraining the escape hatch defeats its purpose.

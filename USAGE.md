@@ -44,6 +44,10 @@
   - [The gradual adoption path](#the-gradual-adoption-path)
   - [Surveying existing escape hatches](#surveying-existing-escape-hatches)
   - [Promoting overrides back to CRITICAL over time](#promoting-overrides-back-to-critical-over-time)
+- [Understanding `prepare()` output](#understanding-prepare-output)
+  - [What gets added to your prompt](#what-gets-added-to-your-prompt)
+  - [The Pre-Success Checklist](#the-pre-success-checklist)
+  - [Controlling the checklist via scope](#controlling-the-checklist-via-scope)
 - [Working with findings](#working-with-findings)
   - [Finding shape](#finding-shape)
   - [Filtering and grouping](#filtering-and-grouping)
@@ -834,6 +838,151 @@ override: {
 
 Each phase is its own PR. Each phase removes an override and ratchets the
 constitution closer to strict.
+
+---
+
+## Understanding `prepare()` output
+
+When you call `prepare({ scope, config, original })`, the returned string
+is your original prompt augmented with three things, in order:
+
+1. The scope context (goal, role, editable paths, expectations)
+2. The relevant rule guidance for the scope
+3. The Pre-Success Checklist — the items the worker should verify before
+   marking the work done
+
+The output is plain text designed to be passed verbatim to the model. You
+don't need to parse or post-process it. The structure is consistent enough
+that workers learn to read it the same way every time.
+
+### What gets added to your prompt
+
+The shape, roughly:
+
+```
+[Your original prompt]
+
+## Scope
+Goal: <scope.goal>
+Role: <scope.role>
+Editable paths:
+- app/api/signals/**
+- lib/rate-limit/**
+Expectations:
+- All tests pass
+- Lint clean for editable files
+- Coverage non-decreasing
+
+## Rules in scope
+[Active rule guidance, grouped by category. Each rule's `PromptProjection.guidance`
+appears here. Rules filtered out by scope role/editable paths are omitted.]
+
+## Pre-Success Checklist
+[Bulleted checklist; see below.]
+```
+
+The rule guidance section is the densest part. Each active rule contributes
+a paragraph or two describing what the rule expects and what would violate
+it. Rules with examples in their `PromptProjection.examples` field include
+those inline.
+
+### The Pre-Success Checklist
+
+The checklist is a bulleted summary of what the worker should verify before
+declaring the work done. It's grouped into sections matching the
+constitution's structure:
+
+```
+## Pre-Success Checklist
+
+Before marking Success, verify each item:
+
+**Completion claims**
+- Work landed: code changes are in the worktree and compile cleanly
+- Verified end-to-end: every load-bearing claim exercised against real
+  execution, not inferred
+
+**Test rigor**
+- Spec'd test names land verbatim in committed test files
+- Tests would fail if you deleted the function body
+- All branches covered
+
+**Architectural invariants**
+- New code is wired to the runtime
+
+**Honest reporting**
+- Status line matches reality
+```
+
+The checklist is _derived from active rules_, not authored separately. Each
+checklist item corresponds to one or more rules that would emit findings if
+the item failed. This means the checklist and the verifier always agree:
+anything the checklist asks the worker to verify is something `verify()`
+will actually check.
+
+**The checklist is filtered to the scope's role and editable paths.** A
+test-writer working on `test/api/**` doesn't see items about data-discipline
+rules that only fire on `app/api/**` writes; a docs-writer doesn't see test
+rigor items. The filter signals (in order of precedence):
+
+1. **Role.** Rules declare `appliesToRoles`; rules whose roles don't include
+   the scope's role are excluded.
+2. **Editable paths.** Pattern rules with an `inGlob` field are excluded if
+   their glob doesn't intersect `scope.editable`.
+3. **Expectations.** If `scope.expectations` explicitly opts in or out of a
+   category (e.g., `coverageNonDecreasing: false`), the corresponding rules
+   are demoted or excluded.
+4. **Manual override.** Rules pinned via `scope.relatedRules` are always
+   included.
+
+**Fallback for low-confidence filtering:** if filtering yields fewer than 5
+items, the full checklist appears with a note that filtering wasn't
+confident. Better to be slightly verbose than to silently drop a load-bearing
+item.
+
+### Controlling the checklist via scope
+
+You can shape the checklist by adjusting the scope you pass to `prepare()`:
+
+```ts
+// Narrower scope = tighter checklist
+const scope = {
+  goal: 'Add rate limiter unit tests',
+  role: 'test-writer',
+  editable: ['test/api/rate-limit/**'], // tests only
+  expectations: {
+    newTestsExist: true,
+    newTestsFail: true, // test-writer should produce failing tests
+    existingTestsPass: true,
+  },
+};
+
+// Wider scope = broader checklist
+const scope = {
+  goal: 'Implement rate limiter end-to-end',
+  role: 'free-form',
+  editable: ['app/**', 'lib/**', 'test/**'],
+  // expectations omitted; falls through to defaults
+};
+```
+
+If your work spans multiple roles (you're writing both code and tests in
+the same pass), use `'free-form'` — the full constitution applies with no
+role-specific filtering.
+
+If a specific rule matters for your work even though filtering would
+exclude it, pin it via `relatedRules`:
+
+```ts
+{
+  goal: '...',
+  role: 'code-writer',
+  editable: ['app/api/signals/**'],
+  relatedRules: ['no-disabled-tests-without-exception'],
+  // Even though this is code-writer and editable doesn't include test/**,
+  // the disabled-tests rule still appears in the checklist.
+}
+```
 
 ---
 
