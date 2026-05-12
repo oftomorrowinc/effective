@@ -10,25 +10,6 @@ export default defineConfig({
   // See DESIGN.md for the constitution-as-substance reframe.
   extends: ['recommended'],
 
-  // `effective verify` here is the diff-only pass: pattern rules, lane
-  // rule, escape-hatch validation, and the catalogue-driven custom
-  // checks. The toolchain gates (lint / typecheck / test / coverage)
-  // run in their own CI steps so `effective verify` doesn't have to
-  // spin up the isolated worktree on every CI pass.
-  //
-  // Re-enable these once the worktree's cached `node_modules` install
-  // story is solid enough for CI.
-  disable: {
-    'toolchain.lint-clean':
-      "Repo's own CI runs `pnpm lint` directly; avoids worktree node_modules dependency.",
-    'toolchain.typecheck-clean':
-      "Repo's own CI runs `pnpm typecheck` directly; avoids worktree node_modules dependency.",
-    'toolchain.tests-pass':
-      "Repo's own CI runs `pnpm test` directly; avoids worktree node_modules dependency.",
-    'toolchain.coverage-non-decreasing':
-      'Coverage tracking against a moving baseline is not implemented in the engine yet; the existing CI step enforces thresholds.',
-  },
-
   // Exception registry — built-in templates spread with any project-
   // specific instances. No project-specific instances yet; the spread
   // is the full registry for now.

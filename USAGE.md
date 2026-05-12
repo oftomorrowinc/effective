@@ -569,7 +569,7 @@ sanctioned debt needs to be traceable.
 Every escape hatch comment cites its exception ID:
 
 ```ts
-/* c8 ignore start -- exception-cli-fatal-exit: CLI dispatch branch */
+/* c8 ignore start -- exception-id: cli-fatal-exit -- CLI dispatch branch */
 if (require.main === module) {
   main().then((rc) => process.exit(rc));
 }
@@ -578,7 +578,7 @@ if (require.main === module) {
 // @ts-expect-error -- our-postgres-driver-quirk: pg@8.x stale-connection workaround
 const conn = await poolGetConnection();
 
-// eslint-disable-next-line no-await-in-loop -- exception-sequential-by-design-await: per-task dispatch ordering
+// eslint-disable-next-line no-await-in-loop -- exception-id: sequential-by-design-await -- per-task dispatch ordering
 for (const task of tasks) {
   await dispatch(task);
 }

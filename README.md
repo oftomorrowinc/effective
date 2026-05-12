@@ -356,7 +356,7 @@ export default defineConfig({
 In source code, every escape hatch cites its exception:
 
 ```ts
-/* c8 ignore start -- exception-cli-fatal-exit: standard CLI exit branch */
+/* c8 ignore start -- exception-id: cli-fatal-exit -- standard CLI exit branch */
 if (require.main === module) {
   main().then((rc) => process.exit(rc));
 }

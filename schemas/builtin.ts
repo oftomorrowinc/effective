@@ -29,7 +29,7 @@ import type { Exception, ExceptionRegistry } from './exception.js';
  */
 
 const cliFatalExit: Exception = {
-  id: 'exception-cli-fatal-exit',
+  id: 'cli-fatal-exit',
   category: 'cli-fatal-exit',
   mechanism: 'c8-ignore',
   context:
@@ -41,7 +41,7 @@ const cliFatalExit: Exception = {
 };
 
 const externalLibraryDriftDefense: Exception = {
-  id: 'exception-external-library-drift-defense',
+  id: 'external-library-drift-defense',
   category: 'external-library-drift-defense',
   mechanism: 'c8-ignore',
   context:
@@ -53,7 +53,7 @@ const externalLibraryDriftDefense: Exception = {
 };
 
 const typeNarrowingOfImpossible: Exception = {
-  id: 'exception-type-narrowing-of-impossible',
+  id: 'type-narrowing-of-impossible',
   category: 'type-narrowing-of-impossible',
   mechanism: 'c8-ignore',
   context:
@@ -65,7 +65,7 @@ const typeNarrowingOfImpossible: Exception = {
 };
 
 const raceConditionDefense: Exception = {
-  id: 'exception-race-condition-defense',
+  id: 'race-condition-defense',
   category: 'race-condition-defense',
   mechanism: 'c8-ignore',
   context:
@@ -77,7 +77,7 @@ const raceConditionDefense: Exception = {
 };
 
 const ttyBound: Exception = {
-  id: 'exception-tty-bound',
+  id: 'tty-bound',
   category: 'tty-bound',
   mechanism: 'c8-ignore',
   context:
@@ -89,7 +89,7 @@ const ttyBound: Exception = {
 };
 
 const zodInternalIntrospection: Exception = {
-  id: 'exception-zod-internal-introspection',
+  id: 'zod-internal-introspection',
   category: 'zod-internal-introspection',
   mechanism: 'ts-expect-error',
   context:
@@ -101,7 +101,7 @@ const zodInternalIntrospection: Exception = {
 };
 
 const looseGenericBridge: Exception = {
-  id: 'exception-loose-generic-bridge',
+  id: 'loose-generic-bridge',
   category: 'loose-generic-bridge',
   mechanism: 'ts-expect-error',
   context:
@@ -113,7 +113,7 @@ const looseGenericBridge: Exception = {
 };
 
 const sequentialByDesignAwait: Exception = {
-  id: 'exception-sequential-by-design-await',
+  id: 'sequential-by-design-await',
   category: 'sequential-by-design-await',
   mechanism: 'eslint-disable',
   context:
@@ -125,7 +125,7 @@ const sequentialByDesignAwait: Exception = {
 };
 
 const typedPrivateDotNotation: Exception = {
-  id: 'exception-typed-private-dot-notation',
+  id: 'typed-private-dot-notation',
   category: 'typed-private-dot-notation',
   mechanism: 'eslint-disable',
   context:
@@ -137,7 +137,7 @@ const typedPrivateDotNotation: Exception = {
 };
 
 const canonicalUnderscoreDiscriminator: Exception = {
-  id: 'exception-canonical-underscore-discriminator',
+  id: 'canonical-underscore-discriminator',
   category: 'canonical-underscore-discriminator',
   mechanism: 'eslint-disable',
   context:
@@ -149,7 +149,7 @@ const canonicalUnderscoreDiscriminator: Exception = {
 };
 
 const mutuallyRecursiveWalker: Exception = {
-  id: 'exception-mutually-recursive-walker',
+  id: 'mutually-recursive-walker',
   category: 'mutually-recursive-walker',
   mechanism: 'eslint-disable',
   context:
@@ -161,7 +161,7 @@ const mutuallyRecursiveWalker: Exception = {
 };
 
 const earlyExitContinue: Exception = {
-  id: 'exception-early-exit-continue',
+  id: 'early-exit-continue',
   category: 'early-exit-continue',
   mechanism: 'eslint-disable',
   context:
@@ -173,7 +173,7 @@ const earlyExitContinue: Exception = {
 };
 
 const mutatedBindingNoDestructure: Exception = {
-  id: 'exception-mutated-binding-no-destructure',
+  id: 'mutated-binding-no-destructure',
   category: 'mutated-binding-no-destructure',
   mechanism: 'eslint-disable',
   context:
@@ -185,7 +185,7 @@ const mutatedBindingNoDestructure: Exception = {
 };
 
 const migrationBootstrapTimestamp: Exception = {
-  id: 'exception-migration-bootstrap-timestamp',
+  id: 'migration-bootstrap-timestamp',
   category: 'migration-bootstrap-timestamp',
   mechanism: null,
   context:
@@ -197,7 +197,7 @@ const migrationBootstrapTimestamp: Exception = {
 };
 
 const coverageExcludedPatterns: Exception = {
-  id: 'exception-coverage-excluded-patterns',
+  id: 'coverage-excluded-patterns',
   category: 'coverage-excluded-patterns',
   mechanism: null,
   context:
@@ -209,7 +209,7 @@ const coverageExcludedPatterns: Exception = {
 };
 
 const prettierAlignedDataTables: Exception = {
-  id: 'exception-prettier-aligned-data-tables',
+  id: 'prettier-aligned-data-tables',
   category: 'prettier-aligned-data-tables',
   mechanism: 'prettier-ignore',
   context:
@@ -221,7 +221,7 @@ const prettierAlignedDataTables: Exception = {
 };
 
 const prettierAsciiDiagrams: Exception = {
-  id: 'exception-prettier-ascii-diagrams',
+  id: 'prettier-ascii-diagrams',
   category: 'prettier-ascii-diagrams',
   mechanism: 'prettier-ignore',
   context:
@@ -233,7 +233,7 @@ const prettierAsciiDiagrams: Exception = {
 };
 
 const prettierMarkdownAlignment: Exception = {
-  id: 'exception-prettier-markdown-alignment',
+  id: 'prettier-markdown-alignment',
   category: 'prettier-markdown-alignment',
   mechanism: 'prettier-ignore',
   context:
