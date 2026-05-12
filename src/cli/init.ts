@@ -10,16 +10,45 @@ export interface InitCliResult {
   readonly filesSkipped: readonly string[];
 }
 
-interface DetectedToolchain {
+type PackageManager = 'pnpm' | 'yarn' | 'npm';
+type TestFramework = 'vitest' | 'jest' | 'node-test';
+type LintFramework = 'eslint' | 'biome' | 'oxlint';
+
+interface PackageJsonShape {
+  name?: string;
+  version?: string;
+  packageManager?: string;
+  scripts?: Record<string, string>;
+  dependencies?: Record<string, string>;
+  devDependencies?: Record<string, string>;
+}
+
+interface DetectedScripts {
   readonly lint?: string;
   readonly typecheck?: string;
   readonly test?: string;
   readonly coverage?: string;
 }
 
-interface PackageJsonShape {
-  scripts?: Record<string, string>;
-  packageManager?: string;
+interface InitContext {
+  readonly pm: PackageManager;
+  readonly typescript: boolean;
+  readonly packageName?: string;
+  readonly packageVersion?: string;
+  readonly testFramework?: TestFramework;
+  readonly testFrameworkCandidates: readonly TestFramework[];
+  readonly lintFramework?: LintFramework;
+  readonly lintFrameworkCandidates: readonly LintFramework[];
+  readonly scripts: DetectedScripts;
+}
+
+async function exists(p: string): Promise<boolean> {
+  try {
+    await fs.access(p);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 async function readPackageJson(cwd: string): Promise<PackageJsonShape | undefined> {
@@ -29,6 +58,44 @@ async function readPackageJson(cwd: string): Promise<PackageJsonShape | undefine
   } catch {
     return undefined;
   }
+}
+
+async function detectPackageManager(
+  cwd: string,
+  pkg: PackageJsonShape | undefined,
+): Promise<PackageManager> {
+  if (await exists(path.join(cwd, 'pnpm-lock.yaml'))) return 'pnpm';
+  if (await exists(path.join(cwd, 'yarn.lock'))) return 'yarn';
+  if (await exists(path.join(cwd, 'package-lock.json'))) return 'npm';
+  const declared = pkg?.packageManager;
+  if (declared?.startsWith('pnpm@')) return 'pnpm';
+  if (declared?.startsWith('yarn@')) return 'yarn';
+  if (declared?.startsWith('npm@')) return 'npm';
+  return 'npm';
+}
+
+function allDeps(pkg: PackageJsonShape | undefined): Record<string, string> {
+  return { ...pkg?.dependencies, ...pkg?.devDependencies };
+}
+
+function detectTestFrameworks(pkg: PackageJsonShape | undefined): TestFramework[] {
+  const deps = allDeps(pkg);
+  const out: TestFramework[] = [];
+  if ('vitest' in deps) out.push('vitest');
+  if ('jest' in deps || '@types/jest' in deps) out.push('jest');
+  // node:test isn't a dependency — heuristically detect via a `node --test` script
+  const scripts = pkg?.scripts ?? {};
+  if (Object.values(scripts).some((s) => /\bnode\s+--test\b/.test(s))) out.push('node-test');
+  return out;
+}
+
+function detectLintFrameworks(pkg: PackageJsonShape | undefined): LintFramework[] {
+  const deps = allDeps(pkg);
+  const out: LintFramework[] = [];
+  if ('eslint' in deps) out.push('eslint');
+  if ('@biomejs/biome' in deps) out.push('biome');
+  if ('oxlint' in deps) out.push('oxlint');
+  return out;
 }
 
 function pickScript(
@@ -41,91 +108,171 @@ function pickScript(
   return undefined;
 }
 
-function detectPackageManager(pkg: PackageJsonShape | undefined): 'pnpm' | 'npm' | 'yarn' {
-  const declared = pkg?.packageManager;
-  if (declared?.startsWith('pnpm@')) return 'pnpm';
-  if (declared?.startsWith('yarn@')) return 'yarn';
-  if (declared?.startsWith('npm@')) return 'npm';
-  return 'npm';
-}
-
-function detectToolchain(pkg: PackageJsonShape | undefined): DetectedToolchain {
+function detectScripts(pkg: PackageJsonShape | undefined): DetectedScripts {
   const scripts = pkg?.scripts ?? {};
-  const pm = detectPackageManager(pkg);
-  const out: { -readonly [K in keyof DetectedToolchain]: DetectedToolchain[K] } = {};
+  const out: { -readonly [K in keyof DetectedScripts]: DetectedScripts[K] } = {};
   const lint = pickScript(scripts, ['lint:ci', 'lint']);
-  if (lint !== undefined) out.lint = `${pm} run ${lint}`;
+  if (lint !== undefined) out.lint = lint;
   const typecheck = pickScript(scripts, ['typecheck', 'tsc', 'type-check']);
-  if (typecheck !== undefined) out.typecheck = `${pm} run ${typecheck}`;
+  if (typecheck !== undefined) out.typecheck = typecheck;
   const test = pickScript(scripts, ['test:ci', 'test']);
-  if (test !== undefined) out.test = `${pm} run ${test}`;
+  if (test !== undefined) out.test = test;
   const coverage = pickScript(scripts, ['test:coverage', 'coverage']);
-  if (coverage !== undefined) out.coverage = `${pm} run ${coverage}`;
+  if (coverage !== undefined) out.coverage = coverage;
   return out;
 }
 
-function renderConfigTemplate(toolchain: DetectedToolchain): string {
-  const tcLines: string[] = [];
-  if (toolchain.lint !== undefined) tcLines.push(`    lint: '${toolchain.lint}',`);
-  if (toolchain.typecheck !== undefined) tcLines.push(`    typecheck: '${toolchain.typecheck}',`);
-  if (toolchain.test !== undefined) tcLines.push(`    test: '${toolchain.test}',`);
-  if (toolchain.coverage !== undefined) tcLines.push(`    coverage: '${toolchain.coverage}',`);
-  const tcBlock =
-    tcLines.length === 0
-      ? "  // toolchain: { lint: 'pnpm lint', typecheck: 'pnpm typecheck', test: 'pnpm test' },"
-      : `  toolchain: {\n${tcLines.join('\n')}\n  },`;
-  return `import { defineConfig } from 'effective';
+function lintReporterFlag(framework: LintFramework | undefined): string | undefined {
+  if (framework === 'eslint' || framework === 'oxlint') return '--format json';
+  if (framework === 'biome') return '--reporter json';
+  return undefined;
+}
 
-/**
- * Effective constitution for this project.
- *
- * Start by declaring a rule or two of your own; once you're ready, extend
- * \`presets.recommended\` from \`effective\` to pull in the shipped catalogue.
- *
- *   import { defineConfig, presets, rule } from 'effective';
- *   export default defineConfig({
- *     extends: ['recommended'],
- *     rules: [rule.forbidPattern(/TODO\\(@nobody\\)/, { in: 'src/**' })],
- *   });
- */
-export default defineConfig({
-  rules: [
-    // Add project-specific rules here, or remove and use \`extends\` to pull
-    // in a preset.
-  ],
-${tcBlock}
+function testReporterFlag(framework: TestFramework | undefined): string | undefined {
+  if (framework === 'vitest') return '--reporter json';
+  if (framework === 'jest') return '--json';
+  if (framework === 'node-test') return '--test-reporter spec';
+  return undefined;
+}
+
+function composeCommand(pm: PackageManager, scriptName: string, forwardedFlag?: string): string {
+  if (forwardedFlag === undefined) {
+    if (pm === 'npm') return `npm run ${scriptName}`;
+    return `${pm} ${scriptName}`;
+  }
+  if (pm === 'npm') return `npm run ${scriptName} -- ${forwardedFlag}`;
+  return `${pm} ${scriptName} ${forwardedFlag}`;
+}
+
+function buildToolchainBlock(ctx: InitContext): {
+  lines: string[];
+  ambiguityComments: string[];
+} {
+  const lines: string[] = [];
+  const ambiguityComments: string[] = [];
+  if (ctx.testFrameworkCandidates.length > 1) {
+    ambiguityComments.push(
+      `// EDIT: detected multiple test frameworks (${ctx.testFrameworkCandidates.join(', ')}); assumed ${ctx.testFramework ?? 'vitest'}.`,
+    );
+  }
+  if (ctx.lintFrameworkCandidates.length > 1) {
+    ambiguityComments.push(
+      `// EDIT: detected multiple lint frameworks (${ctx.lintFrameworkCandidates.join(', ')}); assumed ${ctx.lintFramework ?? 'eslint'}.`,
+    );
+  }
+
+  if (ctx.scripts.lint !== undefined) {
+    const cmd = composeCommand(ctx.pm, ctx.scripts.lint, lintReporterFlag(ctx.lintFramework));
+    lines.push(`    lint: '${cmd}',`);
+  }
+  if (ctx.scripts.typecheck !== undefined) {
+    lines.push(`    typecheck: '${composeCommand(ctx.pm, ctx.scripts.typecheck)}',`);
+  }
+  if (ctx.scripts.test !== undefined) {
+    const cmd = composeCommand(ctx.pm, ctx.scripts.test, testReporterFlag(ctx.testFramework));
+    lines.push(`    test: '${cmd}',`);
+  }
+  if (ctx.scripts.coverage !== undefined) {
+    const cmd = composeCommand(ctx.pm, ctx.scripts.coverage, testReporterFlag(ctx.testFramework));
+    lines.push(`    coverage: '${cmd}',`);
+  }
+  return { lines, ambiguityComments };
+}
+
+function renderConfigTemplate(ctx: InitContext): string {
+  const { lines, ambiguityComments } = buildToolchainBlock(ctx);
+  const today = new Date().toISOString().slice(0, 10);
+  const importStmt = ctx.typescript
+    ? "import { defineConfig } from 'effective';"
+    : "const { defineConfig } = require('effective');";
+  const exportStmt = ctx.typescript ? 'export default' : 'module.exports =';
+  const nameLine = `    name: '${ctx.packageName ?? 'my-project'}',`;
+  const versionLine =
+    ctx.packageVersion === undefined ? '' : `\n    version: '${ctx.packageVersion}',`;
+  const toolchainBlock =
+    lines.length > 0
+      ? `${ambiguityComments.length === 0 ? '' : `${ambiguityComments.map((c) => `  ${c}`).join('\n')}\n`}  toolchain: {\n${lines.join('\n')}\n  },`
+      : `  // toolchain: { lint: '...', typecheck: '...', test: '...', coverage: '...' },`;
+
+  return `// effective.config${ctx.typescript ? '.ts' : '.js'}
+// Generated by \`npx effective init\` on ${today}.
+// Review and edit; the comments explain each section.
+
+${importStmt}
+
+${exportStmt} defineConfig({
+  // The recommended preset includes the full catalogue at strict severity.
+  // See DESIGN.md for the constitution-as-substance reframe.
+  extends: ['recommended'],
+
+  // How to run your toolchain. Detected from package.json scripts and
+  // devDependencies. Reporter flags are appended for the JSON parsers
+  // \`effective\` ships; if a script already emits JSON, the flag is harmless.
+${toolchainBlock}
+
+  // Disable rules that don't fit your project. Rationale required.
+  // Example:
+  //   disable: {
+  //     'spec.assertion-narrowed': 'We use property-based tests; false positives here.',
+  //   },
+
+  // Downgrade severity for rules you can't satisfy yet. Promote back as you catch up.
+  // Example:
+  //   override: {
+  //     'exceptions.must-cite-justification': {
+  //       severity: 'HIGH',
+  //       rationale: 'Existing escape hatches lack refs; warn now, retrofit gradually.',
+  //     },
+  //   },
+
+  // Define custom roles for workflows beyond test-writer / code-writer / reviewer.
+  // Example:
+  //   roles: {
+  //     'migration-writer': {
+  //       defaultEditable: ['migrations/**', 'test/migrations/**'],
+  //       expectations: { newMigrationExists: true, existingTestsPass: true },
+  //     },
+  //   },
+
   meta: {
-    name: 'my-project',
+${nameLine}${versionLine}
   },
 });
 `;
 }
 
-function renderExceptionsTemplate(): string {
-  return `import { defineExceptions, seeds } from 'effective';
+function renderExceptionsTemplate(typescript: boolean): string {
+  const today = new Date().toISOString().slice(0, 10);
+  const importStmt = typescript
+    ? "import { defineExceptions, seeds } from 'effective';"
+    : "const { defineExceptions, seeds } = require('effective');";
+  const exportStmt = typescript ? 'export default' : 'module.exports =';
+  return `// .effective/exceptions${typescript ? '.ts' : '.js'}
+// Generated by \`npx effective init\` on ${today}.
+// Add project-specific exception instances below \`seeds.builtInExceptions\`.
 
-/**
- * Project-specific exceptions registry. Every escape-hatch comment in your
- * code (\`c8 ignore\`, \`@ts-expect-error\`, \`eslint-disable\`,
- * \`prettier-ignore\`) should cite an \`exception-id:\` matching one of
- * these entries. The \`...seeds.builtInExceptions\` spread pulls in the
- * shipped category templates (CLI fatal-exit, library drift, etc.).
- *
- * Add your own instances below with a context and retirement condition.
- */
-export default defineExceptions({
+${importStmt}
+
+${exportStmt} defineExceptions({
+  // Built-in templates: CLI fatal-exit, external library drift defense,
+  // type narrowing of impossible, TTY-bound paths, Zod internal
+  // introspection, and others. See schemas/builtin.ts for the full list.
   ...seeds.builtInExceptions,
+
+  // Project-specific exceptions go here. Each needs a category, mechanism,
+  // context, retirementCondition, and addedDate.
+  // Example:
+  //   'our-postgres-driver-quirk': {
+  //     id: 'our-postgres-driver-quirk',
+  //     category: 'external-library-drift-defense',
+  //     mechanism: 'ts-expect-error',
+  //     context: 'pg@8.x leaves stale connections under specific error shapes',
+  //     retirementCondition: 'Resolved when we migrate to pg@9 or postgres.js',
+  //     addedDate: '${today}',
+  //     status: 'active',
+  //   },
 });
 `;
-}
-
-async function exists(p: string): Promise<boolean> {
-  try {
-    await fs.access(p);
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 async function writeIfMissing(
@@ -157,45 +304,102 @@ async function ensureGitignore(repoRoot: string, written: string[]): Promise<voi
   written.push(gi);
 }
 
+async function detectContext(cwd: string): Promise<InitContext> {
+  const pkg = await readPackageJson(cwd);
+  const pm = await detectPackageManager(cwd, pkg);
+  const typescript = await exists(path.join(cwd, 'tsconfig.json'));
+  const testCandidates = detectTestFrameworks(pkg);
+  const lintCandidates = detectLintFrameworks(pkg);
+  const ctx: {
+    -readonly [K in keyof InitContext]: InitContext[K];
+  } = {
+    pm,
+    typescript,
+    testFrameworkCandidates: testCandidates,
+    lintFrameworkCandidates: lintCandidates,
+    scripts: detectScripts(pkg),
+  };
+  if (pkg?.name !== undefined) ctx.packageName = pkg.name;
+  if (pkg?.version !== undefined) ctx.packageVersion = pkg.version;
+  if (testCandidates[0] !== undefined) ctx.testFramework = testCandidates[0];
+  if (lintCandidates[0] !== undefined) ctx.lintFramework = lintCandidates[0];
+  return ctx;
+}
+
 export async function runInitCommand(args: ParsedArgs, cwd: string): Promise<InitCliResult> {
   const force = args.flags.has('force');
-  const pkg = await readPackageJson(cwd);
-  const toolchain = detectToolchain(pkg);
+  const ctx = await detectContext(cwd);
   const written: string[] = [];
   const skipped: string[] = [];
 
+  const configExt = ctx.typescript ? 'ts' : 'js';
+  const configPath = path.join(cwd, `effective.config.${configExt}`);
+  const exceptionsPath = path.join(cwd, '.effective', `exceptions.${configExt}`);
+
+  await writeIfMissing(configPath, renderConfigTemplate(ctx), force, written, skipped);
   await writeIfMissing(
-    path.join(cwd, 'effective.config.ts'),
-    renderConfigTemplate(toolchain),
-    force,
-    written,
-    skipped,
-  );
-  await writeIfMissing(
-    path.join(cwd, '.effective', 'exceptions.ts'),
-    renderExceptionsTemplate(),
+    exceptionsPath,
+    renderExceptionsTemplate(ctx.typescript),
     force,
     written,
     skipped,
   );
   await ensureGitignore(cwd, written);
 
-  const stdout: string[] = ['Effective init complete.', ''];
-  if (written.length > 0) {
-    stdout.push('Wrote:');
-    for (const p of written) stdout.push(`  ${path.relative(cwd, p)}`);
+  const allSkipped = written.length === 0 && skipped.length > 0;
+  if (allSkipped) {
+    const stdout = `Effective is already initialized. See ${path.relative(cwd, configPath)}.\nPass --force to regenerate.\n`;
+    return { stdout, stderr: '', exitCode: 0, filesWritten: written, filesSkipped: skipped };
   }
-  if (skipped.length > 0) {
-    stdout.push('', 'Skipped (already exist — pass --force to overwrite):');
-    for (const p of skipped) stdout.push(`  ${path.relative(cwd, p)}`);
+
+  const lines: string[] = [];
+  for (const p of written) {
+    const rel = path.relative(cwd, p);
+    switch (rel) {
+      case `effective.config.${configExt}`: {
+        lines.push(
+          `✓ Created ${rel} (extends recommended preset; toolchain detected from package.json)`,
+        );
+        break;
+      }
+      case path.join('.effective', `exceptions.${configExt}`): {
+        lines.push(
+          `✓ Created ${rel} (built-in categories ready; add project-specific instances as needed)`,
+        );
+        break;
+      }
+      case '.gitignore': {
+        lines.push(`✓ Updated .gitignore (added .effective/)`);
+        break;
+      }
+      default: {
+        lines.push(`✓ Created ${rel}`);
+      }
+    }
   }
-  stdout.push('', 'Next: review effective.config.ts and run `npx effective verify --staged`.');
+  for (const p of skipped) {
+    lines.push(`• Skipped ${path.relative(cwd, p)} (already exists; pass --force to overwrite)`);
+  }
+
+  lines.push(
+    '',
+    'Next step:',
+    `  Run \`${nextStepCommand(ctx.pm)}\` to see what the constitution flags. Your`,
+    '  first verify will be slower (1-5 minutes) while it installs an',
+    '  isolated node_modules; subsequent runs use the cached install.',
+  );
 
   return {
-    stdout: `${stdout.join('\n')}\n`,
+    stdout: `${lines.join('\n')}\n`,
     stderr: '',
     exitCode: 0,
     filesWritten: written,
     filesSkipped: skipped,
   };
+}
+
+function nextStepCommand(pm: PackageManager): string {
+  if (pm === 'pnpm') return 'pnpm exec effective verify';
+  if (pm === 'yarn') return 'yarn effective verify';
+  return 'npx effective verify';
 }
