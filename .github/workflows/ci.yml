@@ -65,3 +65,13 @@ jobs:
 
       - name: package shape
         run: pnpm pack:check
+
+      - name: effective verify (self-application)
+        run: |
+          if [ -n "${{ github.event.pull_request.base.ref }}" ]; then
+            BASE="origin/${{ github.event.pull_request.base.ref }}"
+          else
+            BASE="HEAD^"
+          fi
+          echo "Verifying $(git rev-parse --short HEAD) against $BASE"
+          node dist/cli.mjs verify --against "$BASE"
