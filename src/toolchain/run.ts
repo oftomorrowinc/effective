@@ -51,6 +51,12 @@ export async function runCommand(input: RunInput): Promise<RunResult> {
       env,
       shell: true,
       stdio: ['ignore', 'pipe', 'pipe'],
+      // Detach so the shell starts a new process group and we can SIGTERM
+      // the whole group — otherwise `shell: true` makes `sh` our direct
+      // child and the real workload (e.g. `node`, `eslint`) a grandchild,
+      // and SIGTERM-ing `sh` leaves the grandchild holding our pipes
+      // open until it exits on its own.
+      detached: process.platform !== 'win32',
     });
 
     const stdoutChunks: Buffer[] = [];
@@ -60,12 +66,28 @@ export async function runCommand(input: RunInput): Promise<RunResult> {
     let timedOut = false;
     let bufferOverflowed = false;
 
+    function killTree(signal: NodeJS.Signals): void {
+      if (child.pid === undefined) {
+        child.kill(signal);
+        return;
+      }
+      if (process.platform === 'win32') {
+        child.kill(signal);
+        return;
+      }
+      try {
+        process.kill(-child.pid, signal);
+      } catch {
+        child.kill(signal);
+      }
+    }
+
     const timer = setTimeout(() => {
       timedOut = true;
-      child.kill('SIGTERM');
+      killTree('SIGTERM');
       setTimeout(() => {
         if (child.exitCode === null && child.signalCode === null) {
-          child.kill('SIGKILL');
+          killTree('SIGKILL');
         }
       }, 5000);
     }, timeoutMs);
@@ -76,7 +98,7 @@ export async function runCommand(input: RunInput): Promise<RunResult> {
         stdoutBytes += chunk.length;
         if (stdoutBytes > MAX_BUFFER_BYTES) {
           bufferOverflowed = true;
-          child.kill('SIGTERM');
+          killTree('SIGTERM');
           return;
         }
         stdoutChunks.push(chunk);
@@ -84,7 +106,7 @@ export async function runCommand(input: RunInput): Promise<RunResult> {
         stderrBytes += chunk.length;
         if (stderrBytes > MAX_BUFFER_BYTES) {
           bufferOverflowed = true;
-          child.kill('SIGTERM');
+          killTree('SIGTERM');
           return;
         }
         stderrChunks.push(chunk);
