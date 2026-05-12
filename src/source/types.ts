@@ -79,4 +79,11 @@ export interface VerifyContext {
    * specific field they consume and fall back gracefully when absent.
    */
   readonly commitMetadata?: CommitMetadata;
+  /**
+   * Absolute path to the repository root, when the source is git-backed.
+   * Rules that need to consult files outside the diff (cross-codebase
+   * caller searches, full-codebase greps) read this; rules check for
+   * its presence and skip when absent (e.g., inline source has no repo).
+   */
+  readonly repo?: string;
 }

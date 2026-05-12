@@ -10,4 +10,5 @@ export {
   builtInChecks,
   exceptionsMustCiteJustification,
   noDisabledTestsWithoutException,
+  migrationHasExercisingTest,
 } from './checks.js';

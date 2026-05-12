@@ -101,7 +101,7 @@ export async function loadGitSource(input: LoadGitSourceInput): Promise<LoadedSo
 
   if (!hasToolchain) {
     return {
-      ctx: assembleContext(input, changedFiles, {}, commitMetadata),
+      ctx: assembleContext(input, changedFiles, {}, input.repo, commitMetadata),
       cleanup: () => Promise.resolve(),
     };
   }
@@ -109,7 +109,7 @@ export async function loadGitSource(input: LoadGitSourceInput): Promise<LoadedSo
   const handle = await prepareWorktree({ repo: input.repo, work: input.work });
   const toolchainResults = await collectToolchainResults(input.resolved, handle.path);
   return {
-    ctx: assembleContext(input, changedFiles, toolchainResults, commitMetadata),
+    ctx: assembleContext(input, changedFiles, toolchainResults, input.repo, commitMetadata),
     cleanup: async (): Promise<void> => {
       await handle.cleanup();
     },
@@ -125,6 +125,7 @@ function assembleContext(
   },
   changedFiles: readonly ChangedFile[],
   toolchainResults: Readonly<Record<string, ToolchainResult>>,
+  repo?: string,
   commitMetadata?: CommitMetadata,
 ): VerifyContext {
   return {
@@ -135,6 +136,7 @@ function assembleContext(
     toolchainResults,
     customChecks: input.customChecks,
     exceptionRegistry: input.exceptions,
+    ...(repo === undefined ? {} : { repo }),
     ...(commitMetadata === undefined ? {} : { commitMetadata }),
   };
 }
@@ -156,7 +158,7 @@ export async function loadStagedSource(input: LoadStagedSourceInput): Promise<Lo
   // context (author, attempt would come from VerifyInput).
   const commitMetadata = await loadCommitMetadata(input.repo, 'HEAD');
   return {
-    ctx: assembleContext(input, changedFiles, toolchainResults, commitMetadata),
+    ctx: assembleContext(input, changedFiles, toolchainResults, input.repo, commitMetadata),
     cleanup: () => Promise.resolve(),
   };
 }

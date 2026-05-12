@@ -47,6 +47,7 @@ export {
   builtInChecks,
   exceptionsMustCiteJustification,
   noDisabledTestsWithoutException,
+  migrationHasExercisingTest,
 } from './presets/index.js';
 export { renderChecklist } from './checklist.js';
 export type { ChecklistInput } from './checklist.js';

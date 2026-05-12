@@ -35,7 +35,7 @@ export const catalogueStubChecks: Readonly<Record<string, CustomCheck>> = {
   testCountNonDecreasing: noop,
   mocksOnlyAtExternalBoundaries: noop,
   taskHasDurableTestArtifact: noop,
-  migrationHasExercisingTest: noop,
+  // migrationHasExercisingTest moved to a real implementation in checks.ts.
   integrationTestWritesScopeWrapped: noop,
   testHarnessDefaultBusinessIdOverride: noop,
   writeThenValidateMakesTransactionChoiceExplicit: noop,
