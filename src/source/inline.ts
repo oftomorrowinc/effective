@@ -1,5 +1,5 @@
 import { compilePatterns } from '../glob.js';
-import type { ResolvedScope } from '../resolve.js';
+import type { ProtectedPath, ResolvedScope } from '../resolve.js';
 import type { ExceptionRegistry } from '../schemas.js';
 import type { ChangedFile, CustomCheck, ToolchainResult, VerifyContext } from './types.js';
 
@@ -23,10 +23,15 @@ export interface InlineSource {
   readonly exceptionRegistry?: ExceptionRegistry;
 }
 
-export function loadInlineSource(source: InlineSource, scope: ResolvedScope): VerifyContext {
+export function loadInlineSource(
+  source: InlineSource,
+  scope: ResolvedScope,
+  protectedPaths: readonly ProtectedPath[] = [],
+): VerifyContext {
   return {
     changedFiles: source.changedFiles,
     editableMatcher: compilePatterns(scope.editable),
+    protectedPaths,
     scope,
     artifacts: source.artifacts ?? {},
     toolchainResults: source.toolchainResults ?? {},

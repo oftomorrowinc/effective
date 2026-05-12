@@ -55,6 +55,7 @@ export function ctx(overrides: Partial<VerifyContext> = {}): VerifyContext {
   return {
     changedFiles: [],
     editableMatcher: compilePatterns(['**/*']),
+    protectedPaths: [],
     scope: { goal: '', editable: ['**/*'], role: 'free-form', expectations: {} },
     artifacts: {},
     toolchainResults: {},

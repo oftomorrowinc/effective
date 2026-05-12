@@ -1,5 +1,5 @@
 import type { PathMatcher } from '../glob.js';
-import type { ResolvedScope } from '../resolve.js';
+import type { ProtectedPath, ResolvedScope } from '../resolve.js';
 import type { CustomRule, ExceptionRegistry, Finding, MetaRule } from '../schemas.js';
 
 export type ChangedFileStatus = 'added' | 'modified' | 'deleted' | 'renamed';
@@ -62,6 +62,14 @@ export interface CommitMetadata {
 export interface VerifyContext {
   readonly changedFiles: readonly ChangedFile[];
   readonly editableMatcher: PathMatcher;
+  /**
+   * Resolved-merged protected paths from `Constitution.protected`. Each
+   * entry has a glob `path` and a `rationale`. Rules that enforce
+   * protected-path policy iterate this list and match each entry against
+   * `file.path` individually (so the finding cites the specific
+   * rationale that applied).
+   */
+  readonly protectedPaths: readonly ProtectedPath[];
   readonly scope: ResolvedScope;
   readonly artifacts: Readonly<Record<string, unknown>>;
   readonly toolchainResults: Readonly<Record<string, ToolchainResult>>;

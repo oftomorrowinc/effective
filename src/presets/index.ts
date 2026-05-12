@@ -12,4 +12,5 @@ export {
   noDisabledTestsWithoutException,
   migrationHasExercisingTest,
   newExportsHaveNonTestCallers,
+  protectedPathsRespected,
 } from './checks.js';

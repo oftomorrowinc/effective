@@ -21,6 +21,7 @@ function ctx(editable: string[], files: ChangedFile[]): VerifyContext {
   return {
     changedFiles: files,
     editableMatcher: compilePatterns(editable),
+    protectedPaths: [],
     scope: {
       goal: '',
       editable,

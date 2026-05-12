@@ -36,6 +36,45 @@ export default defineConfig({
     ...seeds.builtInExceptions,
   },
 
+  // Protected paths — constitutional files no worker should edit
+  // without elevation. Detected from this project's shape (lockfile,
+  // devDependencies, config files, workflows).
+  protected: [
+    {
+      path: 'effective.config.ts',
+      rationale: 'The constitution itself. Workers must not edit the rules they are being held to.',
+    },
+    {
+      path: 'eslint.config.*',
+      rationale: 'ESLint config controls lint behavior; editing it changes what `verify` enforces.',
+    },
+    {
+      path: 'tsconfig*.json',
+      rationale: 'TypeScript config controls type-check strictness.',
+    },
+    {
+      path: 'vitest.config.*',
+      rationale: 'Vitest config controls what `tests-pass` means.',
+    },
+    {
+      path: '.prettierrc*',
+      rationale: 'Prettier config controls formatting; editing it shifts what passes format-check.',
+    },
+    {
+      path: 'prettier.config.*',
+      rationale: 'Prettier config controls formatting; editing it shifts what passes format-check.',
+    },
+    {
+      path: '.github/workflows/**',
+      rationale: 'CI workflows are the deployment gate; editing them changes what runs.',
+    },
+    {
+      path: 'package.json',
+      rationale:
+        'Scripts and dependency declarations are constitutional; editing them changes what tools run.',
+    },
+  ],
+
   meta: {
     name: 'effective',
     version: '0.1.0-rc.1',

@@ -61,6 +61,7 @@ describe('presets.recommended — shape', () => {
     const FOUNDATION_IDS = new Set([
       'lane.editable-respected',
       'exceptions.must-cite-justification',
+      'protected-paths-respected',
       'toolchain.lint-clean',
       'toolchain.typecheck-clean',
       'toolchain.tests-pass',
@@ -73,6 +74,33 @@ describe('presets.recommended — shape', () => {
       expect(r.catalogueEntry, `rule ${r.id} cites catalogueEntry`).toBeDefined();
       expect(r.relatedPrinciple, `rule ${r.id} cites relatedPrinciple`).toBeDefined();
     }
+  });
+
+  it('no rule prompt or message references the obsolete `.effective/exceptions.ts` path', () => {
+    // Drift sentinel — `exceptions` lives inline on the Constitution since
+    // the two-file model was retired (commit 00dafa1). Any user-facing
+    // string still pointing at `.effective/exceptions.ts` is a stale
+    // reference that would mislead adopters. This test fails on any rule
+    // whose prompt projection mentions the old path.
+    const STALE = '.effective/exceptions.ts';
+    const offenders: string[] = [];
+    for (const rule of presets.recommended.rules ?? []) {
+      const surfaces = [
+        rule.prompt.summary,
+        rule.prompt.guidance,
+        rule.prompt.examples?.bad ?? '',
+        rule.prompt.examples?.good ?? '',
+      ];
+      for (const surface of surfaces) {
+        if (surface.includes(STALE)) {
+          offenders.push(rule.id);
+          break;
+        }
+      }
+    }
+    expect(offenders, `rules still reference the obsolete path: ${offenders.join(', ')}`).toEqual(
+      [],
+    );
   });
 
   it('resolves cleanly via resolveConstitution with the built-in registry', () => {

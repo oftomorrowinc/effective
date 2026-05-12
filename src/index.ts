@@ -49,7 +49,9 @@ export {
   noDisabledTestsWithoutException,
   migrationHasExercisingTest,
   newExportsHaveNonTestCallers,
+  protectedPathsRespected,
 } from './presets/index.js';
+export type { ProtectedPath } from './resolve.js';
 export { renderChecklist } from './checklist.js';
 export type { ChecklistInput } from './checklist.js';
 export { loadConfig, loadConfigFromPath, findConfigFile } from './config/load.js';

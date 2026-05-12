@@ -35,10 +35,23 @@ async function makeFixture(opts: FixtureOptions = {}): Promise<string> {
   return dir;
 }
 
+/**
+ * Wrapper for the repeated try/finally + makeFixture + rm boilerplate.
+ * The body runs against a fresh temp dir; the directory is removed
+ * regardless of test outcome.
+ */
+async function withFixture<T>(opts: FixtureOptions, body: (dir: string) => Promise<T>): Promise<T> {
+  const dir = await makeFixture(opts);
+  try {
+    return await body(dir);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+}
+
 describe('runInitCommand — scaffolding', () => {
   it('creates effective.config.ts and updates .gitignore (single-file shape)', async () => {
-    const dir = await makeFixture({ tsconfig: true });
-    try {
+    await withFixture({ tsconfig: true }, async (dir) => {
       const result = await runInitCommand(parseArgs(['init']), dir);
       expect(result.exitCode).toBe(0);
       const rels = new Set(result.filesWritten.map((p) => path.relative(dir, p)));
@@ -53,14 +66,11 @@ describe('runInitCommand — scaffolding', () => {
       expect(config).toContain('export default defineConfig({');
       expect(config).toContain('exceptions: {');
       expect(config).toContain('...seeds.builtInExceptions');
-    } finally {
-      await rm(dir, { recursive: true, force: true });
-    }
+    });
   });
 
   it('emits .js when no tsconfig.json exists', async () => {
-    const dir = await makeFixture({ tsconfig: false });
-    try {
+    await withFixture({ tsconfig: false }, async (dir) => {
       const result = await runInitCommand(parseArgs(['init']), dir);
       expect(result.exitCode).toBe(0);
       const rels = new Set(result.filesWritten.map((p) => path.relative(dir, p)));
@@ -70,9 +80,7 @@ describe('runInitCommand — scaffolding', () => {
       expect(config).toContain("const { defineConfig, seeds } = require('effective')");
       expect(config).toContain('module.exports = defineConfig({');
       expect(config).toContain('exceptions: {');
-    } finally {
-      await rm(dir, { recursive: true, force: true });
-    }
+    });
   });
 });
 
@@ -382,6 +390,85 @@ describe('runInitCommand — exceptions inline', () => {
       const body = await readFile(path.join(dir, 'effective.config.ts'), 'utf8');
       expect(body).toContain('exceptions: {');
       expect(body).toContain('...seeds.builtInExceptions');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('runInitCommand — protected paths', () => {
+  it('always emits the effective.config.ts entry', async () => {
+    const dir = await makeFixture({ tsconfig: true });
+    try {
+      await runInitCommand(parseArgs(['init']), dir);
+      const body = await readFile(path.join(dir, 'effective.config.ts'), 'utf8');
+      expect(body).toContain('protected: [');
+      expect(body).toContain("path: 'effective.config.ts'");
+      expect(body).toContain('The constitution itself');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('uses the .js fallback for JS-only projects', async () => {
+    const dir = await makeFixture({ tsconfig: false });
+    try {
+      await runInitCommand(parseArgs(['init']), dir);
+      const body = await readFile(path.join(dir, 'effective.config.js'), 'utf8');
+      expect(body).toContain("path: 'effective.config.js'");
+      expect(body).not.toContain("path: 'effective.config.ts'");
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('emits eslint configs when eslint is in devDependencies', async () => {
+    const dir = await makeFixture({
+      tsconfig: true,
+      packageJson: { devDependencies: { eslint: '^9.0.0' } },
+    });
+    try {
+      await runInitCommand(parseArgs(['init']), dir);
+      const body = await readFile(path.join(dir, 'effective.config.ts'), 'utf8');
+      expect(body).toContain("path: 'eslint.config.*'");
+      expect(body).toContain('ESLint config controls lint behavior');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('emits tsconfig*.json when tsconfig.json exists', async () => {
+    const dir = await makeFixture({ tsconfig: true });
+    try {
+      await runInitCommand(parseArgs(['init']), dir);
+      const body = await readFile(path.join(dir, 'effective.config.ts'), 'utf8');
+      expect(body).toContain("path: 'tsconfig*.json'");
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('emits .github/workflows/** when the directory exists', async () => {
+    const dir = await makeFixture({ tsconfig: true });
+    try {
+      await mkdir(path.join(dir, '.github', 'workflows'), { recursive: true });
+      await runInitCommand(parseArgs(['init']), dir);
+      const body = await readFile(path.join(dir, 'effective.config.ts'), 'utf8');
+      expect(body).toContain("path: '.github/workflows/**'");
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('does NOT emit eslint configs when eslint is absent', async () => {
+    const dir = await makeFixture({
+      tsconfig: true,
+      packageJson: { devDependencies: { vitest: '^3.0.0' } },
+    });
+    try {
+      await runInitCommand(parseArgs(['init']), dir);
+      const body = await readFile(path.join(dir, 'effective.config.ts'), 'utf8');
+      expect(body).not.toContain("path: 'eslint.config.*'");
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

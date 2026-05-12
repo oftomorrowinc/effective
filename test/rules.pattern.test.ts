@@ -23,6 +23,7 @@ function ctx(files: ChangedFile[]): VerifyContext {
   return {
     changedFiles: files,
     editableMatcher: compilePatterns(['**/*']),
+    protectedPaths: [],
     scope: {
       goal: '',
       editable: ['**/*'],

@@ -143,6 +143,29 @@ export const Constitution = z
     exceptions: ExceptionRegistry.optional(),
 
     /**
+     * Protected paths — constitutional files no worker should edit without
+     * elevation. Each entry is a glob pattern + a non-empty rationale.
+     * Distinct from `scope.editable`: the lane rule asks "can this scope
+     * touch X?"; protected paths assert "no scope touches X without
+     * elevation, period." The two rules fire independently when both
+     * apply.
+     *
+     * Init populates this from a detection registry (eslint config,
+     * tsconfig, vitest/jest config, CI workflows, the effective.config
+     * itself, etc.). Adopters can add/remove entries; the
+     * `protected-paths-respected` rule reads from this field at verify
+     * time.
+     */
+    protected: z
+      .array(
+        z.object({
+          path: z.string().min(1),
+          rationale: z.string().min(1, 'Protected-path rationale required'),
+        }),
+      )
+      .optional(),
+
+    /**
      * Optional metadata. Lets a project tag its constitution with versioning,
      * authorship, etc. Surfaced in findings as additional context.
      */

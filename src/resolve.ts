@@ -11,12 +11,25 @@ import type {
 
 const BUILT_IN_ROLES = new Set(Object.keys(builtInRoleDefaults));
 
+export interface ProtectedPath {
+  readonly path: string;
+  readonly rationale: string;
+}
+
 export interface ResolvedConstitution {
   readonly rules: ReadonlyMap<string, Rule>;
   readonly byCategory: ReadonlyMap<RuleCategory, readonly Rule[]>;
   readonly customRoles: ReadonlyMap<string, RoleDefinition>;
   readonly toolchain: ToolchainConfig;
   readonly meta: { name?: string; version?: string; description?: string };
+  /**
+   * Protected paths merged across extends + this constitution's own list.
+   * Order is preserved (extends first, then this constitution's additions).
+   * Duplicate path strings are NOT deduplicated — the last rationale wins
+   * if a downstream config wants to override an upstream rationale, which
+   * is rare but valid.
+   */
+  readonly protectedPaths: readonly ProtectedPath[];
 }
 
 export interface ResolveOptions {
@@ -70,6 +83,10 @@ export function resolveConstitution(
     version?: string | undefined;
     description?: string | undefined;
   }[] = [];
+  // Use a Map so a downstream rationale overrides an upstream one for the
+  // same path. Insertion order is preserved by Map, which makes the
+  // resulting list stable.
+  const protectedPathMap = new Map<string, ProtectedPath>();
 
   for (const presetName of config.extends ?? []) {
     // presets is a string-keyed registry supplied by the caller; key is a
@@ -87,6 +104,7 @@ export function resolveConstitution(
     for (const [name, def] of presetResolved.customRoles) customRoles.set(name, def);
     toolchain = { ...toolchain, ...presetResolved.toolchain };
     metaParts.push(presetResolved.meta);
+    for (const entry of presetResolved.protectedPaths) protectedPathMap.set(entry.path, entry);
   }
 
   for (const rule of config.rules ?? []) {
@@ -97,6 +115,7 @@ export function resolveConstitution(
   for (const [name, def] of Object.entries(config.roles ?? {})) {
     customRoles.set(name, def);
   }
+  for (const entry of config.protected ?? []) protectedPathMap.set(entry.path, entry);
 
   for (const [id, override] of Object.entries(config.override ?? {})) {
     const rule = rules.get(id);
@@ -132,6 +151,7 @@ export function resolveConstitution(
     customRoles,
     toolchain,
     meta,
+    protectedPaths: [...protectedPathMap.values()],
   };
 }
 

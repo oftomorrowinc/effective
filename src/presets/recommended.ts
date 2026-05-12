@@ -27,6 +27,20 @@ const FOUNDATION_RULES: readonly Rule[] = [
         "Suppression comments — c8 ignore, @ts-expect-error, eslint-disable, prettier-ignore — must include `exception-id: <id>` matching an entry in the config's `exceptions` field. Add a new exception (with category, context, retirement condition) rather than leaving a bare suppression.",
     },
   }),
+  rule.custom({
+    id: 'protected-paths-respected',
+    category: 'governance',
+    defaultSeverity: 'CRITICAL',
+    diffOnly: true,
+    checkRef: 'protectedPathsRespected',
+    relatedPrinciple: 'mechanical-enforcement-over-instruction',
+    prompt: {
+      summary:
+        'Constitutional files are off-limits without elevation. Workers cannot edit the rules they are being held to.',
+      guidance:
+        "The config's `protected` field declares paths that no worker scope may edit as part of its work. Typical protected paths include `effective.config.{ts,js}` itself (the constitution), lint/typecheck/test configs (they define what `verify` enforces), CI workflow files (the deployment gate), and any pre-commit hook configuration. If a case genuinely requires a constitutional change (e.g., registering a new exception, adjusting a rule's severity), surface that need through `kickBack` and stop — a reviewer or human with elevated scope makes the constitutional change separately, outside the worker loop. Distinct from the lane rule: lane authorizes which files a scope can touch; protected asserts which files NO scope touches without elevation. Both can fire on the same file (two reasons it's wrong, two findings to triage).",
+    },
+  }),
   rule.forbidPattern(/\bconsole\.(log|error|warn|debug|trace|info)\b|\bdebugger\b|\/\/\s*DEBUG\b/, {
     id: 'no-stray-debug-output',
     category: 'hygiene',

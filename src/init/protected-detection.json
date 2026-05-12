@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$comment": "Registry of protected-path candidates init suggests. Adding a new candidate is a JSON-only PR — no engine code change required. Each `conditional` entry has a `detect` predicate (devDependency / fileExists / dirExists) and emits its `paths` + `rationale` when the predicate matches. Order of entries determines the order in the generated config; init dedupes by path so an entry that already matched an `always` rule is not re-emitted.",
+  "always": [
+    {
+      "path": "effective.config.ts",
+      "fallback": "effective.config.js",
+      "rationale": "The constitution itself. Workers must not edit the rules they are being held to."
+    }
+  ],
+  "conditional": [
+    {
+      "detect": { "devDependency": "eslint" },
+      "paths": ["eslint.config.*", ".eslintrc.*", ".eslintrc"],
+      "rationale": "ESLint config controls lint behavior; editing it changes what `verify` enforces."
+    },
+    {
+      "detect": { "devDependency": "@biomejs/biome" },
+      "paths": ["biome.json", "biome.jsonc"],
+      "rationale": "Biome config controls lint and format behavior."
+    },
+    {
+      "detect": { "devDependency": "oxlint" },
+      "paths": [".oxlintrc.json", "oxlint.config.*"],
+      "rationale": "Oxlint config controls lint behavior."
+    },
+    {
+      "detect": { "fileExists": "tsconfig.json" },
+      "paths": ["tsconfig*.json"],
+      "rationale": "TypeScript config controls type-check strictness."
+    },
+    {
+      "detect": { "devDependency": "vitest" },
+      "paths": ["vitest.config.*"],
+      "rationale": "Vitest config controls what `tests-pass` means."
+    },
+    {
+      "detect": { "devDependency": "jest" },
+      "paths": ["jest.config.*"],
+      "rationale": "Jest config controls what `tests-pass` means."
+    },
+    {
+      "detect": { "devDependency": "prettier" },
+      "paths": [".prettierrc*", "prettier.config.*"],
+      "rationale": "Prettier config controls formatting; editing it shifts what passes format-check."
+    },
+    {
+      "detect": { "dirExists": ".github/workflows" },
+      "paths": [".github/workflows/**"],
+      "rationale": "CI workflows are the deployment gate; editing them changes what runs."
+    },
+    {
+      "detect": { "dirExists": ".husky" },
+      "paths": [".husky/**"],
+      "rationale": "Pre-commit hooks enforce policy before code lands."
+    },
+    {
+      "detect": { "fileExists": "package.json" },
+      "paths": ["package.json"],
+      "rationale": "Scripts and dependency declarations are constitutional; editing them changes what tools run. Workers legitimately needing new dependencies should surface that via kickBack rather than editing this file directly."
+    }
+  ]
+}

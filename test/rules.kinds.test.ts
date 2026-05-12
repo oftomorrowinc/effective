@@ -12,6 +12,7 @@ function ctx(overrides: Partial<VerifyContext> = {}): VerifyContext {
   return {
     changedFiles: [],
     editableMatcher: compilePatterns(['**/*']),
+    protectedPaths: [],
     scope: {
       goal: 'sample',
       editable: ['**/*'],

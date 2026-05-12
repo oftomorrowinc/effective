@@ -2,6 +2,7 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { scanFilesForEscapeHatches } from '../escape-hatches/scan.js';
 import { validateEscapeHatches } from '../escape-hatches/validate.js';
+import { compilePatterns } from '../glob.js';
 import { walkSourceFiles } from '../walk.js';
 import { catalogueStubChecks } from './rules/stubs.js';
 import type { Finding } from '../schemas.js';
@@ -284,6 +285,55 @@ export const newExportsHaveNonTestCallers: CustomCheck = async (rule, ctx) => {
 };
 
 /**
+ * Real detection for `protected-paths-respected`.
+ *
+ * Iterates the resolved-merged `ctx.protectedPaths` and checks each
+ * changed file against each protected glob. A file matching ANY
+ * protected glob produces a CRITICAL finding citing the matched
+ * entry's rationale.
+ *
+ * Why per-entry matching (vs. an aggregate matcher): the rationale
+ * is per-glob — a finding needs to say WHY this specific file is
+ * protected ("the constitution itself; workers must not edit the
+ * rules they're being held to"), not just "this file is protected
+ * by some rule somewhere." So we test each glob individually and
+ * cite the first match.
+ *
+ * No elevation mechanism in v0.1 — touching a protected file is
+ * always a CRITICAL finding. Elevation is the reviewer-package's
+ * concern; for now, constitutional changes happen outside the
+ * worker loop (a human edits the config separately).
+ */
+export const protectedPathsRespected: CustomCheck = (rule, ctx) => {
+  if (ctx.protectedPaths.length === 0) return [];
+  const compiled = ctx.protectedPaths.map((entry) => ({
+    entry,
+    matcher: compilePatterns([entry.path]),
+  }));
+  const findings: Finding[] = [];
+  for (const file of ctx.changedFiles) {
+    if (file.status === 'deleted') {
+      // Deleting a protected file is also a constitutional change;
+      // surface it the same way.
+    }
+    for (const { entry, matcher } of compiled) {
+      if (!matcher(file.path)) continue;
+      findings.push({
+        ruleId: rule.id,
+        severity: rule.defaultSeverity,
+        category: rule.category,
+        message: `${file.path} is a protected file — ${entry.rationale} Workers cannot edit protected files as part of their work. Surface the need for a constitutional change via kickBack and stop; a reviewer or human with elevated scope makes the change separately.`,
+        evidence: file.path,
+        location: { file: file.path },
+        source: { kind: 'rule', ruleId: rule.id },
+      });
+      break;
+    }
+  }
+  return findings;
+};
+
+/**
  * Built-in custom-check registry. Merged into every verify() call by
  * default; users can override any entry by passing their own
  * `customChecks` map to verify(). Includes the substantive checks
@@ -295,5 +345,6 @@ export const builtInChecks: Readonly<Record<string, CustomCheck>> = {
   noDisabledTestsWithoutException,
   migrationHasExercisingTest,
   newExportsHaveNonTestCallers,
+  protectedPathsRespected,
   ...catalogueStubChecks,
 };

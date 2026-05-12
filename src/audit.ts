@@ -134,6 +134,7 @@ export async function audit(input: AuditInput): Promise<AuditResult> {
   const ctx: VerifyContext = {
     changedFiles,
     editableMatcher: compilePatterns(scope.editable),
+    protectedPaths: resolved.protectedPaths,
     scope,
     artifacts,
     toolchainResults,

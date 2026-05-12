@@ -4,7 +4,7 @@ import { runCommand } from '../toolchain/run.js';
 import { resolveParser } from '../toolchain/parsers/index.js';
 import type { ToolName } from '../toolchain/parsers/index.js';
 import type { Parser } from '../toolchain/parsers/index.js';
-import type { ResolvedConstitution, ResolvedScope } from '../resolve.js';
+import type { ProtectedPath, ResolvedConstitution, ResolvedScope } from '../resolve.js';
 import type {
   ChangedFile,
   CommitMetadata,
@@ -101,7 +101,13 @@ export async function loadGitSource(input: LoadGitSourceInput): Promise<LoadedSo
 
   if (!hasToolchain) {
     return {
-      ctx: assembleContext(input, changedFiles, {}, input.repo, commitMetadata),
+      ctx: assembleContext(
+        { ...input, protectedPaths: input.resolved.protectedPaths },
+        changedFiles,
+        {},
+        input.repo,
+        commitMetadata,
+      ),
       cleanup: () => Promise.resolve(),
     };
   }
@@ -109,7 +115,13 @@ export async function loadGitSource(input: LoadGitSourceInput): Promise<LoadedSo
   const handle = await prepareWorktree({ repo: input.repo, work: input.work });
   const toolchainResults = await collectToolchainResults(input.resolved, handle.path);
   return {
-    ctx: assembleContext(input, changedFiles, toolchainResults, input.repo, commitMetadata),
+    ctx: assembleContext(
+      { ...input, protectedPaths: input.resolved.protectedPaths },
+      changedFiles,
+      toolchainResults,
+      input.repo,
+      commitMetadata,
+    ),
     cleanup: async (): Promise<void> => {
       await handle.cleanup();
     },
@@ -122,6 +134,7 @@ function assembleContext(
     customChecks: Readonly<Record<string, CustomCheck>>;
     artifacts: Readonly<Record<string, unknown>>;
     exceptions: ExceptionRegistry;
+    protectedPaths: readonly ProtectedPath[];
   },
   changedFiles: readonly ChangedFile[],
   toolchainResults: Readonly<Record<string, ToolchainResult>>,
@@ -131,6 +144,7 @@ function assembleContext(
   return {
     changedFiles,
     editableMatcher: compilePatterns(input.scope.editable),
+    protectedPaths: input.protectedPaths,
     scope: input.scope,
     artifacts: input.artifacts,
     toolchainResults,
@@ -158,7 +172,13 @@ export async function loadStagedSource(input: LoadStagedSourceInput): Promise<Lo
   // context (author, attempt would come from VerifyInput).
   const commitMetadata = await loadCommitMetadata(input.repo, 'HEAD');
   return {
-    ctx: assembleContext(input, changedFiles, toolchainResults, input.repo, commitMetadata),
+    ctx: assembleContext(
+      { ...input, protectedPaths: input.resolved.protectedPaths },
+      changedFiles,
+      toolchainResults,
+      input.repo,
+      commitMetadata,
+    ),
     cleanup: () => Promise.resolve(),
   };
 }

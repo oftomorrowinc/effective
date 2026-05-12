@@ -112,6 +112,7 @@ export async function verify(input: VerifyInput): Promise<VerifyResult> {
           exceptionRegistry: input.source.exceptionRegistry ?? exceptions,
         },
         scope,
+        resolved.protectedPaths,
       );
     } else if (input.source.kind === 'git') {
       const loaded = await loadGitSource({

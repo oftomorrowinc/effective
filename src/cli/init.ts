@@ -1,5 +1,6 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
+import protectedRegistry from '../init/protected-detection.json' with { type: 'json' };
 import type { ParsedArgs } from './args.js';
 
 export interface InitCliResult {
@@ -40,6 +41,30 @@ interface InitContext {
   readonly lintFramework?: LintFramework;
   readonly lintFrameworkCandidates: readonly LintFramework[];
   readonly scripts: DetectedScripts;
+  readonly protectedPaths: readonly { path: string; rationale: string }[];
+}
+
+interface ProtectedDetectionPredicate {
+  readonly devDependency?: string;
+  readonly fileExists?: string;
+  readonly dirExists?: string;
+}
+
+interface ProtectedDetectionAlways {
+  readonly path: string;
+  readonly fallback?: string;
+  readonly rationale: string;
+}
+
+interface ProtectedDetectionConditional {
+  readonly detect: ProtectedDetectionPredicate;
+  readonly paths: readonly string[];
+  readonly rationale: string;
+}
+
+interface ProtectedDetectionRegistry {
+  readonly always: readonly ProtectedDetectionAlways[];
+  readonly conditional: readonly ProtectedDetectionConditional[];
 }
 
 async function exists(p: string): Promise<boolean> {
@@ -253,11 +278,31 @@ ${toolchainBlock}
     // },
   },
 
+  // Protected paths — constitutional files no worker should edit
+  // without elevation. Init detected the entries below from your
+  // project shape (lockfile, devDependencies, config files,
+  // workflows). Distinct from the lane rule: lane authorizes which
+  // files a scope can touch; \`protected\` asserts which files NO
+  // scope touches without elevation.
+${renderProtectedBlock(ctx)}
+
   meta: {
 ${nameLine}${versionLine}
   },
 });
 `;
+}
+
+function renderProtectedBlock(ctx: InitContext): string {
+  if (ctx.protectedPaths.length === 0) {
+    return "  // protected: [{ path: 'effective.config.ts', rationale: 'The constitution.' }],";
+  }
+  const lines: string[] = ['  protected: ['];
+  for (const entry of ctx.protectedPaths) {
+    lines.push(`    { path: '${entry.path}', rationale: ${JSON.stringify(entry.rationale)} },`);
+  }
+  lines.push('  ],');
+  return lines.join('\n');
 }
 
 async function writeIfMissing(
@@ -302,12 +347,65 @@ async function ensureGitignore(repoRoot: string, written: string[]): Promise<voi
   else if (!written.includes(gi)) written.push(gi);
 }
 
+function loadProtectedRegistry(): ProtectedDetectionRegistry {
+  // Bundled at build time via the JSON import above. Contributors who want
+  // to add new candidate paths edit `src/init/protected-detection.json` —
+  // no engine code change required.
+  return protectedRegistry;
+}
+
+async function evaluatePredicate(
+  predicate: ProtectedDetectionPredicate,
+  cwd: string,
+  pkg: PackageJsonShape | undefined,
+): Promise<boolean> {
+  if (predicate.devDependency !== undefined) {
+    const deps = allDeps(pkg);
+    if (predicate.devDependency in deps) return true;
+    return false;
+  }
+  if (predicate.fileExists !== undefined) {
+    return exists(path.join(cwd, predicate.fileExists));
+  }
+  if (predicate.dirExists !== undefined) {
+    const stat = await fs.stat(path.join(cwd, predicate.dirExists)).catch(() => null);
+    return stat?.isDirectory() ?? false;
+  }
+  return false;
+}
+
+async function detectProtectedPaths(
+  cwd: string,
+  pkg: PackageJsonShape | undefined,
+  typescript: boolean,
+): Promise<{ path: string; rationale: string }[]> {
+  const registry = loadProtectedRegistry();
+  const seen = new Set<string>();
+  const out: { path: string; rationale: string }[] = [];
+  for (const entry of registry.always) {
+    const usePath = typescript || entry.fallback === undefined ? entry.path : entry.fallback;
+    if (seen.has(usePath)) continue;
+    seen.add(usePath);
+    out.push({ path: usePath, rationale: entry.rationale });
+  }
+  for (const entry of registry.conditional) {
+    if (!(await evaluatePredicate(entry.detect, cwd, pkg))) continue;
+    for (const p of entry.paths) {
+      if (seen.has(p)) continue;
+      seen.add(p);
+      out.push({ path: p, rationale: entry.rationale });
+    }
+  }
+  return out;
+}
+
 async function detectContext(cwd: string): Promise<InitContext> {
   const pkg = await readPackageJson(cwd);
   const pm = await detectPackageManager(cwd, pkg);
   const typescript = await exists(path.join(cwd, 'tsconfig.json'));
   const testCandidates = detectTestFrameworks(pkg);
   const lintCandidates = detectLintFrameworks(pkg);
+  const protectedPaths = await detectProtectedPaths(cwd, pkg, typescript);
   const ctx: {
     -readonly [K in keyof InitContext]: InitContext[K];
   } = {
@@ -316,6 +414,7 @@ async function detectContext(cwd: string): Promise<InitContext> {
     testFrameworkCandidates: testCandidates,
     lintFrameworkCandidates: lintCandidates,
     scripts: detectScripts(pkg),
+    protectedPaths,
   };
   if (pkg?.name !== undefined) ctx.packageName = pkg.name;
   if (pkg?.version !== undefined) ctx.packageVersion = pkg.version;

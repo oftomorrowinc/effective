@@ -8,6 +8,54 @@ project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **`protected-paths-respected` foundation rule.** New CRITICAL rule
+  that flags any diff touching files declared under the new
+  `Constitution.protected` field. Distinct from the lane rule: lane
+  authorizes which files a scope can touch; protected asserts which
+  files NO scope touches without elevation. Both can fire on the
+  same file. Marked `diffOnly: true` so `audit` skips it cleanly.
+- **`Constitution.protected` schema field.** Array of `{ path,
+rationale }` entries; the rationale is required (non-empty) so
+  adding a protected path forces articulating why it's
+  constitutional. Resolved across `extends` so presets can ship
+  defaults a project augments.
+- **`src/init/protected-detection.json`** registry. JSON-only
+  contribution point for default protected-path candidates. Init
+  evaluates per-entry detection predicates (`devDependency`,
+  `fileExists`, `dirExists`) against the project shape and emits
+  matching entries into the generated config's `protected` field.
+  Adding a new candidate (e.g., "if Biome is detected, protect
+  `biome.json`") is a JSON-only PR — no engine code change.
+- **`docs/reviewer-spec-forward.md`.** Forward spec for the
+  separate `effective-reviewer` package — captures the
+  citation-substance checks the deterministic engine can't make
+  (context match, inline-rationale drift, fix-vs-suppress judgment)
+  so they're available when the reviewer is designed.
+- **Drift-prevention test** in `test/presets.recommended.test.ts`
+  asserting no rule's prompt projection references the obsolete
+  `.effective/exceptions.ts` path. Catches stale refs without
+  requiring a manual sweep on every schema change.
+
+### Changed
+
+- **`VerifyContext.protectedPaths`** added — resolved-merged list
+  of protected paths threaded into every check. Custom rules can
+  read it via `ctx.protectedPaths`.
+- **`ResolvedConstitution.protectedPaths`** added (typed
+  `readonly ProtectedPath[]`).
+- **`ProtectedPath` type** exported from `effective`.
+
+### Verified (no change required)
+
+- Exception-mechanism mismatch check (`validate.ts:131-143`) is
+  wired and tested (`escape-hatches.test.ts:141-164`) — covers both
+  the mismatch case (CRITICAL) and the `mechanism: null` case
+  (accepted on any hatch kind).
+- No stale `.effective/exceptions.ts` references remain in any
+  rule prompt, finding message, or kick-back template.
+
+### Added
+
 - **`effective audit` command + programmatic `audit()` function.**
   Walks the repository for source files and runs every applicable
   rule against current state (no diff). Designed for baseline
