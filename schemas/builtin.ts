@@ -11,13 +11,10 @@ import type { Exception, ExceptionRegistry } from './exception.js';
  * contribution flow as new catalogue entries — observed pattern + at least
  * one citation + structural rationale.
  *
- * Provenance: derived from the Core of Tomorrow platform's exception
- * registry work (core-16). The Core of Tomorrow project had project-
- * specific INSTANCES filling each of these CATEGORIES; the categories
- * themselves are portable.
- *
- * Each entry below uses 'exception-' prefix on the ID so they're clearly
- * distinguishable from project-specific exception IDs.
+ * Provenance: derived from an internal platform's exception-registry
+ * work (2026-Q2). That project had project-specific INSTANCES filling
+ * each of these CATEGORIES; the categories themselves are portable
+ * across TypeScript codebases.
  *
  * The `mechanism` field on each entry binds it to a specific suppression
  * comment shape. Citing a `mechanism: 'c8-ignore'` exception from an

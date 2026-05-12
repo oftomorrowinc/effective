@@ -107,6 +107,10 @@
     "vitest": "^3.2.4",
     "zod": "^3.24.1"
   },
+  "pnpm": {
+    "auto-install-peers": true,
+    "strict-peer-dependencies": false
+  },
   "simple-git-hooks": {
     "pre-commit": "pnpm exec lint-staged",
     "commit-msg": "pnpm exec commitlint --edit \"$1\"",

@@ -711,9 +711,9 @@ verification → kick-back → repeat) and returns the final output when verifie
    limits, model-specific quirks, new model releases, deprecation cycles,
    prompt caching, tool use protocols, structured output APIs, multimodal
    inputs. Anthropic ships a new feature on Tuesday; the package can't
-   expose it until Wednesday. The Core of Tomorrow team's three-week delay
-   when Anthropic changed output shape is the canonical example — a
-   pass-through wrapper would have cost _every consumer_ those weeks.
+   expose it until Wednesday. One team's three-week delay when a provider
+   changed output shape is the canonical example — a pass-through wrapper
+   would have cost _every consumer_ those weeks.
 
 3. **Couples to a specific agent loop shape.** Pass-through means the
    package runs the loop. But agent loops vary enormously: single-shot
@@ -740,7 +740,7 @@ routing between steps).
 **Why we rejected it:**
 
 Workflow orchestration is a different problem from quality verification.
-The Core of Tomorrow platform built a sophisticated runner because the
+The originating platform built a sophisticated runner because the
 platform needed one — fan-out/recombine semantics, lifecycle events,
 per-step model selection, kick-back routing, tool-scoping per step. That
 runner is right for that platform.
@@ -866,7 +866,7 @@ the "we share goals and standards" frame make it easier.
 
 **The alternative:** the package ships an opinionated 5-step or 6-step
 workflow (test-writer → code-writer → reviewer + kick-back routing) the
-way the Core of Tomorrow platform implements.
+way the originating platform implements.
 
 **Why we rejected it:**
 
@@ -995,7 +995,7 @@ which rules LLM review should target.
 **Scoping package.** A separate `@effective/scopes` package (or similar)
 that handles multi-piece work decomposition — given a job, produce N
 scoped sub-jobs each with their own editable paths and role assignments.
-This is what the Core of Tomorrow platform does in its workflow engine;
+This is what the originating platform does in its workflow engine;
 extracting it as a sibling package is the natural follow-on. Would
 significantly simplify the platform runner that motivated this work.
 

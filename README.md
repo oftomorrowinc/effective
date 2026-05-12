@@ -107,7 +107,7 @@ Most "agent quality" tooling positions itself as infrastructure for the operator
 
 ## The catalogue
 
-The rules in Effective aren't invented. Each one corresponds to a failure pattern observed in real codebases, with citations to where it was observed. Effective ships with a seed catalogue derived from the Core of Tomorrow platform work, and grows through contributions.
+The rules in Effective aren't invented. Each one corresponds to a failure pattern observed in real codebases, with citations to where it was observed. Effective ships with a seed catalogue derived from production observation on an internal agent-driven platform (2026-Q2), and grows through contributions.
 
 Every entry has the same shape:
 

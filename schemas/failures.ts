@@ -2,8 +2,8 @@ import type { Catalogue, CatalogueEntry } from './catalogue.js';
 
 /**
  * Seed catalogue — 13 production failure classes observed during agent-
- * driven development on the Core of Tomorrow platform (March–April 2026),
- * generalized for portable use in any codebase.
+ * driven development on an internal platform (2026-Q2), generalized for
+ * portable use in any codebase.
  *
  * Each entry follows the same shape: signature, why it happens,
  * structural countermeasure (with the full list of detection rules that
@@ -37,10 +37,10 @@ const backwardsCompatCreep: CatalogueEntry = {
   },
   observedInstances: [
     {
-      source: 'core-of-tomorrow:platform:march-april-2026',
+      source: 'internal-platform-incident:2026-Q2',
       kind: 'internal-incident',
       summary:
-        'Multiple instances during March–April 2026: workflow template drift (old ptmpl_* rows coexisting with new ones with divergent schemas); input_schema_id + input_schemas both existing on entity templates; both the old submitHumanInput server action and the new POST route accepting HITL submits until tasks T595/T596 retired the action entirely.',
+        'Multiple instances during 2026-Q2: workflow template drift (old and new template rows coexisting with divergent schemas); duplicate schema-id fields on entity templates; both the prior server-action submit path and the new POST route accepting human-in-the-loop submits in parallel until dedicated retirement tasks removed the prior path entirely.',
       date: '2026-04-15',
     },
   ],
@@ -63,10 +63,10 @@ const hitlSchemaBypass: CatalogueEntry = {
   },
   observedInstances: [
     {
-      source: 'core-of-tomorrow:platform:april-2026:daily-pub-review',
+      source: 'internal-platform-incident:2026-Q2',
       kind: 'internal-incident',
       summary:
-        'The daily-pub-review custom form submitted {ad_mapping, kdp_upload} against output_schemas: ["kdp_report_file"]. Worked silently before schema-composition tightening; broke after. Root cause: form routed through a path that didn\'t validate against output_schemas. Resolved by consolidating all submits through the canonical endpoint.',
+        "A daily-publication-review custom form submitted a multi-field payload against an output_schemas array that declared a single different field. Worked silently before schema-composition tightening; broke after. Root cause: form routed through a path that didn't validate against output_schemas. Resolved by consolidating all submits through the canonical endpoint.",
       date: '2026-04-18',
     },
   ],
@@ -90,10 +90,10 @@ const scaffoldWithoutWiring: CatalogueEntry = {
   },
   observedInstances: [
     {
-      source: 'core-of-tomorrow:platform:april-2026',
+      source: 'internal-platform-incident:2026-Q2',
       kind: 'internal-incident',
       summary:
-        'Early reviewer-workflow code defined reviewer pattern functions but wasn\'t invoked from any scheduled trigger or workflow step. Landed as "reviewer infrastructure ready"; actually unused for weeks until a task surfaced the gap.',
+        'Early reviewer-workflow code defined reviewer pattern functions but wasn\'t invoked from any scheduled trigger or workflow step. Landed as "reviewer infrastructure ready"; actually unused for weeks until a downstream task surfaced the gap.',
       date: '2026-04-10',
     },
   ],
@@ -115,10 +115,10 @@ const testSuiteDrift: CatalogueEntry = {
   },
   observedInstances: [
     {
-      source: 'core-of-tomorrow:platform:april-2026',
+      source: 'internal-platform-incident:2026-Q2',
       kind: 'internal-incident',
       summary:
-        '35 excluded tests discovered across the codebase at once (April 2026), each with a different reason for exclusion, all silently skipped. Cleanup took a full phase deliverable to reduce to zero.',
+        '35 excluded tests discovered across the codebase at once (2026-Q2), each with a different reason for exclusion, all silently skipped. Cleanup took a full phase deliverable to reduce to zero.',
       date: '2026-04-08',
     },
   ],
@@ -141,10 +141,10 @@ const specDrift: CatalogueEntry = {
   },
   observedInstances: [
     {
-      source: 'core-of-tomorrow:platform:april-2026:t584-t585',
+      source: 'internal-platform-incident:2026-Q2',
       kind: 'internal-incident',
       summary:
-        'T584 and T585 (April 2026) shipped with softened assertions; functional behavior correct but regression guards weaker than the spec demanded. Surfaced in reviewer cross-check against the task body.',
+        'Two adjacent tasks (2026-Q2) shipped with softened assertions; functional behavior correct but regression guards weaker than the spec demanded. Surfaced in reviewer cross-check against the task body.',
       date: '2026-04-12',
     },
   ],
@@ -168,10 +168,10 @@ const mockMaskedReality: CatalogueEntry = {
   },
   observedInstances: [
     {
-      source: 'core-of-tomorrow:platform:april-2026:hitl-glossary-test',
+      source: 'internal-platform-incident:2026-Q2',
       kind: 'internal-incident',
       summary:
-        'A HITL glossary test passed via `mockComposeInputSchemas` force-returning a schema with a top-level `glossary` property. Real runtime used `composeInputSchemasShaped` which produced nested keys with no top-level glossary. The test green was a fiction; real production returned the wrong shape and nobody noticed until a downstream consumer surfaced the mismatch.',
+        'A human-in-the-loop test passed via a mocked schema-composer that force-returned a shape with a top-level glossary property. The real runtime used the actual composer which produced nested keys with no top-level glossary. The green CI was a fiction; production returned the wrong shape and nobody noticed until a downstream consumer surfaced the mismatch.',
       date: '2026-04-14',
     },
   ],
@@ -194,10 +194,10 @@ const taskWithoutDeliverable: CatalogueEntry = {
   },
   observedInstances: [
     {
-      source: 'core-of-tomorrow:platform:april-2026:t568',
+      source: 'internal-platform-incident:2026-Q2',
       kind: 'internal-incident',
       summary:
-        'T568 (April 2026): a 32-line log entry claiming a re-export had been removed. The re-export was removed in an earlier unrelated commit; no test asserted the re-export stayed removed. The task closed with no durable deliverable; the re-export could have been re-added at any time.',
+        'A task (2026-Q2) closed with a 32-line log entry claiming a re-export had been removed. The re-export was removed in an earlier unrelated commit; no test asserted the re-export stayed removed. The task closed with no durable deliverable; the re-export could have been re-added at any time.',
       date: '2026-04-16',
     },
   ],
@@ -220,10 +220,10 @@ const defensiveNoOpMigration: CatalogueEntry = {
   },
   observedInstances: [
     {
-      source: 'core-of-tomorrow:platform:april-2026:t567',
+      source: 'internal-platform-incident:2026-Q2',
       kind: 'internal-incident',
       summary:
-        'Migration `20260419172606_t567_strip_legacy_schema_ref_attributes.sql` (April 2026). Pre-migration audit showed zero matching rows. The UPDATE was a no-op; the `RAISE EXCEPTION` guard validated state already true. The migration shipped as "handled" but would never have caught the condition it was nominally defending against.',
+        'A "strip legacy schema-ref attributes" migration (2026-Q2). Pre-migration audit showed zero matching rows. The UPDATE was a no-op; the `RAISE EXCEPTION` guard validated state already true. The migration shipped as "handled" but would never have caught the condition it was nominally defending against.',
       date: '2026-04-19',
     },
   ],
@@ -246,10 +246,10 @@ const specAsIllustration: CatalogueEntry = {
   },
   observedInstances: [
     {
-      source: 'core-of-tomorrow:platform:april-2026:t577',
+      source: 'internal-platform-incident:2026-Q2',
       kind: 'internal-incident',
       summary:
-        "T577 (April 2026) — task body specified five `it(...)` names with concrete assertions. Builder wrote four completely different tests for a helper they designed, including one test that rejected the composite-array-via-inline-items pattern that spec test 5 required the system to support. 0/5 spec'd names landed. The functional goal (workflow validation reaching 19/19) was met via the builder's alternative design; the spec's intent was lost.",
+        "A task (2026-Q2) — task body specified five `it(...)` names with concrete assertions. Builder wrote four completely different tests for a helper they designed, including one test that rejected the composite-array-via-inline-items pattern that spec test 5 required the system to support. 0/5 spec'd names landed. The functional goal was met via the builder's alternative design; the spec's intent was lost.",
       date: '2026-04-20',
     },
   ],
@@ -263,7 +263,7 @@ const specAsIllustration: CatalogueEntry = {
 const integrationTestEscape: CatalogueEntry = {
   id: 'integration-test-writes-escape-to-production-scope',
   signature:
-    "An integration test exercises a real write path (`createEntity`, `triggerSignalWorkflow`, `apply-experiment-update`, or equivalent) without wrapping the writes in test-business scoping. The test passes because the behavior under test is correct; meanwhile the writes land in the real business's namespace. Phantom entities appear with no parent edge. Real short_ids are consumed from the production counter, creating permanent gaps. Dashboards show garbage entries. Agents may subsequently act on test-originated signals or tasks as though they were real work.",
+    "An integration test exercises a real write path (entity-creation API, workflow-trigger API, or equivalent) without wrapping the writes in test-business scoping. The test passes because the behavior under test is correct; meanwhile the writes land in the real business's namespace. Phantom entities appear with no parent edge. Real short_ids are consumed from the production counter, creating permanent gaps. Dashboards show garbage entries. Agents may subsequently act on test-originated signals or tasks as though they were real work.",
   whyItHappens:
     'The test correctly exercises the real code path (good — no mocks across the function under test per mock-masked-reality). But the scope wrapper is missing, and the default business-id resolver falls back to the real business when no override is set. Absence of wrapping means "use real scope." Invisible at test-pass time because the test still passes (verification of behavior succeeds); visible only when humans notice phantom entities later, often much later.',
   countermeasure: {
@@ -273,10 +273,10 @@ const integrationTestEscape: CatalogueEntry = {
   },
   observedInstances: [
     {
-      source: 'core-of-tomorrow:platform:april-2026:t598',
+      source: 'internal-platform-incident:2026-Q2',
       kind: 'internal-incident',
       summary:
-        "T598 (April 21, 2026): the signal-conversion integration test called `triggerSignalWorkflow` against WF025 without test-business scoping. The signal-to-task conversion path legitimately creates decision + workflow-run project + task entities as production side effects of conversion. Those entities landed in the real business's scope. D227 was consumed by the test's phantom decision entity; when a human filed a separate D227 later the same evening, the short_id collided and had to be renamed. The entity had no parent project and its name carried the T598-SIGNAL-CONVERSION test-fixture marker — unambiguously a test leak.",
+        "A signal-conversion integration test (2026-Q2) called a workflow-trigger API against a specific workflow id without test-business scoping. The signal-to-task conversion path legitimately creates decision + workflow-run + task entities as production side effects of conversion. Those entities landed in the real business's scope. A short_id was consumed by the test's phantom decision entity; when a human filed a separate decision later the same evening, the short_id collided and had to be renamed. The entity had no parent project and its name carried the test-fixture marker prefix — unambiguously a test leak.",
       date: '2026-04-21',
     },
   ],
@@ -304,24 +304,24 @@ const unverifiedAccepted: CatalogueEntry = {
   },
   observedInstances: [
     {
-      source: 'core-of-tomorrow:platform:april-2026:t648-t651',
+      source: 'internal-platform-incident:2026-Q2',
       kind: 'internal-incident',
       summary:
-        'Sub-A: T648–T651, T646, T647 (April 21, 2026) shipped as Success while the test infra CLI was not installed anywhere, integration tests had never run, and CI was red blocking the integration step from executing. Each log was transparent; each review classified LOW; accumulated unverification discovered only when a human attempted validation.',
+        'Sub-A: a cluster of adjacent tasks (2026-Q2) shipped as Success while the test infra CLI was not installed anywhere, integration tests had never run, and CI was red blocking the integration step from executing. Each log was transparent; each review classified LOW; accumulated unverification discovered only when a human attempted validation.',
       date: '2026-04-21',
     },
     {
-      source: 'core-of-tomorrow:platform:april-2026:t625',
+      source: 'internal-platform-incident:2026-Q2',
       kind: 'internal-incident',
       summary:
-        'Sub-B: T625 Attempt 1 (April 22, 2026) claimed "npm test passes locally" with only a log-file commit touched (no test actually run); ~3 minutes later after the constitution version propagated, the builder produced an honest Failed with a diagnostic-rich log.',
+        'Sub-B: a task\'s first attempt (2026-Q2) claimed "tests pass locally" with only a log-file commit touched (no test actually run); ~3 minutes later after the constitution version propagated, the builder produced an honest Failed with a diagnostic-rich log.',
       date: '2026-04-22',
     },
     {
-      source: 'core-of-tomorrow:platform:april-2026:t642',
+      source: 'internal-platform-incident:2026-Q2',
       kind: 'internal-incident',
       summary:
-        "Sub-C: T642 Attempt 2 (April 22, 2026) claimed zero errors post-scope-expansion based on `diff-eslint.ts` output (the specific check T642 shipped), which was accurate for that narrow check; `npm run lint:ci` on current main remained red via rules T642 didn't touch. When T644's pre-push hook ran `lint:ci`, the broader red surfaced.",
+        "Sub-C: a retry attempt (2026-Q2) claimed zero errors post-scope-expansion based on a diff-bounded lint script's output, which was accurate for that narrow check; the full lint-ci on main remained red via rules the task didn't touch. When a subsequent task's pre-push hook ran the broader command, the wider red surfaced.",
       date: '2026-04-22',
     },
   ],
@@ -344,12 +344,12 @@ const contextArtifactBloat: CatalogueEntry = {
   },
   observedInstances: [
     {
-      source: 'core-of-tomorrow:platform:april-2026',
+      source: 'internal-platform-incident:2026-Q2',
       kind: 'internal-incident',
       summary:
-        "tasks.md in the prior platform repo reached 1,222,826 bytes / 17,929 lines / 872 tasks (April 22, 2026). The sync generator inlined every task's full instructions body, including all completed tasks' historical scope. Every spawned builder loaded the entire file (~400k tokens of mostly-historical body text) before any actual work. Performance degradation tracked directly to this attention shape. Fixed via per-worktree filter: skeleton for all 872 tasks but full body only for the target task. 1.2MB → 98KB, 92% reduction.",
+        "A tasks-queue file in the prior platform repo reached 1,222,826 bytes / 17,929 lines / 872 tasks (2026-Q2). The sync generator inlined every task's full instructions body, including all completed tasks' historical scope. Every spawned builder loaded the entire file (~400k tokens of mostly-historical body text) before any actual work. Performance degradation tracked directly to this attention shape. Fixed via per-worktree filter: skeleton for all 872 tasks but full body only for the target task. 1.2MB → 98KB, 92% reduction.",
       date: '2026-04-22',
-      reporter: 'Core of Tomorrow platform team',
+      reporter: 'Internal platform team',
     },
   ],
   addedDate: '2026-04-22',
@@ -372,12 +372,12 @@ const versionedContextDrifts: CatalogueEntry = {
   },
   observedInstances: [
     {
-      source: 'core-of-tomorrow:platform:april-2026:t625',
+      source: 'internal-platform-incident:2026-Q2',
       kind: 'internal-incident',
       summary:
-        "T625 Attempt 1 (April 22, 2026). The platform's CLAUDE.md had been updated with the new unverified-is-Failed rule and the full pre-Success checklist. The app-builder loop read its constitution from `dev/CLAUDE.md`, which lived in a git submodule. The submodule pointer hadn't been bumped, so the app-builder was still operating against the pre-update 7-point checklist. T625's first attempt produced a fabricated `Result: Success` (sub-B of unverified-work-accepted-as-verified) because the builder was applying the old checklist. Post-submodule-bump, ~3 minutes later, the same builder produced honest `Result: Failed` with diagnostic-rich log — correct behavior from the same agent the moment it could see the updated constitution.",
+        "A task's first attempt (2026-Q2). The platform's constitution file had been updated with the new unverified-is-Failed rule and the full pre-Success checklist. The app-builder loop read its constitution from a path inside a git submodule. The submodule pointer hadn't been bumped, so the app-builder was still operating against the pre-update 7-point checklist. The first attempt produced a fabricated `Result: Success` (sub-B of unverified-work-accepted-as-verified) because the builder was applying the old checklist. Post-submodule-bump, ~3 minutes later, the same builder produced honest `Result: Failed` with diagnostic-rich log — correct behavior from the same agent the moment it could see the updated constitution.",
       date: '2026-04-22',
-      reporter: 'Core of Tomorrow platform team',
+      reporter: 'Internal platform team',
     },
   ],
   addedDate: '2026-04-22',
@@ -415,7 +415,7 @@ const throwSwallowedByCatch: CatalogueEntry = {
   },
   observedInstances: [
     {
-      source: 'core-of-tomorrow:reviewer-patterns:pass-2',
+      source: 'internal-platform-reviewer-pass:2026-Q2',
       kind: 'internal-incident',
       summary:
         'Reviewer Pass 2 grep pattern from the canonical reviewer-patterns doc: scan diffs for new `throw new <ErrorType>` statements, then walk callers for `try { ... } catch (...) { /* no re-throw */ }`. Several historical incidents in the prior platform shipped throws that no production catch had any reason to expect.',
@@ -441,7 +441,7 @@ const primedShellVerification: CatalogueEntry = {
   },
   observedInstances: [
     {
-      source: 'core-of-tomorrow:reviewer-patterns:pass-2',
+      source: 'internal-platform-reviewer-pass:2026-Q2',
       kind: 'internal-incident',
       summary:
         'A sub-signature of `unverified-work-accepted-as-verified` specific to environment assumptions: the build log claims "I ran the script and it works," reviewer pulls the log and finds it ran in the author\'s session shell with project-local PATH and env state. The same script in a clean CI shell hit a missing-tool error within seconds.',
@@ -468,10 +468,10 @@ const wrapperOverFirstClassPrimitive: CatalogueEntry = {
   },
   observedInstances: [
     {
-      source: 'core-of-tomorrow:reviewer-patterns:pass-2',
+      source: 'internal-platform-reviewer-pass:2026-Q2',
       kind: 'internal-incident',
       summary:
-        'Several wrapper modules added during the April 2026 buildout that called through to platform primitives with no transformation. The wrappers existed because "the API will probably need to be different someday" — a future-proofing rationale with no current value-add. Reviewer Pass 2 grep pattern: new function/module whose body is a single delegation to a first-class primitive, with build-log rationale matching the vague-rationale phrase list.',
+        'Several wrapper modules added during the 2026-Q2 buildout that called through to platform primitives with no transformation. The wrappers existed because "the API will probably need to be different someday" — a future-proofing rationale with no current value-add. Reviewer Pass 2 grep pattern: new function/module whose body is a single delegation to a first-class primitive, with build-log rationale matching the vague-rationale phrase list.',
       date: '2026-04-22',
     },
   ],
@@ -494,7 +494,7 @@ const writeThenValidateWithoutTransaction: CatalogueEntry = {
   },
   observedInstances: [
     {
-      source: 'core-of-tomorrow:reviewer-patterns:pass-2',
+      source: 'internal-platform-reviewer-pass:2026-Q2',
       kind: 'internal-incident',
       summary:
         "Reviewer Pass 2 grep pattern: new `await db.insert(...)` or `await db.update(...)` followed within the same async function by `await db.select(...)` and a subsequent `if (!isValid(...))` block. If the surrounding function doesn't use `db.transaction(...)` or equivalent, flag as write-then-validate-without-transaction. Several historical incidents shipped this shape and discovered the gap when concurrent traffic produced read-anomaly tickets.",
@@ -520,10 +520,10 @@ const sketchContradictionSelfCorrection: CatalogueEntry = {
   },
   observedInstances: [
     {
-      source: 'core-of-tomorrow:reviewer-patterns:pass-2-positive',
+      source: 'internal-platform-reviewer-pass:2026-Q2-positive',
       kind: 'internal-incident',
       summary:
-        "Observed in build logs where the task body's pseudocode would have implemented X but the surrounding context (decision short_id Y, principle core-3.Z, or another commitment) required not-X. The builder noted the contradiction, implemented the invariant-conforming version, and documented the deviation. Cited explicitly in the reviewer-patterns doc as the canonical positive-signal pattern.",
+        "Observed in build logs where the task body's pseudocode would have implemented X but the surrounding context (a decision record, a constitutional principle, or another commitment) required not-X. The builder noted the contradiction, implemented the invariant-conforming version, and documented the deviation. Cited explicitly in the reviewer-patterns doc as the canonical positive-signal pattern.",
       date: '2026-04-22',
     },
   ],
@@ -546,10 +546,10 @@ const retryScopeExpansionIntoArchitecturalConfig: CatalogueEntry = {
   },
   observedInstances: [
     {
-      source: 'core-of-tomorrow:reviewer-patterns:pass-3',
+      source: 'internal-platform-reviewer-pass:2026-Q2',
       kind: 'internal-incident',
       summary:
-        'Pattern observed multiple times in retry sequences during the April 2026 buildout: Attempt 1 fails verification, Attempt 2 adds an `eslint.config.*` rule disable or a CI-workflow change that resolves the verification gap by removing the gate rather than satisfying it. Reviewer Pass 3 grep pattern: diff that includes both a `## Attempt N` block with N ≥ 2 AND modifications to files matching the denylist regex.',
+        'Pattern observed multiple times in retry sequences during the 2026-Q2 buildout: Attempt 1 fails verification, Attempt 2 adds an `eslint.config.*` rule disable or a CI-workflow change that resolves the verification gap by removing the gate rather than satisfying it. Reviewer Pass 3 grep pattern: diff that includes both a `## Attempt N` block with N ≥ 2 AND modifications to files matching the denylist regex.',
       date: '2026-04-22',
     },
   ],
@@ -573,7 +573,7 @@ const filesScopedOverrideRequiresCitedDecision: CatalogueEntry = {
   },
   observedInstances: [
     {
-      source: 'core-of-tomorrow:reviewer-patterns:pass-3',
+      source: 'internal-platform-reviewer-pass:2026-Q2',
       kind: 'internal-incident',
       summary:
         "Pattern observed in retrospective audits of accumulated `eslint.config.*` overrides: roughly half of files-scoped rules: {} blocks had no decision citation in their introducing commit. Of those that did cite decisions, several pointed at decisions whose body didn't name the actual rule or scope being overridden. The reviewer-patterns doc codified the citation-substance requirement after that audit.",

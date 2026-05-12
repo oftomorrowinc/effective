@@ -32,7 +32,7 @@ export const RuleCategory = z.enum([
   'exceptions', // escape-hatch-must-cite-justification family
   'scope', // task-scope conformance (claimed work matches done work)
   'toolchain', // wrapped output from external tools
-  'spec-discipline', // spec-as-contract (T577 family)
+  'spec-discipline', // spec-as-contract family
   'data-discipline', // identity values, ULID, scope-wrapped writes
   'architecture', // backwards-compat creep, scaffold-without-wiring
   'verification', // unverified-as-success family

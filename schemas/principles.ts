@@ -7,9 +7,9 @@ import type { Principle, Principles } from './principle.js';
  * `relatedPrinciple` field cites back here.
  *
  * Provenance: distilled from production observation across months of
- * agent-driven development (the Core of Tomorrow platform, March–April
- * 2026). Project-specific references have been generalized for portable
- * use; the original constitution document is preserved in the project's
+ * agent-driven development on an internal platform (2026-Q2).
+ * Project-specific references have been generalized for portable use;
+ * the originating constitution is preserved in the source project's
  * authoritative archive.
  *
  * Append-only: principles can be deprecated or retired but never
