@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { classifyRegions, isCodeAt } from '../src/syntax-regions.js';
+import { classifyRegions } from '../src/syntax-regions.js';
 
 function regionAt(content: string, marker: string): 'code' | 'string' | 'comment' {
   const idx = content.indexOf(marker);
@@ -91,25 +91,5 @@ describe('classifyRegions', () => {
     expect(regions[content.indexOf('opens')]).toBe('comment');
     expect(regions[content.indexOf('const')]).toBe('code');
     expect(regions[content.indexOf('y')]).toBe('string');
-  });
-});
-
-describe('isCodeAt', () => {
-  it('returns true for indices in code regions', () => {
-    const content = 'const x = 1;';
-    const regions = classifyRegions(content);
-    expect(isCodeAt(regions, 0)).toBe(true);
-  });
-
-  it('returns false for indices in string regions', () => {
-    const content = 'const x = "hello";';
-    const regions = classifyRegions(content);
-    expect(isCodeAt(regions, content.indexOf('hello'))).toBe(false);
-  });
-
-  it('returns false for indices in comment regions', () => {
-    const content = '// hello';
-    const regions = classifyRegions(content);
-    expect(isCodeAt(regions, content.indexOf('hello'))).toBe(false);
   });
 });

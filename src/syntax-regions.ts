@@ -138,12 +138,4 @@ export function classifyRegions(content: string): Region[] {
   return regions;
 }
 
-/**
- * Quick predicate: does the character at `index` sit in a code region?
- * Useful when iterating regex matches and filtering out matches whose
- * starting offset lands in a string or comment.
- */
-export function isCodeAt(regions: readonly Region[], index: number): boolean {
-  return regions[index] === 'code';
-}
 /* eslint-enable security/detect-object-injection */

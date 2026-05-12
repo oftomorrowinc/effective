@@ -10,6 +10,24 @@ export default defineConfig({
   // See DESIGN.md for the constitution-as-substance reframe.
   extends: ['recommended'],
 
+  // The pre-push hook (see package.json `simple-git-hooks`) runs
+  // `pnpm lint && pnpm typecheck && pnpm test` directly before invoking
+  // `effective verify`. Re-running them through the worktree-isolated
+  // toolchain path would duplicate the work AND require the worktree
+  // node_modules cache to be primed (5-minute first run). Disable the
+  // toolchain rules here so `effective verify` covers the diff-based
+  // checks only — pattern, lane, exception-citation, custom rules.
+  disable: {
+    'toolchain.lint-clean':
+      'Pre-push hook runs `pnpm lint` directly; avoids worktree node_modules dependency.',
+    'toolchain.typecheck-clean':
+      'Pre-push hook runs `pnpm typecheck` directly; avoids worktree node_modules dependency.',
+    'toolchain.tests-pass':
+      'Pre-push hook runs `pnpm test` directly; avoids worktree node_modules dependency.',
+    'toolchain.coverage-non-decreasing':
+      'Coverage tracking against a moving baseline is not implemented in the engine yet; vitest config enforces thresholds.',
+  },
+
   // Exception registry — built-in templates spread with any project-
   // specific instances. No project-specific instances yet; the spread
   // is the full registry for now.

@@ -1,3 +1,15 @@
+> **⚠️ Active Development — last reviewed 2026-05-12**
+>
+> Effective is in active development and pre-1.0. The API, schema, and
+> rule behavior may change between versions. We're using `v0.1.0-rc.*`
+> tags in git while validating against real adoptions; npm publish is
+> intentionally delayed until validation is complete. See
+> [CHANGELOG.md](./CHANGELOG.md) for what's stable enough to depend on.
+
+[![CI](https://github.com/oftomorrowinc/effective/actions/workflows/ci.yml/badge.svg)](https://github.com/oftomorrowinc/effective/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
+[![TypeScript](https://img.shields.io/badge/TypeScript-Ready-blue.svg)](https://www.typescriptlang.org/)
+
 # effective
 
 A constitution for collaborative work on a codebase.
