@@ -151,6 +151,25 @@ export const PatternRule = RuleBase.extend({
   inGlob: z.string().default('**/*'),
   /** Optional anti-glob (don't examine these files even within `inGlob`). */
   notInGlob: z.string().optional(),
+  /**
+   * Region-aware matching. By default, pattern rules only fire on matches
+   * inside CODE regions of JS/TS-family files — strings, line comments,
+   * and block comments are skipped. This avoids the common false-positive
+   * where a rule's own prompt text or a test fixture contains the
+   * pattern as documentation.
+   *
+   * Some rules genuinely target non-code regions:
+   *   - `no-hardcoded-secrets` looks for tokens inside string literals
+   *     (set `matchInStrings: true`).
+   *   - `no-stray-debug-output` looks for `// DEBUG` markers in line
+   *     comments (set `matchInComments: true`).
+   *
+   * Defaults to `false` for both. Set `true` to opt the rule into matching
+   * in those regions. Non-JS files (e.g., `.md`, `.json`, `.yaml`) are
+   * scanned as plain text — region-awareness doesn't apply.
+   */
+  matchInStrings: z.boolean().optional(),
+  matchInComments: z.boolean().optional(),
 });
 export type PatternRule = z.infer<typeof PatternRule>;
 

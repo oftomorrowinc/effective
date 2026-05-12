@@ -29,6 +29,8 @@ interface PatternOptions extends FactoryDefaults {
   id?: string;
   in?: string;
   notIn?: string;
+  matchInStrings?: boolean;
+  matchInComments?: boolean;
   prompt?: Partial<PromptProjection>;
 }
 
@@ -131,6 +133,8 @@ function patternBase(
     forbidden,
     inGlob: options.in ?? '**/*',
     ...(options.notIn === undefined ? {} : { notInGlob: options.notIn }),
+    ...(options.matchInStrings === undefined ? {} : { matchInStrings: options.matchInStrings }),
+    ...(options.matchInComments === undefined ? {} : { matchInComments: options.matchInComments }),
     prompt: buildPromptProjection({ summary, guidance }, options.prompt),
   };
   return withDefaults(base, options, 'custom', defaultSeverity);

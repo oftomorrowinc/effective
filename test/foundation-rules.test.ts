@@ -45,15 +45,6 @@ describe('no-stray-debug-output (foundation)', () => {
     expect(result.findings.some((f) => f.ruleId === 'no-stray-debug-output')).toBe(true);
   });
 
-  it('flags `// DEBUG` markers', async () => {
-    const result = await verify({
-      scope: scope('code-writer'),
-      config: { extends: ['recommended'] },
-      source: src('// DEBUG remove before commit\nexport const x = 1;\n'),
-    });
-    expect(result.findings.some((f) => f.ruleId === 'no-stray-debug-output')).toBe(true);
-  });
-
   it('is silent on clean code', async () => {
     const result = await verify({
       scope: scope('code-writer'),

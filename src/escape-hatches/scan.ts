@@ -1,5 +1,9 @@
+import { classifyRegions } from '../syntax-regions.js';
+import type { Region } from '../syntax-regions.js';
 import type { EscapeHatch } from '../schemas.js';
 import type { ChangedFile } from '../source/types.js';
+
+const TS_LIKE_EXT = /\.(tsx?|jsx?|mjs|cjs|mts|cts)$/;
 
 /**
  * Patterns we recognize as "escape hatches" — suppressions that the
@@ -42,11 +46,25 @@ function ruleList(commentText: string): string[] | undefined {
     .filter((r) => r.length > 0);
 }
 
-function singleScan(file: ChangedFile, kind: EscapeHatch['kind'], regex: RegExp): EscapeHatch[] {
+function singleScan(
+  file: ChangedFile,
+  kind: EscapeHatch['kind'],
+  regex: RegExp,
+  regions: readonly Region[] | undefined,
+): EscapeHatch[] {
   const found: EscapeHatch[] = [];
   regex.lastIndex = 0;
   let match: RegExpExecArray | null;
   while ((match = regex.exec(file.content)) !== null) {
+    // Skip matches whose starting offset is inside a string literal.
+    // Suppression directives live in comments, not strings — a textual
+    // mention of the directive shape inside a docstring or test fixture
+    // string isn't a real directive. We do NOT skip comment regions
+    // here because that's exactly where directives live.
+    if (regions?.[match.index] === 'string') {
+      if (match.index === regex.lastIndex) regex.lastIndex += 1;
+      continue;
+    }
     const text = match[0];
     const idMatch = EXCEPTION_ID.exec(text);
     const justMatch = INLINE_JUSTIFICATION.exec(text);
@@ -72,9 +90,10 @@ function singleScan(file: ChangedFile, kind: EscapeHatch['kind'], regex: RegExp)
 
 export function scanFileForEscapeHatches(file: ChangedFile): EscapeHatch[] {
   if (file.status === 'deleted') return [];
+  const regions = TS_LIKE_EXT.test(file.path) ? classifyRegions(file.content) : undefined;
   const all: EscapeHatch[] = [];
   for (const { kind, regex } of PATTERNS) {
-    all.push(...singleScan(file, kind, regex));
+    all.push(...singleScan(file, kind, regex, regions));
   }
   return all;
 }

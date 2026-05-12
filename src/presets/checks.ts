@@ -3,6 +3,7 @@ import path from 'node:path';
 import { scanFilesForEscapeHatches } from '../escape-hatches/scan.js';
 import { validateEscapeHatches } from '../escape-hatches/validate.js';
 import { compilePatterns } from '../glob.js';
+import { classifyRegions } from '../syntax-regions.js';
 import { walkSourceFiles } from '../walk.js';
 import { catalogueStubChecks } from './rules/stubs.js';
 import type { Finding } from '../schemas.js';
@@ -64,13 +65,27 @@ export const noDisabledTestsWithoutException: CustomCheck = (rule, ctx) => {
   for (const file of ctx.changedFiles) {
     if (file.status === 'deleted') continue;
     if (!TEST_FILE_RE.test(file.path)) continue;
+    // Region-aware: real `.skip()` calls are code; the same text inside
+    // a string literal (test fixture passing skip-shaped input to the
+    // rule under test) is not a real call. Compute regions once per
+    // file; lookup per hit by global offset.
+    const regions = classifyRegions(file.content);
+    const lineStarts: number[] = [0];
+    for (let i = 0; i < file.content.length; i += 1) {
+      if (file.content.codePointAt(i) === 10) lineStarts.push(i + 1);
+    }
     const lines = file.content.split('\n');
+    /* eslint-disable security/detect-object-injection -- exception-id: caller-validated-dynamic-key */
     for (const [index, line] of lines.entries()) {
       const hits = [...scanLine(line, DISABLE_METHOD_RE), ...scanLine(line, DISABLE_LEGACY_RE)];
       if (hits.length === 0) continue;
+      const lineStart = lineStarts[index] ?? 0;
+      // Filter to hits that are real code (skip fixture-strings, comments).
+      const codeHits = hits.filter((hit) => regions[lineStart + (hit.column - 1)] === 'code');
+      if (codeHits.length === 0) continue;
       const context = [lines[index - 1] ?? '', line, lines[index + 1] ?? ''].join('\n');
       if (EXCEPTION_ID_HINT.test(context)) continue;
-      for (const hit of hits) {
+      for (const hit of codeHits) {
         findings.push({
           ruleId: rule.id,
           severity: rule.defaultSeverity,
@@ -82,6 +97,7 @@ export const noDisabledTestsWithoutException: CustomCheck = (rule, ctx) => {
         });
       }
     }
+    /* eslint-enable security/detect-object-injection */
   }
   return findings;
 };

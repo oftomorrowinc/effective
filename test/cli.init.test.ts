@@ -86,67 +86,67 @@ describe('runInitCommand — scaffolding', () => {
 
 describe('runInitCommand — package-manager detection', () => {
   it('detects pnpm from pnpm-lock.yaml', async () => {
-    const dir = await makeFixture({
-      tsconfig: true,
-      lockfile: 'pnpm',
-      packageJson: { scripts: { lint: 'eslint .', test: 'vitest run' } },
-    });
-    try {
-      await runInitCommand(parseArgs(['init']), dir);
-      const config = await readFile(path.join(dir, 'effective.config.ts'), 'utf8');
-      expect(config).toContain('pnpm lint');
-      expect(config).toContain('pnpm test');
-    } finally {
-      await rm(dir, { recursive: true, force: true });
-    }
+    await withFixture(
+      {
+        tsconfig: true,
+        lockfile: 'pnpm',
+        packageJson: { scripts: { lint: 'eslint .', test: 'vitest run' } },
+      },
+      async (dir) => {
+        await runInitCommand(parseArgs(['init']), dir);
+        const config = await readFile(path.join(dir, 'effective.config.ts'), 'utf8');
+        expect(config).toContain('pnpm lint');
+        expect(config).toContain('pnpm test');
+      },
+    );
   });
 
   it('detects yarn from yarn.lock', async () => {
-    const dir = await makeFixture({
-      tsconfig: true,
-      lockfile: 'yarn',
-      packageJson: { scripts: { lint: 'eslint .' } },
-    });
-    try {
-      await runInitCommand(parseArgs(['init']), dir);
-      const config = await readFile(path.join(dir, 'effective.config.ts'), 'utf8');
-      expect(config).toContain('yarn lint');
-    } finally {
-      await rm(dir, { recursive: true, force: true });
-    }
+    await withFixture(
+      {
+        tsconfig: true,
+        lockfile: 'yarn',
+        packageJson: { scripts: { lint: 'eslint .' } },
+      },
+      async (dir) => {
+        await runInitCommand(parseArgs(['init']), dir);
+        const config = await readFile(path.join(dir, 'effective.config.ts'), 'utf8');
+        expect(config).toContain('yarn lint');
+      },
+    );
   });
 
   it('detects npm from package-lock.json and uses `-- ` separator for forwarded flags', async () => {
-    const dir = await makeFixture({
-      tsconfig: true,
-      lockfile: 'npm',
-      packageJson: {
-        scripts: { lint: 'eslint .' },
-        devDependencies: { eslint: '^9.0.0' },
+    await withFixture(
+      {
+        tsconfig: true,
+        lockfile: 'npm',
+        packageJson: {
+          scripts: { lint: 'eslint .' },
+          devDependencies: { eslint: '^9.0.0' },
+        },
       },
-    });
-    try {
-      await runInitCommand(parseArgs(['init']), dir);
-      const config = await readFile(path.join(dir, 'effective.config.ts'), 'utf8');
-      // npm needs `--` to forward flags to the underlying script
-      expect(config).toContain('npm run lint -- --format json');
-    } finally {
-      await rm(dir, { recursive: true, force: true });
-    }
+      async (dir) => {
+        await runInitCommand(parseArgs(['init']), dir);
+        const config = await readFile(path.join(dir, 'effective.config.ts'), 'utf8');
+        // npm needs `--` to forward flags to the underlying script
+        expect(config).toContain('npm run lint -- --format json');
+      },
+    );
   });
 
   it('falls back to packageManager field when no lockfile is present', async () => {
-    const dir = await makeFixture({
-      tsconfig: true,
-      packageJson: { packageManager: 'pnpm@10.0.0', scripts: { lint: 'eslint .' } },
-    });
-    try {
-      await runInitCommand(parseArgs(['init']), dir);
-      const config = await readFile(path.join(dir, 'effective.config.ts'), 'utf8');
-      expect(config).toContain('pnpm lint');
-    } finally {
-      await rm(dir, { recursive: true, force: true });
-    }
+    await withFixture(
+      {
+        tsconfig: true,
+        packageJson: { packageManager: 'pnpm@10.0.0', scripts: { lint: 'eslint .' } },
+      },
+      async (dir) => {
+        await runInitCommand(parseArgs(['init']), dir);
+        const config = await readFile(path.join(dir, 'effective.config.ts'), 'utf8');
+        expect(config).toContain('pnpm lint');
+      },
+    );
   });
 });
 

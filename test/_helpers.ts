@@ -12,6 +12,11 @@ export function patternRule(id: string, overrides: Partial<Rule> = {}): Rule {
     pattern: /TODO/,
     forbidden: true,
     inGlob: '**/*',
+    // Test fixtures commonly put TODO markers in comments; opt the
+    // helper into matching there so existing tests keep their semantics
+    // post region-aware-detection.
+    matchInComments: true,
+    matchInStrings: true,
     prompt: { summary: `summary ${id}`, guidance: `guidance ${id}` },
     ...overrides,
   } as Rule;

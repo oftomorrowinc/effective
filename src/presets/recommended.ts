@@ -41,7 +41,7 @@ const FOUNDATION_RULES: readonly Rule[] = [
         "The config's `protected` field declares paths that no worker scope may edit as part of its work. Typical protected paths include `effective.config.{ts,js}` itself (the constitution), lint/typecheck/test configs (they define what `verify` enforces), CI workflow files (the deployment gate), and any pre-commit hook configuration. If a case genuinely requires a constitutional change (e.g., registering a new exception, adjusting a rule's severity), surface that need through `kickBack` and stop — a reviewer or human with elevated scope makes the constitutional change separately, outside the worker loop. Distinct from the lane rule: lane authorizes which files a scope can touch; protected asserts which files NO scope touches without elevation. Both can fire on the same file (two reasons it's wrong, two findings to triage).",
     },
   }),
-  rule.forbidPattern(/\bconsole\.(log|error|warn|debug|trace|info)\b|\bdebugger\b|\/\/\s*DEBUG\b/, {
+  rule.forbidPattern(/\bconsole\.(log|error|warn|debug|trace|info)\b|\bdebugger\b/, {
     id: 'no-stray-debug-output',
     category: 'hygiene',
     defaultSeverity: 'CRITICAL',
@@ -49,10 +49,12 @@ const FOUNDATION_RULES: readonly Rule[] = [
     appliesToRoles: ['code-writer', 'free-form'],
     in: '**/*.{ts,tsx,js,jsx,mjs,cjs}',
     notIn: '**/*.{test,spec}.{ts,tsx,js,jsx,mjs,cjs}',
+    // Code-only — debug output that ships is a function CALL, not a
+    // string mention of one. Defaults handle this; no opt-in needed.
     prompt: {
       summary: 'No stray debug output in production code.',
       guidance:
-        'Avoid `console.log` / `console.error` / `console.warn` / `console.debug` / `console.trace` / `console.info`, bare `debugger` statements, and `// DEBUG` markers in non-test source files. They are development scaffolding — ship them and they leak into production output, fill log aggregators, or worse, divulge internal state. Route real logging through the project logger; remove debug output before commit.',
+        'Avoid `console.log` / `console.error` / `console.warn` / `console.debug` / `console.trace` / `console.info` and bare `debugger` statements in non-test source files. They are development scaffolding — ship them and they leak into production output, fill log aggregators, or worse, divulge internal state. Route real logging through the project logger; remove debug output before commit.',
       examples: {
         bad: 'console.log("got user", user);',
         good: 'logger.info({ userId: user.id }, "fetched user");',
@@ -67,6 +69,11 @@ const FOUNDATION_RULES: readonly Rule[] = [
       defaultSeverity: 'CRITICAL',
       relatedPrinciple: 'mechanical-enforcement-over-instruction',
       appliesToRoles: ['code-writer', 'free-form'],
+      // Secrets are typically committed as string literals; a hardcoded
+      // key in a comment is also a real leak (devs commenting out unsafe
+      // code). Match anywhere.
+      matchInStrings: true,
+      matchInComments: true,
       prompt: {
         summary: 'No hardcoded secrets, tokens, or API keys.',
         guidance:

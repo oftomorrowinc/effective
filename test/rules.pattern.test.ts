@@ -87,12 +87,52 @@ describe('checkPattern — forbidden', () => {
   });
 
   it('handles string patterns (literal)', () => {
+    // The TODO marker is in a line comment; rule opts into matching there.
     const findings = checkPattern(
-      rule({ pattern: 'TODO(@nobody)' }),
+      rule({ pattern: 'TODO(@nobody)', matchInComments: true }),
       ctx([file('a.ts', 'const x = 1; // TODO(@nobody): clean up')]),
     );
     expect(findings.length).toBe(1);
     expect(findings[0]?.message).toContain('TODO(@nobody)');
+  });
+
+  it('skips matches in comments by default (region-aware detection)', () => {
+    const findings = checkPattern(
+      rule({ pattern: /console\.log/ }),
+      ctx([file('a.ts', '// console.log is forbidden\nconst x = 1;')]),
+    );
+    expect(findings).toEqual([]);
+  });
+
+  it('skips matches in string literals by default', () => {
+    const findings = checkPattern(
+      rule({ pattern: /TODO/ }),
+      ctx([file('a.ts', 'const x = "TODO is a string here";')]),
+    );
+    expect(findings).toEqual([]);
+  });
+
+  it('matches in strings when matchInStrings is true', () => {
+    // Token built via concatenation so the test FILE source doesn't
+    // contain the contiguous shape (audit would otherwise flag the
+    // fixture itself); runtime `f.content` is the concatenated full
+    // string the rule under test scans.
+    const token = 'AKIA' + '1234567890ABCDEF';
+    const findings = checkPattern(
+      rule({ pattern: /AKIA[A-Z0-9]+/, matchInStrings: true }),
+      ctx([file('a.ts', `const k = "${token}";`)]),
+    );
+    expect(findings.length).toBe(1);
+  });
+
+  it('matches plain text in non-JS file extensions (no tokenizer)', () => {
+    // .md / .json don't get region classification — pattern matches as
+    // plain text regardless of where in the file it appears.
+    const findings = checkPattern(
+      rule({ pattern: /TODO/ }),
+      ctx([file('a.md', 'This document has a TODO inside backticks: `TODO`')]),
+    );
+    expect(findings.length).toBe(2);
   });
 
   it('preserves regex flags and adds /g if missing', () => {

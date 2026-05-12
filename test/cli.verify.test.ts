@@ -12,7 +12,7 @@ async function writeConfig(repo: string, body: string): Promise<void> {
   );
 }
 
-const NO_TODO_CONFIG = `export default defineConfig({ rules: [rule.forbidPattern(/TODO\\b/, { id: 'no-todo' })] });`;
+const NO_TODO_CONFIG = `export default defineConfig({ rules: [rule.forbidPattern(/TODO\\b/, { id: 'no-todo', matchInComments: true, matchInStrings: true })] });`;
 
 async function setupConfiguredFeature(
   repo: string,

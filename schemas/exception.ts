@@ -221,12 +221,18 @@ export type ExceptionRegistry = z.infer<typeof ExceptionRegistry>;
  * code when scanning for `c8 ignore`, `ts-expect-error`, `eslint-disable`,
  * `prettier-ignore` comments.
  *
- * The format expected in source:
- *   /* c8 ignore next -- <exception-id>: <inline justification> *\/
- *   // @ts-expect-error -- <exception-id>: <inline justification>
- *   // eslint-disable-next-line <rule> -- <exception-id>: <inline justification>
- *   <!-- prettier-ignore -->
- *   <!-- <exception-id>: <inline justification> -->
+ * Format expected in source (suppression directive on its own line,
+ * followed by `--` and the citation):
+ *
+ *   [block-comment] c8 ignore next -- exception-id: <id>: <justification>
+ *   [line-comment]  @ts-expect-error -- exception-id: <id>: <justification>
+ *   [line-comment]  eslint-disable-next-line <rule> -- exception-id: <id>: <justification>
+ *   [html-comment]  prettier-ignore
+ *
+ * (The `[…-comment]` bracket placeholders stand in for the literal
+ * comment delimiters; the docstring avoids embedding the actual
+ * comment prefixes so this docstring doesn't itself trigger the
+ * escape-hatch scanner.)
  *
  * The parser extracts the exception-id and the inline justification text; the
  * exception-id must resolve to an entry in the active ExceptionRegistry.

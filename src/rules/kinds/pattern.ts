@@ -1,6 +1,10 @@
 import { compilePatterns } from '../../glob.js';
+import { classifyRegions } from '../../syntax-regions.js';
+import type { Region } from '../../syntax-regions.js';
 import type { Finding, PatternRule } from '../../schemas.js';
 import type { ChangedFile, VerifyContext } from '../../source/types.js';
+
+const TS_LIKE_EXT = /\.(tsx?|jsx?|mjs|cjs|mts|cts)$/;
 
 function buildFileMatcher(rule: PatternRule): (path: string) => boolean {
   const includeMatcher = compilePatterns([rule.inGlob]);
@@ -46,11 +50,29 @@ function patternDisplay(rule: PatternRule): string {
   return rule.pattern instanceof RegExp ? rule.pattern.source : rule.pattern;
 }
 
+function regionAllowed(region: Region, rule: PatternRule): boolean {
+  if (region === 'code') return true;
+  if (region === 'string') return rule.matchInStrings === true;
+  return rule.matchInComments === true;
+}
+
 function forbiddenFindings(rule: PatternRule, file: ChangedFile): Finding[] {
   const regex = toGlobalRegex(rule);
+  // Region-aware filtering: skip matches in regions the rule didn't opt
+  // into. Default is code-only; rules whose target naturally lives in
+  // strings (secrets) or comments (// DEBUG markers) opt in via
+  // `matchInStrings` / `matchInComments`. Only JS/TS-family files get
+  // region classification; other extensions match as plain text.
+  const regions: readonly Region[] | undefined = TS_LIKE_EXT.test(file.path)
+    ? classifyRegions(file.content)
+    : undefined;
   const findings: Finding[] = [];
   let match: RegExpExecArray | null;
   while ((match = regex.exec(file.content)) !== null) {
+    if (regions !== undefined && !regionAllowed(regions[match.index] ?? 'code', rule)) {
+      if (match.index === regex.lastIndex) regex.lastIndex += 1;
+      continue;
+    }
     const { line, column } = locate(file.content, match.index);
     findings.push({
       ruleId: rule.id,
