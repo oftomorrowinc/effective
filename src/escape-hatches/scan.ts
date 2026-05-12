@@ -90,7 +90,14 @@ function singleScan(
 
 export function scanFileForEscapeHatches(file: ChangedFile): EscapeHatch[] {
   if (file.status === 'deleted') return [];
-  const regions = TS_LIKE_EXT.test(file.path) ? classifyRegions(file.content) : undefined;
+  // Suppression directives (`c8 ignore`, `@ts-expect-error`,
+  // `eslint-disable`, `prettier-ignore`) are interpreted by tooling that
+  // runs against TS/JS source. The same text inside a Markdown code
+  // fence, a `.txt` example, or a JSON string is documentation, not a
+  // real suppression — flagging it would punish the docs for describing
+  // the feature.
+  if (!TS_LIKE_EXT.test(file.path)) return [];
+  const regions = classifyRegions(file.content);
   const all: EscapeHatch[] = [];
   for (const { kind, regex } of PATTERNS) {
     all.push(...singleScan(file, kind, regex, regions));

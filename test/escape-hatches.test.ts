@@ -77,6 +77,17 @@ describe('scanFileForEscapeHatches', () => {
     ]);
     expect(results.length).toBe(2);
   });
+
+  it('skips non-TS/JS files so docs and fixtures are not flagged', () => {
+    const md = file(
+      'README.md',
+      '```ts\n// @ts-expect-error example\nconst x: number = "1";\n```\n',
+    );
+    expect(scanFileForEscapeHatches(md)).toEqual([]);
+
+    const txt = file('notes.txt', '/* c8 ignore next */ const x = 1;');
+    expect(scanFileForEscapeHatches(txt)).toEqual([]);
+  });
 });
 
 function hatch(over: Partial<EscapeHatch> = {}): EscapeHatch {
