@@ -65,6 +65,8 @@ describe('presets.recommended — shape', () => {
       'toolchain.typecheck-clean',
       'toolchain.tests-pass',
       'toolchain.coverage-non-decreasing',
+      'no-stray-debug-output',
+      'no-hardcoded-secrets',
     ]);
     for (const r of rules) {
       if (FOUNDATION_IDS.has(r.id)) continue;

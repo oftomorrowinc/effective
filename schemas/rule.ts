@@ -37,6 +37,8 @@ export const RuleCategory = z.enum([
   'architecture', // backwards-compat creep, scaffold-without-wiring
   'verification', // unverified-as-success family
   'governance', // catalogue-meta rules (e.g., decision-ref-resolves)
+  'hygiene', // general code-hygiene (stray debug output, dead code markers)
+  'security', // general security (hardcoded secrets, credential shapes)
   'custom', // user-defined
 ]);
 export type RuleCategory = z.infer<typeof RuleCategory>;

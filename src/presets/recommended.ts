@@ -27,6 +27,43 @@ const FOUNDATION_RULES: readonly Rule[] = [
         'Suppression comments — c8 ignore, @ts-expect-error, eslint-disable, prettier-ignore — must include `exception-id: <id>` matching an entry in `.effective/exceptions.ts`. Add a new exception (with category, context, retirement condition) rather than leaving a bare suppression.',
     },
   }),
+  rule.forbidPattern(/\bconsole\.(log|error|warn|debug|trace|info)\b|\bdebugger\b|\/\/\s*DEBUG\b/, {
+    id: 'no-stray-debug-output',
+    category: 'hygiene',
+    defaultSeverity: 'CRITICAL',
+    relatedPrinciple: 'mechanical-enforcement-over-instruction',
+    appliesToRoles: ['code-writer', 'free-form'],
+    in: '**/*.{ts,tsx,js,jsx,mjs,cjs}',
+    notIn: '**/*.{test,spec}.{ts,tsx,js,jsx,mjs,cjs}',
+    prompt: {
+      summary: 'No stray debug output in production code.',
+      guidance:
+        'Avoid `console.log` / `console.error` / `console.warn` / `console.debug` / `console.trace` / `console.info`, bare `debugger` statements, and `// DEBUG` markers in non-test source files. They are development scaffolding — ship them and they leak into production output, fill log aggregators, or worse, divulge internal state. Route real logging through the project logger; remove debug output before commit.',
+      examples: {
+        bad: 'console.log("got user", user);',
+        good: 'logger.info({ userId: user.id }, "fetched user");',
+      },
+    },
+  }),
+  rule.forbidPattern(
+    /AKIA[0-9A-Z]{16}|gh[psoru]_[A-Za-z0-9]{36,255}|eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+|xox[abprs]-[0-9A-Za-z-]{10,}|sk_(?:live|test)_[A-Za-z0-9]{24,}|pk_(?:live|test)_[A-Za-z0-9]{24,}|AIza[0-9A-Za-z_-]{35}|sk-ant-[A-Za-z0-9_-]{40,}/,
+    {
+      id: 'no-hardcoded-secrets',
+      category: 'security',
+      defaultSeverity: 'CRITICAL',
+      relatedPrinciple: 'mechanical-enforcement-over-instruction',
+      appliesToRoles: ['code-writer', 'free-form'],
+      prompt: {
+        summary: 'No hardcoded secrets, tokens, or API keys.',
+        guidance:
+          'Credentials, OAuth tokens, JWTs, and high-entropy API keys (AWS, GitHub, Slack, Stripe, Google, Anthropic, and similar) must live in environment variables or a secret manager — never committed to source. The check matches known token shapes; matches in test files also fail (real-shaped tokens should never appear, even as fixtures — generate ephemeral test credentials or use clearly fake placeholders like `test-token-placeholder`).',
+        examples: {
+          bad: 'const apiKey = "sk-ant-api03-abc...";',
+          good: 'const apiKey = process.env.ANTHROPIC_API_KEY;',
+        },
+      },
+    },
+  ),
   rule.toolchain({
     id: 'toolchain.lint-clean',
     tool: 'lint',
