@@ -38,7 +38,13 @@
     "declarationMap": true,
     "sourceMap": true,
     "outDir": "./dist",
-    "rootDir": "."
+    "rootDir": ".",
+
+    "baseUrl": ".",
+    "paths": {
+      "effective": ["./src/index.ts"],
+      "effective/schemas": ["./src/schemas.ts"]
+    }
   },
   "include": [
     "src/**/*",
