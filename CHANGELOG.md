@@ -4,6 +4,26 @@ All notable changes to `effective` are documented here. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this
 project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- **LLM-onboarding documentation suite** under `docs/`:
+  `agent-prompt.md` (distilled context for an LLM helping a user
+  adopt the package), `decisions.md` (decision trees for the
+  recurring "which option here?" choices), `failure-modes.md`
+  (error → cause → fix mapping), and `examples/typescript-vitest-
+eslint.md` (the canonical project shape with full working
+  config). The agent prompt was iterated through two cold-eval
+  passes — a fresh subagent attempted onboarding using only the
+  docs, the gaps it surfaced drove the revisions.
+
+### Fixed
+
+- `effective audit-escapes` stdout referenced the obsolete
+  `.effective/exceptions.ts` path; now points at the inline
+  `exceptions` field on the Constitution.
+
 ## [0.1.0-rc.1] — 2026-05-12
 
 First public pre-release. The engine, schema, CLI, build, and the

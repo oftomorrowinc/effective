@@ -97,7 +97,7 @@ export async function runAuditCommand(args: ParsedArgs, cwd: string): Promise<Au
     out.push(
       '',
       'Each unjustified hatch should either be removed (fix the underlying issue) or cite a ' +
-        'tracked `exception-id:` registered in `.effective/exceptions.ts`.',
+        "tracked `exception-id:` registered under the config's `exceptions` field.",
     );
   }
   return {
