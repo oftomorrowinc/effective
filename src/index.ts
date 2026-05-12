@@ -42,7 +42,12 @@ export type { KickBackInput } from './kickBack.js';
 export { defineConfig } from './config.js';
 export { defineExceptions } from './exceptions.js';
 export { rule } from './rules/factories.js';
-export { presets, builtInChecks, exceptionsMustCiteJustification } from './presets/index.js';
+export {
+  presets,
+  builtInChecks,
+  exceptionsMustCiteJustification,
+  noDisabledTestsWithoutException,
+} from './presets/index.js';
 export { renderChecklist } from './checklist.js';
 export type { ChecklistInput } from './checklist.js';
 export { loadConfig, loadConfigFromPath, findConfigFile } from './config/load.js';

@@ -6,4 +6,8 @@ export const presets: { readonly recommended: Constitution } = {
   recommended,
 };
 
-export { builtInChecks, exceptionsMustCiteJustification } from './checks.js';
+export {
+  builtInChecks,
+  exceptionsMustCiteJustification,
+  noDisabledTestsWithoutException,
+} from './checks.js';

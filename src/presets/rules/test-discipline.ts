@@ -10,30 +10,26 @@ import type { Rule } from '../../schemas.js';
 
 const TEST_AUTHORING_ROLES = ['test-writer', 'code-writer', 'free-form'];
 
-const noDisabledTestsWithoutException: Rule = rule.forbidPattern(
-  /\b(\.skip|\.todo|xit|xdescribe)\s*\(/,
-  {
-    id: 'no-disabled-tests-without-exception',
-    in: '**/*.{test,spec}.{ts,tsx,js,jsx,mjs,cjs}',
-    defaultSeverity: 'CRITICAL',
-    category: 'tests',
-    catalogueEntry: 'test-suite-drift',
-    relatedPrinciple: 'mechanical-enforcement-over-instruction',
-    appliesToRoles: TEST_AUTHORING_ROLES,
-    prompt: {
-      summary: 'No `.skip` / `.todo` / `xit` / `xdescribe` on tests without a tracked exception.',
-      guidance:
-        'A test that fails under a change must be fixed, not silenced. Disabling a test ships an invisible regression — CI stays green while the test that defended a behavior stops running. If a test genuinely cannot pass right now, register an exception in `.effective/exceptions.ts` with a retirement condition naming when the test should be re-enabled, and cite the exception id in the disable comment.',
-      examples: {
-        bad: "it.skip('handles concurrent writes', () => { ... });",
-        good:
-          '// Either fix the test, or:\n' +
-          '// eslint-disable-next-line no-skip -- exception-id: our-flaky-test-fix-in-progress\n' +
-          "it.skip('handles concurrent writes', () => { ... });",
-      },
+const noDisabledTestsWithoutException: Rule = rule.custom({
+  id: 'no-disabled-tests-without-exception',
+  category: 'tests',
+  defaultSeverity: 'CRITICAL',
+  checkRef: 'noDisabledTestsWithoutException',
+  catalogueEntry: 'test-suite-drift',
+  relatedPrinciple: 'mechanical-enforcement-over-instruction',
+  appliesToRoles: TEST_AUTHORING_ROLES,
+  prompt: {
+    summary: 'No `.skip` / `.todo` / `xit` / `xdescribe` on tests without a tracked exception.',
+    guidance:
+      'A test that fails under a change must be fixed, not silenced. Disabling a test ships an invisible regression — CI stays green while the test that defended a behavior stops running. If a test genuinely cannot pass right now, register an exception in `.effective/exceptions.ts` with a retirement condition naming when the test should be re-enabled, and cite the exception id in a comment on the same line as the disable or on the line directly above. The check accepts the citation as surface evidence; the `exceptions.must-cite-justification` rule separately validates that every cited id resolves to a real registry entry.',
+    examples: {
+      bad: "it.skip('handles concurrent writes', () => { ... });",
+      good:
+        '// exception-id: our-flaky-test-fix-in-progress\n' +
+        "it.skip('handles concurrent writes', () => { ... });",
     },
   },
-);
+});
 
 const testCountNonDecreasing: Rule = rule.custom({
   id: 'test-count-non-decreasing',
