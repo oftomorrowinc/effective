@@ -325,7 +325,7 @@ describe('runInitCommand — idempotency', () => {
   it('emits "already initialized" when every target file is already present', async () => {
     const dir = await makeFixture({
       tsconfig: true,
-      gitignore: '.effective/\n',
+      gitignore: '.effective/node_modules/\n.effective/work/\n',
       existingFiles: [
         { rel: 'effective.config.ts', content: '// existing config' },
         { rel: '.effective/exceptions.ts', content: '// existing exceptions' },
@@ -340,24 +340,44 @@ describe('runInitCommand — idempotency', () => {
     }
   });
 
-  it('preserves existing .gitignore content while adding .effective/', async () => {
+  it('preserves existing .gitignore content while adding .effective/ subdirs', async () => {
     const dir = await makeFixture({ tsconfig: true, gitignore: 'node_modules/\n' });
     try {
       await runInitCommand(parseArgs(['init']), dir);
       const gi = await readFile(path.join(dir, '.gitignore'), 'utf8');
       expect(gi).toContain('node_modules/');
-      expect(gi).toContain('.effective/');
+      expect(gi).toContain('.effective/node_modules/');
+      expect(gi).toContain('.effective/work/');
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
   });
 
-  it('does not duplicate .effective/ in .gitignore', async () => {
-    const dir = await makeFixture({ tsconfig: true, gitignore: '.effective/\nnode_modules/\n' });
+  it('ignores `.effective/node_modules/` and `.effective/work/` only — leaves exceptions.ts trackable', async () => {
+    const dir = await makeFixture({ tsconfig: true });
     try {
       await runInitCommand(parseArgs(['init']), dir);
       const gi = await readFile(path.join(dir, '.gitignore'), 'utf8');
-      expect(gi.match(/\.effective\//g)?.length).toBe(1);
+      // The bare `.effective/` rule is NOT used — exceptions.ts must be
+      // commitable per USAGE.md gradual-adoption path step 4.
+      expect(gi.split('\n').some((line) => line.trim() === '.effective/')).toBe(false);
+      expect(gi).toContain('.effective/node_modules/');
+      expect(gi).toContain('.effective/work/');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('does not duplicate gitignore entries on re-run', async () => {
+    const dir = await makeFixture({
+      tsconfig: true,
+      gitignore: '.effective/node_modules/\n.effective/work/\n',
+    });
+    try {
+      await runInitCommand(parseArgs(['init']), dir);
+      const gi = await readFile(path.join(dir, '.gitignore'), 'utf8');
+      expect(gi.match(/\.effective\/node_modules\//g)?.length).toBe(1);
+      expect(gi.match(/\.effective\/work\//g)?.length).toBe(1);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

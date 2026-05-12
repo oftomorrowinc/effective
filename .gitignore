@@ -1,7 +1,8 @@
 node_modules/
 dist/
 coverage/
-.effective/
 *.log
 .DS_Store
 *.tsbuildinfo
+.effective/node_modules/
+.effective/work/

@@ -291,17 +291,30 @@ async function writeIfMissing(
   written.push(p);
 }
 
+/**
+ * Ignore the transient subdirectories of `.effective/` (the isolated
+ * worktree and the cached install), but NOT the directory itself —
+ * `.effective/exceptions.ts` is project state and belongs under
+ * version control. See USAGE.md "gradual adoption path", step 4.
+ */
+const EFFECTIVE_GITIGNORE_ENTRIES = ['.effective/node_modules/', '.effective/work/'];
+
 async function ensureGitignore(repoRoot: string, written: string[]): Promise<void> {
   const gi = path.join(repoRoot, '.gitignore');
   let body = '';
+  let existed = false;
   if (await exists(gi)) {
+    existed = true;
     body = await fs.readFile(gi, 'utf8');
-    if (/^\.effective\/?$/m.test(body)) return;
-    if (!body.endsWith('\n')) body += '\n';
   }
-  body += '.effective/\n';
+  const existingLines = new Set(body.split('\n').map((l) => l.trim()));
+  const additions = EFFECTIVE_GITIGNORE_ENTRIES.filter((entry) => !existingLines.has(entry));
+  if (additions.length === 0) return;
+  if (body.length > 0 && !body.endsWith('\n')) body += '\n';
+  body += `${additions.join('\n')}\n`;
   await fs.writeFile(gi, body);
-  written.push(gi);
+  if (!existed) written.push(gi);
+  else if (!written.includes(gi)) written.push(gi);
 }
 
 async function detectContext(cwd: string): Promise<InitContext> {

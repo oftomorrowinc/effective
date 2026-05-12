@@ -44,10 +44,11 @@
     "src/**/*",
     "schemas/**/*",
     "test/**/*",
+    ".effective/exceptions.ts",
     "*.config.ts",
     "*.config.js",
     "eslint.config.js",
     ".dependency-cruiser.cjs"
   ],
-  "exclude": ["node_modules", "dist", ".effective"]
+  "exclude": ["node_modules", "dist", ".effective/node_modules", ".effective/work"]
 }

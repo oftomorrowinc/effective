@@ -13,7 +13,15 @@ import prettierConfig from 'eslint-config-prettier';
 const tsconfigRootDir = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig([
-  { ignores: ['dist/**', 'coverage/**', 'node_modules/**', '.effective/**'] },
+  {
+    ignores: [
+      'dist/**',
+      'coverage/**',
+      'node_modules/**',
+      '.effective/node_modules/**',
+      '.effective/work/**',
+    ],
+  },
   js.configs.recommended,
   tseslint.configs.strictTypeChecked,
   tseslint.configs.stylisticTypeChecked,

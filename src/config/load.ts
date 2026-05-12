@@ -2,6 +2,7 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { createJiti } from 'jiti';
 import { resolveConstitution } from '../resolve.js';
+import { presets } from '../presets/index.js';
 import { Constitution as ConstitutionSchema } from '../schemas.js';
 import type { Constitution } from '../schemas.js';
 import type { ResolvedConstitution } from '../resolve.js';
@@ -80,7 +81,14 @@ export async function loadConfigFromPath(configPath: string): Promise<LoadedConf
   return {
     configPath,
     config: parsed.data,
-    resolved: resolveConstitution(parsed.data),
+    // The built-in `recommended` preset is auto-wired here so that
+    // `extends: ['recommended']` works without callers having to thread
+    // the preset registry through every config-load site. Projects can
+    // still register custom presets by calling `resolveConstitution`
+    // directly with their own registry.
+    resolved: resolveConstitution(parsed.data, {
+      presetRegistry: { recommended: presets.recommended },
+    }),
   };
 }
 
