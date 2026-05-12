@@ -263,6 +263,15 @@ scope, not a role.
 A new rule needs to be added. Should it have a catalogue entry, or
 ship as a foundation rule with `relatedPrinciple` only?
 
+**Adversarial-by-optimization** (used in Q1 below) means a failure
+mode that happens _because_ an optimizer takes a locally-cheap
+shortcut — disabling a failing test, writing a defensive no-op
+migration, claiming verification ran when it didn't. Catalogue
+entries are reserved for these patterns; general hygiene/security
+failures (which happen from haste, not optimizer pressure) ship as
+foundation rules. See `agent-prompt.md` § Glossary for the longer
+treatment.
+
 ```
 Q1: Does this rule defend against an observed adversarial-by-
     optimization pattern? (i.e., a failure where the failure mode

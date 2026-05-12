@@ -483,6 +483,46 @@ the "why" lives. Code comments cited as the justification drift
 across refactors and become invisible debt — exception entries
 don't, because they're tracked in the constitution.
 
+**BAD** (code comment as justification):
+
+```ts
+// eslint-disable-next-line no-explicit-any
+// This is fine because the SDK's return type is wrong
+const result = sdk.query(input) as any;
+```
+
+The "this is fine because…" line is read by humans, ignored by every
+tool. A refactor moves the suppression; the comment doesn't follow.
+Three months later nobody remembers why.
+
+**GOOD** (exception registered + cited):
+
+```ts
+// eslint-disable-next-line no-explicit-any -- exception-id: sdk-return-type-drift
+const result = sdk.query(input) as any;
+```
+
+```ts
+// ...in effective.config.ts...
+exceptions: {
+  ...seeds.builtInExceptions,
+  'sdk-return-type-drift': {
+    id: 'sdk-return-type-drift',
+    category: 'external-library-drift-defense',
+    mechanism: 'eslint-disable',
+    context: "SDK v3.x return types declared as 'unknown'; runtime returns the documented shape.",
+    retirementCondition: 'Resolved when SDK ships proper return types (tracked: sdk-issues/1234).',
+    addedDate: '2026-05-12',
+    status: 'active',
+  },
+},
+```
+
+The cite is the load-bearing link: `verify` validates that
+`sdk-return-type-drift` resolves to an active entry. The context and
+retirement condition live in the registry where they're durable
+across refactors and queryable by `audit-escapes`.
+
 ### Don't claim a rule fired when it didn't
 
 If you tell the user `verify` flagged something, that should be

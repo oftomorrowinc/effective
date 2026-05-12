@@ -105,21 +105,26 @@ implicit, no script defined), init OMITS the corresponding toolchain
 entry. The matching rule (`toolchain.typecheck-clean`) then has no
 command to run and silently skips — no findings, no defense.
 
-Two fixes:
+Two fixes (use the one that matches your project's stance):
 
-1. **Add the missing script before init.** For typecheck, the
-   typical line is `"typecheck": "tsc --noEmit"` in `package.json`.
-2. **Add the toolchain entry manually after init.** Edit the
-   generated config and add the line yourself:
+1. **Add the missing script before init** (preferred). Add
+   `"typecheck": "tsc --noEmit"` to `package.json`. Init then
+   detects it and populates the toolchain entry normally
+   (`pnpm typecheck`). Re-running init updates the config.
+2. **Add the toolchain entry manually after init** (when you can't
+   add the script). Edit the generated config and call the binary
+   directly so the toolchain command works without depending on a
+   project script:
    ```ts
    toolchain: {
      typecheck: 'pnpm exec tsc --noEmit',
      // ...
    }
    ```
-
-Path-relative commands (e.g., `npx tsc`) work but the package-manager
-form (`pnpm exec tsc`) is more robust across environments.
+   `pnpm exec <tool>` (or `npm exec` / `yarn exec`) is the right
+   form when bypassing scripts — it resolves the binary through the
+   package manager's local install. Path-relative forms like
+   `npx tsc` work too but are slower on cold caches.
 
 ### Pre-existing escape hatches (gradual adoption)
 

@@ -260,7 +260,11 @@ re-enable.
 
 **Diagnosis:** The check looks for `exception-id: <id>` in the same
 line, the line above, or the line below the disable. If your
-annotation is two lines away, it doesn't match.
+annotation is two lines away, it doesn't match. (The
+`exception-id: <id>` form is the citation pattern used across all
+suppression comments — it references an entry in the Constitution's
+`exceptions` registry. See `agent-prompt.md` § Glossary for the
+full definition.)
 
 **Fix:** Move the annotation closer:
 
