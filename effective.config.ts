@@ -3,7 +3,7 @@
 // to drop the toolchain rules (this repo's CI already runs them
 // directly) and clarify what `effective verify` is responsible for.
 
-import { defineConfig } from 'effective';
+import { defineConfig, seeds } from 'effective';
 
 export default defineConfig({
   // The recommended preset includes the full catalogue at strict severity.
@@ -27,6 +27,13 @@ export default defineConfig({
       "Repo's own CI runs `pnpm test` directly; avoids worktree node_modules dependency.",
     'toolchain.coverage-non-decreasing':
       'Coverage tracking against a moving baseline is not implemented in the engine yet; the existing CI step enforces thresholds.',
+  },
+
+  // Exception registry — built-in templates spread with any project-
+  // specific instances. No project-specific instances yet; the spread
+  // is the full registry for now.
+  exceptions: {
+    ...seeds.builtInExceptions,
   },
 
   meta: {

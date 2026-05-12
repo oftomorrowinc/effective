@@ -36,20 +36,23 @@ async function makeFixture(opts: FixtureOptions = {}): Promise<string> {
 }
 
 describe('runInitCommand — scaffolding', () => {
-  it('creates effective.config.ts, .effective/exceptions.ts, and updates .gitignore', async () => {
+  it('creates effective.config.ts and updates .gitignore (single-file shape)', async () => {
     const dir = await makeFixture({ tsconfig: true });
     try {
       const result = await runInitCommand(parseArgs(['init']), dir);
       expect(result.exitCode).toBe(0);
       const rels = new Set(result.filesWritten.map((p) => path.relative(dir, p)));
       expect(rels.has('effective.config.ts')).toBe(true);
-      expect(rels.has(path.join('.effective', 'exceptions.ts'))).toBe(true);
       expect(rels.has('.gitignore')).toBe(true);
+      // Exceptions live inline on the Constitution now — no separate file.
+      expect(rels.has(path.join('.effective', 'exceptions.ts'))).toBe(false);
 
       const config = await readFile(path.join(dir, 'effective.config.ts'), 'utf8');
-      expect(config).toContain("import { defineConfig } from 'effective'");
+      expect(config).toContain("import { defineConfig, seeds } from 'effective'");
       expect(config).toContain("extends: ['recommended']");
       expect(config).toContain('export default defineConfig({');
+      expect(config).toContain('exceptions: {');
+      expect(config).toContain('...seeds.builtInExceptions');
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -62,11 +65,11 @@ describe('runInitCommand — scaffolding', () => {
       expect(result.exitCode).toBe(0);
       const rels = new Set(result.filesWritten.map((p) => path.relative(dir, p)));
       expect(rels.has('effective.config.js')).toBe(true);
-      expect(rels.has(path.join('.effective', 'exceptions.js'))).toBe(true);
 
       const config = await readFile(path.join(dir, 'effective.config.js'), 'utf8');
-      expect(config).toContain("const { defineConfig } = require('effective')");
+      expect(config).toContain("const { defineConfig, seeds } = require('effective')");
       expect(config).toContain('module.exports = defineConfig({');
+      expect(config).toContain('exceptions: {');
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -308,28 +311,11 @@ describe('runInitCommand — idempotency', () => {
     }
   });
 
-  it('fills in missing files when only some exist', async () => {
+  it('emits "already initialized" when the config file is already present', async () => {
     const dir = await makeFixture({
       tsconfig: true,
+      gitignore: '.effective/\n',
       existingFiles: [{ rel: 'effective.config.ts', content: '// existing config' }],
-    });
-    try {
-      const result = await runInitCommand(parseArgs(['init']), dir);
-      expect(result.filesSkipped.some((p) => p.endsWith('effective.config.ts'))).toBe(true);
-      expect(result.filesWritten.some((p) => p.endsWith('exceptions.ts'))).toBe(true);
-    } finally {
-      await rm(dir, { recursive: true, force: true });
-    }
-  });
-
-  it('emits "already initialized" when every target file is already present', async () => {
-    const dir = await makeFixture({
-      tsconfig: true,
-      gitignore: '.effective/node_modules/\n.effective/work/\n',
-      existingFiles: [
-        { rel: 'effective.config.ts', content: '// existing config' },
-        { rel: '.effective/exceptions.ts', content: '// existing exceptions' },
-      ],
     });
     try {
       const result = await runInitCommand(parseArgs(['init']), dir);
@@ -340,44 +326,25 @@ describe('runInitCommand — idempotency', () => {
     }
   });
 
-  it('preserves existing .gitignore content while adding .effective/ subdirs', async () => {
+  it('preserves existing .gitignore content while adding .effective/', async () => {
     const dir = await makeFixture({ tsconfig: true, gitignore: 'node_modules/\n' });
     try {
       await runInitCommand(parseArgs(['init']), dir);
       const gi = await readFile(path.join(dir, '.gitignore'), 'utf8');
       expect(gi).toContain('node_modules/');
-      expect(gi).toContain('.effective/node_modules/');
-      expect(gi).toContain('.effective/work/');
+      expect(gi).toContain('.effective/');
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
   });
 
-  it('ignores `.effective/node_modules/` and `.effective/work/` only — leaves exceptions.ts trackable', async () => {
-    const dir = await makeFixture({ tsconfig: true });
+  it('does not duplicate the `.effective/` gitignore entry on re-run', async () => {
+    const dir = await makeFixture({ tsconfig: true, gitignore: '.effective/\n' });
     try {
       await runInitCommand(parseArgs(['init']), dir);
       const gi = await readFile(path.join(dir, '.gitignore'), 'utf8');
-      // The bare `.effective/` rule is NOT used — exceptions.ts must be
-      // commitable per USAGE.md gradual-adoption path step 4.
-      expect(gi.split('\n').some((line) => line.trim() === '.effective/')).toBe(false);
-      expect(gi).toContain('.effective/node_modules/');
-      expect(gi).toContain('.effective/work/');
-    } finally {
-      await rm(dir, { recursive: true, force: true });
-    }
-  });
-
-  it('does not duplicate gitignore entries on re-run', async () => {
-    const dir = await makeFixture({
-      tsconfig: true,
-      gitignore: '.effective/node_modules/\n.effective/work/\n',
-    });
-    try {
-      await runInitCommand(parseArgs(['init']), dir);
-      const gi = await readFile(path.join(dir, '.gitignore'), 'utf8');
-      expect(gi.match(/\.effective\/node_modules\//g)?.length).toBe(1);
-      expect(gi.match(/\.effective\/work\//g)?.length).toBe(1);
+      const matches = gi.split('\n').filter((line) => line.trim() === '.effective/');
+      expect(matches).toHaveLength(1);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -407,14 +374,14 @@ describe('runInitCommand — stdout', () => {
   });
 });
 
-describe('runInitCommand — exceptions template', () => {
-  it('uses seeds.builtInExceptions spread', async () => {
+describe('runInitCommand — exceptions inline', () => {
+  it('emits seeds.builtInExceptions spread inside the config exceptions field', async () => {
     const dir = await makeFixture({ tsconfig: true });
     try {
       await runInitCommand(parseArgs(['init']), dir);
-      const body = await readFile(path.join(dir, '.effective', 'exceptions.ts'), 'utf8');
+      const body = await readFile(path.join(dir, 'effective.config.ts'), 'utf8');
+      expect(body).toContain('exceptions: {');
       expect(body).toContain('...seeds.builtInExceptions');
-      expect(body).toContain('defineExceptions');
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { Rule } from './rule.js';
 import { Expectations } from './scope.js';
+import { ExceptionRegistry } from './exception.js';
 import { Severity } from './finding.js';
 
 /**
@@ -131,6 +132,15 @@ export const Constitution = z
     roles: z.record(z.string(), RoleDefinition).optional(),
 
     toolchain: ToolchainConfig.optional(),
+
+    /**
+     * Exception registry — built-in templates spread with project-specific
+     * instances. Lives inline on the Constitution so the full picture
+     * (rules, overrides, exceptions, roles) is reviewable in a single
+     * file. `defineExceptions()` is still exported for users who want to
+     * factor the registry into a separate file and spread it back in here.
+     */
+    exceptions: ExceptionRegistry.optional(),
 
     /**
      * Optional metadata. Lets a project tag its constitution with versioning,

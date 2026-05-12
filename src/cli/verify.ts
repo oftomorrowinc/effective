@@ -58,6 +58,7 @@ export async function runVerifyCommand(args: ParsedArgs, cwd: string): Promise<V
     scope: DEFAULT_SCOPE,
     config: loaded.config,
     source,
+    ...(loaded.config.exceptions === undefined ? {} : { exceptions: loaded.config.exceptions }),
   });
   return {
     stdout: `${renderResult(result, reporter)}\n`,
