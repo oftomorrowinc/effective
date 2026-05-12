@@ -20,6 +20,35 @@ Effective ships with a catalogue of failure patterns observed in real codebases,
 
 ## What this looks like
 
+Two ways to use Effective. Most adopters start with the CLI; the programmatic API exists for callers building agent loops or custom tooling.
+
+### CLI
+
+```bash
+# One-time setup
+npm install -D effective
+npx effective init
+
+# Establish a baseline on the existing codebase
+npx effective audit
+
+# Verify a diff (PR-style, or in a pre-push hook)
+npx effective verify --against main
+```
+
+The four shipped commands:
+
+- **`npx effective init`** — scaffold `effective.config.ts` at the repo root. Reads `package.json` scripts and detected tools to produce a starter config. Idempotent; `--force` to regenerate.
+- **`npx effective audit`** — read-only full-codebase scan. Use to establish a clean baseline before turning verify on, or for periodic drift checks. Exits zero regardless of findings — audit is a report, not a gate.
+- **`npx effective verify --against <ref>`** — the workhorse. Run the constitution's rules against a diff and return a verdict (`pass | fail | needs-review`). Exits non-zero on `fail`. Typical use: `--against main` for PRs, `--against HEAD~1` for the last commit, `--staged` for pre-commit hooks.
+- **`npx effective audit-escapes`** — narrower scan for suppression comments lacking `exception-id:` citations.
+
+All commands accept `--help`. Wiring `verify` into CI and a pre-push hook is the typical integration; see [USAGE.md](./USAGE.md) for the full setup.
+
+### Code integration
+
+For callers building agent loops, the programmatic API gives finer control:
+
 ```ts
 import { prepare, verify, kickBack } from 'effective';
 import { config } from './effective.config'; // your constitution
@@ -60,6 +89,8 @@ Three pure functions. You own the loop, the credentials, the model client. Effec
 
 - **[USAGE.md](./USAGE.md)** — how to wire it up, configure rules, author scopes, maintain the exceptions registry, adopt gradually on an existing codebase.
 - **[DESIGN.md](./DESIGN.md)** — why the package is shaped the way it is, including the alternatives we considered and rejected.
+- **[CONTRIBUTING.md](./CONTRIBUTING.md)** — how to contribute catalogue entries, exception categories, protected-path defaults, and rules; the two-path workflow for constitutional changes.
+- **[docs/agent-prompt.md](./docs/agent-prompt.md)** — context for an LLM agent helping a user adopt Effective. Load this when your agent tooling needs to onboard a project.
 
 The rest of this README is the 60-second pitch.
 
@@ -90,6 +121,30 @@ LLM agents under optimization pressure read the same error and find the locally-
 These aren't bugs in the agent. They're the predictable consequence of pointing optimization pressure at tooling that was never designed for adversarial-by-optimization contributors. **Effective is the missing layer that can tell the difference.** It runs alongside your existing toolchain (it doesn't replace any of it) and catches the specific evasions that happen when an optimizer meets a constraint. The catalogue is the receipt — every rule corresponds to a pattern observed in real codebases, with citations.
 
 Effective is toolchain-agnostic _and_ agent-framework-agnostic. It integrates with whatever lint/typecheck/test/coverage tools you already run, and works with whatever produces the diff — Claude Code, Cursor, Aider, custom SDK loops, or a human opening a PR.
+
+---
+
+## What this prevents that other tools miss
+
+Most quality tools work by inspecting code and flagging issues. The problem with adversarial-by-optimization contributors is they can game the inspection by editing the inspector's configuration. Lint not catching what it should? Edit the lint config. Tests failing? Disable them. Coverage threshold blocking? Lower the threshold. Each move is locally cheap; collectively they hollow out the discipline.
+
+Effective adds a layer those tools don't have: **the constitution itself is protected from the workers it governs.**
+
+Every project declares a list of constitutional files — `effective.config.ts` itself, lint config, typecheck config, CI workflows, pre-commit hooks. Edits to these files by a worker trigger CRITICAL findings, which fail CI. The defense:
+
+- **LLM agents can't lower the bar.** An agent that hits a failing rule can't disable the rule by editing the config; the protected-paths rule fires and blocks the diff.
+- **Human contributors who edit constitutional files do so explicitly.** The pre-push gate fires; bypassing requires `--no-verify` with rationale; the CI gate fires; the PR is reviewed for substance. The change is traceable; the rationale is preserved.
+- **Adopters extend the list naturally.** `npx effective init` populates project-specific defaults via a JSON detection registry (ESLint config if ESLint is present, tsconfig if TypeScript, etc.). Adding new tool configs is a one-entry PR; no engine code changes required.
+
+The protected list is itself part of `effective.config.ts`, which is itself protected. The mechanism is recursive: the rules defending the constitution are themselves constitutional.
+
+Three layers of defense back this up:
+
+1. **Local pre-push hook** — fast feedback. Bypassable (`--no-verify`) because the developer controls their machine.
+2. **CI gate** — load-bearing. Branch protection on main requires verify to pass before merge. `--no-verify` doesn't help here.
+3. **Reviewer pass** (future package) — substance judgment. Reads the rationale for any constitutional change; flags citations-without-substance and bypass-without-cause.
+
+The local hook is the cheapest layer to bypass. The CI gate is the load-bearing one. The reviewer is the substance check. Three layers, each adding more friction to gaming the system.
 
 ---
 
@@ -211,6 +266,28 @@ const nextPrompt = kickBack({ findings, previousPrompt });
 ```
 
 `kickBack` produces a focused follow-up prompt that cites the specific rules that failed, the specific evidence, and what would satisfy each one. It explicitly rules out shortcuts — "coverage dropped on line X" becomes "add a test for line X," never "consider adjusting the coverage threshold."
+
+---
+
+## Establishing a baseline: `effective audit`
+
+Diff-based verification only works if the baseline is known clean. A first-day adopter doesn't have that — their codebase has accumulated suppressions, inconsistencies, and patterns the catalogue covers that nobody's tracked yet. `verify --against main` would only catch _new_ violations in a PR; the existing ones already in `main` stay invisible.
+
+`effective audit` is the read-only scan for this case:
+
+```bash
+npx effective audit
+```
+
+It runs every rule that makes sense against the current state of the codebase (skipping diff-only and meta rules, which don't apply to a full scan). Output is grouped by severity; the command exits zero regardless of findings — audit is a report, not a gate.
+
+Use audit when:
+
+- Adopting Effective on an existing codebase, to see what the catalogue catches before turning verify on
+- Periodic baseline checks ("has anything drifted since the last audit?")
+- After triaging a finding, to confirm no other instances of the same pattern exist
+
+The narrower `effective audit-escapes` exists for the specific case of surveying suppression comments without exception citations. Use that when you specifically want the unjustified-escape-hatch report; use `audit` for the broader scan.
 
 ---
 
@@ -401,6 +478,8 @@ npx effective init
 ```
 
 Peer dependencies: `zod >= 3.x`. No other runtime dependencies.
+
+See [§ What this looks like](#what-this-looks-like) for the CLI commands and [USAGE.md](./USAGE.md) for full setup.
 
 ---
 

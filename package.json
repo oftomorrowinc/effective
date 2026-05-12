@@ -1,6 +1,6 @@
 {
   "name": "effective",
-  "version": "0.1.0-rc.1",
+  "version": "0.1.0-rc.2",
   "description": "A shared constitution for collaborative work on a codebase, with mechanical enforcement that runs against any worker's output — agent, human, or script.",
   "keywords": [
     "constitution",
@@ -52,7 +52,8 @@
   "files": [
     "dist",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "CONTRIBUTING.md"
   ],
   "scripts": {
     "build": "tsup",
