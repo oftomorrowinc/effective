@@ -5,6 +5,7 @@ import { parseArgs } from './cli/args.js';
 import { runVerifyCommand } from './cli/verify.js';
 import { runInitCommand } from './cli/init.js';
 import { runAuditCommand } from './cli/audit.js';
+import { runAuditEscapesCommand } from './cli/audit-escapes.js';
 import { runRulesCommand } from './cli/rules.js';
 
 interface CommandResult {
@@ -31,7 +32,9 @@ function helpText(): string {
     '  init                       Scaffold effective.config.ts and .effective/',
     '  verify [--work <ref>] [--baseline <ref>] [--against <ref>] [--staged]',
     '                             Run verification against the current diff',
-    '  audit-escapes [--all]      Survey escape hatches in source files',
+    '  audit [--rule <id>] [--include-toolchain] [--json]',
+    '                             Scan current state against every applicable rule',
+    '  audit-escapes [--all]      Survey escape hatches in source files (narrow)',
     '  rules [<id> | --search <id>]',
     '                             Browse the resolved constitution',
     '',
@@ -60,8 +63,11 @@ async function dispatch(argv: readonly string[], cwd: string): Promise<CommandRe
     case 'verify': {
       return await runVerifyCommand(args, cwd);
     }
-    case 'audit-escapes': {
+    case 'audit': {
       return await runAuditCommand(args, cwd);
+    }
+    case 'audit-escapes': {
+      return await runAuditEscapesCommand(args, cwd);
     }
     case 'rules': {
       return await runRulesCommand(args, cwd);

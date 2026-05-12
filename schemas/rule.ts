@@ -95,6 +95,18 @@ const RuleBase = z.object({
    * registered in `config.roles`.
    */
   appliesToRoles: z.array(z.string()).optional(),
+  /**
+   * Whether this rule only meaningfully runs against a diff (not against
+   * the current state of a codebase). `verify()` runs every rule;
+   * `audit()` skips rules with `diffOnly: true` and reports them as
+   * skipped. Typical diff-only rules: those that compare counts or
+   * caller-graphs between old and new state, or those whose check
+   * depends on `file.status === 'added'`.
+   *
+   * Defaults to `false`; explicit opt-in keeps the audit surface
+   * accurate as the catalogue grows.
+   */
+  diffOnly: z.boolean().optional(),
   /** How this rule appears in `prepare()` output. */
   prompt: PromptProjection,
 });

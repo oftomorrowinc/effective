@@ -89,36 +89,13 @@ silently fix them.
    Recommended action: add `"typecheck": "tsc --noEmit"` to
    `package.json` before running init, so the toolchain entry is
    populated.
-2. **Existing suppression comments?** Run
-   `npx effective audit-escapes` to count `eslint-disable`,
-   `@ts-expect-error`, `c8 ignore`, and `prettier-ignore` comments
-   without an `exception-id:` ref. Two distinct paths depending on
-   count:
-   - **0 hatches:** nothing to do. First verify will pass on this
-     dimension.
-   - **1–~5 hatches:** register exception entries for each (or
-     remove the suppressions by fixing the code). Walk through them
-     individually with the user — single-instance exceptions don't
-     need the global override below.
-   - **Many hatches (≈10+):** plan to add an `override`
-     downgrading `exceptions.must-cite-justification` from CRITICAL
-     to HIGH in step 3 (with rationale + retirement condition naming
-     the cleanup target), then chip away at the registrations
-     incrementally. Without the override, first verify produces one
-     CRITICAL finding per unjustified suppression.
-
-   The override exists for the legacy-codebase shape; treating it
-   as the default response to any existing hatch (rather than
-   reserving it for the actually-many case) wastes the rule's
-   teeth.
-
-3. **`pnpm install` (or equivalent) works at repo root?** First
+2. **`pnpm install` (or equivalent) works at repo root?** First
    verify runs the same install command into
    `.effective/node_modules`. If your project has private-registry
    auth, peer-dep conflicts, or monorepo hoisting issues, they'll
    surface there too. Confirming the install works at the project
    root preempts a confusing first-verify failure.
-4. **Is `toolchain.coverage-non-decreasing` going to fire?** Only
+3. **Is `toolchain.coverage-non-decreasing` going to fire?** Only
    applies if a coverage script exists in `package.json` (init
    omits the toolchain entry when no `test:coverage` / `coverage`
    script is detected, and the rule silently skips with no command
@@ -129,9 +106,13 @@ silently fix them.
    adaptation block in `docs/examples/typescript-vitest-eslint.md`).
    If no coverage script: skip this check.
 
+The pre-existing-suppressions inventory used to live here as a
+fourth pre-flight check; it now happens in step 4 (`audit`) of the
+onboarding sequence, where the broader baseline is established.
+
 ## The onboarding sequence
 
-Five steps; each must succeed before the next.
+Six steps; each must succeed before the next.
 
 ### 1. Confirm the project shape
 
@@ -207,7 +188,62 @@ These overrides are NOT generated automatically by init — they
 require the LLM (you) to identify the conditions and propose the
 config edits.
 
-### 4. First verify
+### 4. Establish baseline with `audit`
+
+Before running `verify`, run `audit` to surface what's already in
+the codebase that the constitution would flag. This is the
+load-bearing step that makes diff-based `verify` meaningful — if
+the baseline already contains 200 hardcoded secrets, then `verify
+--against main` only catches the 201st one and gives the adopter
+a false sense of protection over the prior 200.
+
+```bash
+npx effective audit
+```
+
+What audit does:
+
+1. Walks the repo for source files
+2. Runs every applicable rule against current state (not a diff)
+3. Reports findings grouped by severity + a list of rules it
+   couldn't run (diff-only, lane, meta, toolchain by default)
+4. Exits 0 regardless — audit is informational, not a gate
+
+Triage the findings into one of four buckets:
+
+- **Fix the code.** The right answer for most findings if the
+  fix is small and the rule is clearly applicable.
+- **Register an exception.** For suppressions that need to stay
+  (legitimate `@ts-expect-error`, `c8 ignore`, etc.) — add the
+  cited entry to the `exceptions` field. See decisions.md §
+  "New exception vs. fix the code."
+- **Override the rule's severity.** For rules the project will
+  eventually satisfy but can't right now (typically the
+  CRITICAL → HIGH downgrade for `exceptions.must-cite-justification`
+  in legacy codebases with many existing suppressions).
+- **Disable the rule.** For rules that don't apply to the
+  project at all.
+
+Audit also reports which rules it skipped and why:
+
+- `diff-only` — these rules need a diff to be meaningful (e.g.,
+  `migration-has-exercising-test`, `new-exports-have-non-test-callers`).
+  Run via `effective verify` instead.
+- `lane-no-scope` — lane rules need an editable lane to compare
+  against; audit has no scope.
+- `meta-no-report` — meta rules read an agent self-report; absent
+  in audit.
+- `toolchain-not-included` — by default. Pass `--include-toolchain`
+  if you want lint/typecheck/test/coverage rules to run in the
+  audit (slow; useful for full baseline establishment).
+
+A baseline is "clean" once audit produces no findings (or only
+findings the user has explicitly decided to accept via the four
+triage paths above). Until the baseline is clean, `verify` against
+diffs is incomplete — invisible debt accumulates outside the diff
+window.
+
+### 5. First verify
 
 The first run is slow (1–5 minutes) because it installs an
 isolated `node_modules` into `.effective/node_modules`. Tell the
@@ -240,7 +276,7 @@ Three likely outcomes:
   to fix, override, or disable each (see
   `docs/decisions.md` § Disable vs. override).
 
-### 5. Wire into CI
+### 6. Wire into CI
 
 For PR workflows, add a CI step:
 

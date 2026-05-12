@@ -21,6 +21,7 @@ type FactoryDefaults = Partial<
     | 'catalogueEntry'
     | 'relatedPrinciple'
     | 'appliesToRoles'
+    | 'diffOnly'
   >
 >;
 
@@ -104,6 +105,7 @@ function withDefaults<T extends Rule>(
       ? {}
       : { relatedPrinciple: defaults.relatedPrinciple }),
     ...(defaults.appliesToRoles === undefined ? {} : { appliesToRoles: defaults.appliesToRoles }),
+    ...(defaults.diffOnly === undefined ? {} : { diffOnly: defaults.diffOnly }),
   };
 }
 

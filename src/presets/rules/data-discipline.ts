@@ -17,6 +17,7 @@ const migrationHasExercisingTest: Rule = rule.custom({
   catalogueEntry: 'defensive-no-op-migration',
   relatedPrinciple: 'mechanical-enforcement-over-instruction',
   appliesToRoles: DATA_ROLES,
+  diffOnly: true,
   prompt: {
     summary:
       'Every new migration ships with a test that seeds dirty data, runs the migration, and asserts the post-migration state.',

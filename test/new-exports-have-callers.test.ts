@@ -42,16 +42,7 @@ describe('new-exports-have-non-test-callers (CustomRule)', () => {
 
     const result = await verify({
       scope: scope('code-writer'),
-      config: {
-        extends: ['recommended'],
-        // disable toolchain rules since this temp repo doesn't have one configured
-        disable: {
-          'toolchain.lint-clean': 'inline test',
-          'toolchain.typecheck-clean': 'inline test',
-          'toolchain.tests-pass': 'inline test',
-          'toolchain.coverage-non-decreasing': 'inline test',
-        },
-      },
+      config: TOOLCHAIN_DISABLED,
       source: { kind: 'git', repo, work: 'feature', baseline: 'main' },
     });
     const f = result.findings.filter((x) => x.ruleId === RULE_ID);

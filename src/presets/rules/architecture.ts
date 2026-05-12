@@ -70,6 +70,7 @@ const newExportsHaveNonTestCallers: Rule = rule.custom({
   catalogueEntry: 'scaffold-without-runtime-wiring',
   relatedPrinciple: 'mechanical-enforcement-over-instruction',
   appliesToRoles: ARCHITECT_ROLES,
+  diffOnly: true,
   prompt: {
     summary: 'New exports are called from at least one non-test runtime path.',
     guidance:

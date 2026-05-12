@@ -2,6 +2,7 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { scanFilesForEscapeHatches } from '../escape-hatches/scan.js';
 import { validateEscapeHatches } from '../escape-hatches/validate.js';
+import { walkSourceFiles } from '../walk.js';
 import { catalogueStubChecks } from './rules/stubs.js';
 import type { Finding } from '../schemas.js';
 import type { ChangedFile, CustomCheck } from '../source/types.js';
@@ -146,17 +147,6 @@ export const migrationHasExercisingTest: CustomCheck = (rule, ctx) => {
 };
 
 const SOURCE_EXT_RE = /\.(tsx?|jsx?|mjs|cjs)$/;
-const IGNORED_DIRS = new Set([
-  'node_modules',
-  'dist',
-  'build',
-  'coverage',
-  '.git',
-  '.effective',
-  '.next',
-  '.turbo',
-  'out',
-]);
 
 const EXPORT_NAME_RES: readonly RegExp[] = [
   /^\s*export\s+function\s+(\w+)/gm,
@@ -199,36 +189,6 @@ function extractExportNames(content: string): string[] {
 interface ExportRecord {
   file: ChangedFile;
   name: string;
-}
-
-async function walkSourceFiles(
-  root: string,
-  visit: (absPath: string, relPath: string) => Promise<void>,
-): Promise<void> {
-  async function go(dir: string): Promise<void> {
-    let entries: import('node:fs').Dirent[];
-    try {
-      // The walk root is ctx.repo (or a subdir under it) — the rule's whole
-      // purpose is to enumerate caller candidates across the repository,
-      // so a literal path here would defeat the rule.
-      // eslint-disable-next-line security/detect-non-literal-fs-filename
-      entries = await fs.readdir(dir, { withFileTypes: true });
-    } catch {
-      return;
-    }
-    for (const entry of entries) {
-      if (IGNORED_DIRS.has(entry.name)) continue;
-      if (entry.name.startsWith('.')) continue;
-      const abs = path.join(dir, entry.name);
-      if (entry.isDirectory()) {
-        await go(abs);
-      } else if (entry.isFile() && SOURCE_EXT_RE.test(entry.name)) {
-        const rel = path.relative(root, abs).replaceAll('\\', '/');
-        await visit(abs, rel);
-      }
-    }
-  }
-  await go(root);
 }
 
 /**
@@ -280,17 +240,20 @@ export const newExportsHaveNonTestCallers: CustomCheck = async (rule, ctx) => {
   // source file itself (a file is not its own caller).
   const seenAsNonTestCaller = new Set<string>();
   const newFilePaths = new Set(newSourceFiles.map((f) => f.path));
-  await walkSourceFiles(ctx.repo, async (abs, rel) => {
-    if (newFilePaths.has(rel)) return;
-    if (TEST_PATH_RE.test(rel)) return;
+  const repoRoot = ctx.repo;
+  const sourcePaths = await walkSourceFiles(repoRoot);
+  for (const abs of sourcePaths) {
+    const rel = path.relative(repoRoot, abs).replaceAll('\\', '/');
+    if (newFilePaths.has(rel)) continue;
+    if (TEST_PATH_RE.test(rel)) continue;
     let content: string;
     try {
-      // Same justification as the readdir above — the walker reads every
-      // source file under the repo to look for caller references.
+      // The walker yielded this path; reading it is intentional. Suppression
+      // scoped to this one read.
       // eslint-disable-next-line security/detect-non-literal-fs-filename
       content = await fs.readFile(abs, 'utf8');
     } catch {
-      return;
+      continue;
     }
     for (const r of records) {
       const key = `${r.file.path}|${r.name}`;
@@ -301,7 +264,7 @@ export const newExportsHaveNonTestCallers: CustomCheck = async (rule, ctx) => {
       const wordRe = new RegExp(`\\b${r.name}\\b`);
       if (wordRe.test(content)) seenAsNonTestCaller.add(key);
     }
-  });
+  }
 
   const findings: Finding[] = [];
   for (const r of records) {

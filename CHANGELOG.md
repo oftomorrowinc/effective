@@ -8,15 +8,49 @@ project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **`effective audit` command + programmatic `audit()` function.**
+  Walks the repository for source files and runs every applicable
+  rule against current state (no diff). Designed for baseline
+  establishment at adoption time — surfaces invisible debt that
+  diff-based `verify` would otherwise never catch. Skips diff-only
+  rules (with reasons reported), lane rules (no scope), meta rules
+  (no agent report), and toolchain rules by default
+  (`--include-toolchain` opts in). `--rule <id>` filters to one
+  rule; `--json` emits machine-readable output. Exits 0 regardless
+  of findings — audit is informational, not a gate.
+- **`Constitution.diffOnly?: boolean` field on RuleBase.** Lets
+  rules declare that they only run meaningfully against a diff.
+  `verify()` ignores the field (runs all rules); `audit()` skips
+  rules with `diffOnly: true` and reports them as skipped. Two
+  existing rules opt in: `migration-has-exercising-test` and
+  `new-exports-have-non-test-callers`.
+- **`walkSourceFiles()` utility** in `src/walk.ts`, exported via
+  the public surface. Recursively walks a tree, returns absolute
+  paths to source files, skips conventional ignored directories.
+  Replaces three near-duplicate walker implementations across
+  `audit`, `audit-escapes`, and the `new-exports` check.
 - **LLM-onboarding documentation suite** under `docs/`:
   `agent-prompt.md` (distilled context for an LLM helping a user
   adopt the package), `decisions.md` (decision trees for the
   recurring "which option here?" choices), `failure-modes.md`
-  (error → cause → fix mapping), and `examples/typescript-vitest-
-eslint.md` (the canonical project shape with full working
-  config). The agent prompt was iterated through two cold-eval
-  passes — a fresh subagent attempted onboarding using only the
-  docs, the gaps it surfaced drove the revisions.
+  (error → cause → fix mapping), and `examples/typescript-vitest-eslint.md`
+  (the canonical project shape with full working config). The agent
+  prompt was iterated through two cold-eval passes — a fresh
+  subagent attempted onboarding using only the docs, the gaps it
+  surfaced drove the revisions. The onboarding sequence now has a
+  dedicated "Establish baseline with `audit`" step between init
+  and first verify.
+
+### Changed
+
+- **Existing `runAuditCommand` renamed to `runAuditEscapesCommand`.**
+  The old `audit` command name now refers to the broader audit; the
+  narrow escape-hatch survey lives at `effective audit-escapes`.
+  Programmatic imports must update: `runAuditCommand` →
+  `runAuditEscapesCommand` from `src/cli/audit-escapes.ts`.
+  `AuditCliResult` similarly renamed to `AuditEscapesCliResult`.
+- **`dedupeBySignature` exported from `src/verify.ts`.** Was
+  private; audit reuses it.
 
 ### Fixed
 

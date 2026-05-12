@@ -5,70 +5,121 @@ import path from 'node:path';
 import { runAuditCommand } from '../src/cli/audit.js';
 import { parseArgs } from '../src/cli/args.js';
 
-async function makeDir(): Promise<string> {
-  return await mkdtemp(path.join(tmpdir(), 'effective-audit-'));
+const EFFECTIVE_INDEX = path.resolve('src/index.ts');
+
+async function makeRepo(): Promise<string> {
+  const dir = await mkdtemp(path.join(tmpdir(), 'effective-audit-cli-'));
+  // Minimal valid config that extends recommended and disables toolchain
+  // rules so audit doesn't try to run lint/typecheck/test in a temp dir.
+  // Imports `effective` via absolute path so the temp config can load
+  // without a local `node_modules`.
+  await writeFile(
+    path.join(dir, 'effective.config.ts'),
+    `import { defineConfig } from '${EFFECTIVE_INDEX}';
+export default defineConfig({
+  extends: ['recommended'],
+  disable: {
+    'toolchain.lint-clean': 'temp',
+    'toolchain.typecheck-clean': 'temp',
+    'toolchain.tests-pass': 'temp',
+    'toolchain.coverage-non-decreasing': 'temp',
+  },
+});
+`,
+  );
+  return dir;
+}
+
+async function write(root: string, rel: string, content: string): Promise<void> {
+  const abs = path.join(root, rel);
+  await mkdir(path.dirname(abs), { recursive: true });
+  await writeFile(abs, content);
 }
 
 describe('runAuditCommand', () => {
-  it('reports hatches missing an exception-id', async () => {
-    const dir = await makeDir();
+  it('reports a clean repo with the pretty reporter', async () => {
+    const dir = await makeRepo();
     try {
-      await mkdir(path.join(dir, 'src'), { recursive: true });
-      await writeFile(path.join(dir, 'src', 'a.ts'), `// @ts-expect-error legacy\n`);
-      await writeFile(
-        path.join(dir, 'src', 'b.ts'),
-        `// eslint-disable-next-line no-console -- exception-id: cli-fatal-exit\nconsole.log(1);`,
-      );
-      const result = await runAuditCommand(parseArgs(['audit-escapes']), dir);
+      await write(dir, 'src/clean.ts', 'export const x = 1;\n');
+      const result = await runAuditCommand(parseArgs(['audit']), dir);
       expect(result.exitCode).toBe(0);
-      expect(result.stdout).toContain('Found 1 escape hatch');
-      expect(result.stdout).toContain('src/a.ts');
-      expect(result.stdout).not.toContain('src/b.ts');
+      expect(result.stdout).toContain('Audit complete');
+      expect(result.stdout).toContain('0 total');
+      expect(result.stdout).toContain('No findings.');
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
   });
 
-  it('--all surfaces every hatch including justified ones', async () => {
-    const dir = await makeDir();
+  it('groups findings by severity in pretty output', async () => {
+    const dir = await makeRepo();
     try {
-      await writeFile(
-        path.join(dir, 'a.ts'),
-        `// eslint-disable-next-line foo -- exception-id: cli-fatal-exit\n// @ts-expect-error legacy\n`,
+      await write(dir, 'src/legacy.ts', 'console.log("debug me");\n');
+      const result = await runAuditCommand(parseArgs(['audit']), dir);
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain('CRITICAL findings');
+      expect(result.stdout).toContain('no-stray-debug-output');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('emits JSON when --json is passed', async () => {
+    const dir = await makeRepo();
+    try {
+      await write(dir, 'src/legacy.ts', 'console.log("debug me");\n');
+      const result = await runAuditCommand(parseArgs(['audit', '--json']), dir);
+      expect(result.exitCode).toBe(0);
+      const parsed = JSON.parse(result.stdout) as {
+        findings: { ruleId: string }[];
+        summary: { total: number };
+        skipped: { ruleId: string; reason: string }[];
+        filesScanned: string[];
+      };
+      expect(parsed.summary.total).toBeGreaterThanOrEqual(1);
+      expect(parsed.findings.some((f) => f.ruleId === 'no-stray-debug-output')).toBe(true);
+      expect(parsed.filesScanned).toContain('src/legacy.ts');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('--rule limits to a single rule id', async () => {
+    const dir = await makeRepo();
+    try {
+      const token = 'AKIA' + 'IOSFODNN7EXAMPLE';
+      await write(dir, 'src/legacy.ts', `console.log(1);\nconst k = "${token}";\n`);
+      const result = await runAuditCommand(
+        parseArgs(['audit', '--rule', 'no-hardcoded-secrets', '--json']),
+        dir,
       );
-      const result = await runAuditCommand(parseArgs(['audit-escapes', '--all']), dir);
-      expect(result.stdout).toContain('Found 2 escape hatch');
+      const parsed = JSON.parse(result.stdout) as {
+        findings: { ruleId: string }[];
+      };
+      expect(parsed.findings.every((f) => f.ruleId === 'no-hardcoded-secrets')).toBe(true);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
   });
 
-  it('reports clean when no hatches need attention', async () => {
-    const dir = await makeDir();
+  it('exits 0 even when findings are present (audit is informational)', async () => {
+    const dir = await makeRepo();
     try {
-      await writeFile(path.join(dir, 'a.ts'), `export const x = 1;`);
-      const result = await runAuditCommand(parseArgs(['audit-escapes']), dir);
-      expect(result.stdout).toMatch(/No escape hatches missing/);
+      await write(dir, 'src/legacy.ts', 'console.log(1);\n');
+      const result = await runAuditCommand(parseArgs(['audit']), dir);
+      expect(result.exitCode).toBe(0);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
   });
 
-  it('skips node_modules, dist, .git, .effective by default', async () => {
-    const dir = await makeDir();
+  it('mentions skipped diff-only rules in pretty output', async () => {
+    const dir = await makeRepo();
     try {
-      await mkdir(path.join(dir, 'node_modules', 'lib'), { recursive: true });
-      await writeFile(
-        path.join(dir, 'node_modules', 'lib', 'index.ts'),
-        `// @ts-expect-error vendor`,
-      );
-      await mkdir(path.join(dir, 'dist'), { recursive: true });
-      await writeFile(path.join(dir, 'dist', 'bundle.js'), `// @ts-expect-error built`);
-      await writeFile(path.join(dir, 'real.ts'), `// @ts-expect-error real`);
-      const result = await runAuditCommand(parseArgs(['audit-escapes']), dir);
-      expect(result.stdout).toContain('real.ts');
-      expect(result.stdout).not.toContain('node_modules');
-      expect(result.stdout).not.toContain('dist/bundle.js');
+      await write(dir, 'src/x.ts', 'export const x = 1;\n');
+      const result = await runAuditCommand(parseArgs(['audit']), dir);
+      expect(result.stdout).toContain('Skipped rules');
+      expect(result.stdout).toContain('diff-only');
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

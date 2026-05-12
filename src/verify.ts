@@ -70,7 +70,7 @@ export interface VerifyInput {
   commitMetadata?: CommitMetadata;
 }
 
-function dedupeBySignature(findings: readonly Finding[]): Finding[] {
+export function dedupeBySignature(findings: readonly Finding[]): Finding[] {
   const seen = new Set<string>();
   const out: Finding[] = [];
   for (const finding of findings) {
