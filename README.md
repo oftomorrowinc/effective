@@ -325,23 +325,30 @@ For deeper configuration patterns — adopting on existing codebases, defining c
 
 Escape hatches accumulate. `/* c8 ignore */`, `@ts-expect-error`, `eslint-disable`, `prettier-ignore` — every codebase has them, and most teams have no idea why each one is there. Over time they become invisible debt: nobody remembers the reason, nobody knows when they could be removed, and they hide real problems behind plausible-looking exemptions.
 
-Effective turns escape hatches into a tracked, justified, retire-able registry. Every escape hatch comment in your codebase must cite a resolvable exception ID. Every exception ID must have a category, a context, and a retirement condition. The package ships a starting set of categories that recur across TypeScript projects; your project adds specific instances in `.effective/exceptions.ts`.
+Effective turns escape hatches into a tracked, justified, retire-able registry. Every escape hatch comment in your codebase must cite a resolvable exception ID. Every exception ID must have a category, a context, and a retirement condition. The package ships a starting set of categories that recur across TypeScript projects; your project adds specific instances inline on the Constitution under `exceptions`.
 
 ```ts
-// .effective/exceptions.ts
-import { defineExceptions, builtin } from 'effective';
+// effective.config.ts
+import { defineConfig, seeds } from 'effective';
 
-export default defineExceptions({
-  ...builtin.exceptions, // CLI fatal-exit, library drift defense,
-  // type narrowing of impossible, TTY-bound paths,
-  // Zod internal introspection, etc.
+export default defineConfig({
+  extends: ['recommended'],
 
-  'our-postgres-driver-quirk': {
-    category: 'external-library-drift-defense',
-    context:
-      'pg@8.x leaves stale connections in the pool under specific error shapes',
-    retirementCondition: 'Resolved when we migrate to pg@9 or postgres.js',
-    addedDate: '2026-04-15',
+  exceptions: {
+    ...seeds.builtInExceptions, // CLI fatal-exit, library drift defense,
+    // type narrowing of impossible, TTY-bound paths,
+    // Zod internal introspection, etc.
+
+    'our-postgres-driver-quirk': {
+      id: 'our-postgres-driver-quirk',
+      category: 'external-library-drift-defense',
+      mechanism: 'ts-expect-error',
+      context:
+        'pg@8.x leaves stale connections in the pool under specific error shapes',
+      retirementCondition: 'Resolved when we migrate to pg@9 or postgres.js',
+      addedDate: '2026-04-15',
+      status: 'active',
+    },
   },
 });
 ```
@@ -382,6 +389,60 @@ npx effective init
 ```
 
 Peer dependencies: `zod >= 3.x`. No other runtime dependencies.
+
+---
+
+## Status (v0.1.0-rc.1)
+
+`effective` is in pre-release. The engine, schema, CLI, build, and the
+recommended preset's prompt projections are all real and stable enough
+to ship — but **detection coverage on the catalogue rules is partial**.
+Be aware of the split.
+
+**Real detection (rules emit findings against your diff):**
+
+- Lane: `lane.editable-respected`
+- Exceptions: `exceptions.must-cite-justification`
+- Hygiene: `no-stray-debug-output`
+- Security: `no-hardcoded-secrets`
+- Tests: `no-disabled-tests-without-exception`
+- Architecture: `new-exports-have-non-test-callers`
+- Data discipline: `migration-has-exercising-test`
+- Toolchain: `toolchain.lint-clean`, `toolchain.typecheck-clean`,
+  `toolchain.tests-pass`, `toolchain.coverage-non-decreasing`†
+- Spec: `spec.test-names-land-verbatim`, `spec.assertions-not-narrowed`,
+  `spec.no-extra-tests-claiming-spec`
+
+**Prompt-projected, detection stubbed (the rule appears in `prepare()`
+guidance, citing the catalogue entry; `verify()` does not yet flag
+violations):**
+
+- Architecture: `no-parallel-systems-without-migration`,
+  `retirement-task-declared-as-dependency`,
+  `canonical-validation-not-bypassed`, `no-wrapper-over-first-class-primitive`
+- Tests: `test-count-non-decreasing`, `mocks-only-at-external-boundaries`,
+  `task-has-durable-test-artifact`
+- Data discipline: `integration-test-writes-scope-wrapped`,
+  `test-harness-default-business-id-override`,
+  `write-then-validate-makes-transaction-choice-explicit`
+- Governance: `context-artifact-size-monitored`,
+  `constitution-version-hash-verified-at-boot`,
+  `new-throws-checked-against-catcher-chain`,
+  `files-scoped-rule-overrides-cite-decision`
+- All MetaRule self-report checks (consume an agent build log; silently
+  skip when no log is supplied).
+
+The stubbed rules still carry their prompt projection, so workers
+receive the guidance through `prepare()` and `kickBack()` cites the
+rule id by reference. The detection grows over time as contributors
+land real check implementations against each stub. Projects extending
+the preset can override any stub by passing a real implementation in
+`verify({ customChecks })`.
+
+†`coverage-non-decreasing` runs the toolchain command and parses
+output, but the `non-decreasing` semantic isn't fully wired — it
+currently fails on `any-output` rather than against a recorded
+baseline. Track this rule with care until baseline-tracking lands.
 
 ---
 

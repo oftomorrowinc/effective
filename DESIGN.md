@@ -606,21 +606,28 @@ zod-internal-introspection, etc.) — recurring shapes of legitimate exception
 across TypeScript projects.
 
 Projects compose these with their own _instances_ — specific exception IDs
-that fall into the built-in categories or define new ones. Stored in
-`.effective/exceptions.ts`.
+that fall into the built-in categories or define new ones. Stored inline
+on the Constitution under `exceptions`.
 
 ```ts
-// .effective/exceptions.ts
-import { defineExceptions, builtin } from 'effective';
+// effective.config.ts
+import { defineConfig, seeds } from 'effective';
 
-export default defineExceptions({
-  ...builtin.exceptions,
+export default defineConfig({
+  extends: ['recommended'],
 
-  'our-postgres-driver-quirk': {
-    category: 'external-library-drift-defense',
-    context: 'pg@8.x leaves stale connections under specific error shapes',
-    retirementCondition: 'Resolved when we migrate to pg@9 or postgres.js',
-    addedDate: '2026-04-15',
+  exceptions: {
+    ...seeds.builtInExceptions,
+
+    'our-postgres-driver-quirk': {
+      id: 'our-postgres-driver-quirk',
+      category: 'external-library-drift-defense',
+      mechanism: 'ts-expect-error',
+      context: 'pg@8.x leaves stale connections under specific error shapes',
+      retirementCondition: 'Resolved when we migrate to pg@9 or postgres.js',
+      addedDate: '2026-04-15',
+      status: 'active',
+    },
   },
 });
 ```
