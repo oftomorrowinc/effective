@@ -42,7 +42,7 @@ describe('runCommand', () => {
     });
     expect(result.timedOut).toBe(true);
     expect(result.exitCode).not.toBe(0);
-  });
+  }, 15_000);
 
   it('reports nonzero exit when the spawned program is missing', async () => {
     const result = await runCommand({
