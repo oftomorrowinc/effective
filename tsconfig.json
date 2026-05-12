@@ -50,6 +50,7 @@
     "src/**/*",
     "schemas/**/*",
     "test/**/*",
+    "scripts/**/*",
     "*.config.ts",
     "*.config.js",
     "eslint.config.js",

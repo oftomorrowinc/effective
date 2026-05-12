@@ -90,6 +90,7 @@ Three pure functions. You own the loop, the credentials, the model client. Effec
 - **[USAGE.md](./USAGE.md)** — how to wire it up, configure rules, author scopes, maintain the exceptions registry, adopt gradually on an existing codebase.
 - **[DESIGN.md](./DESIGN.md)** — why the package is shaped the way it is, including the alternatives we considered and rejected.
 - **[CONTRIBUTING.md](./CONTRIBUTING.md)** — how to contribute catalogue entries, exception categories, protected-path defaults, and rules; the two-path workflow for constitutional changes.
+- **[CONSTITUTION.md](./CONSTITUTION.md)** — generated reference of every rule shipped with the recommended preset (severity, category, role applicability, prompt projection). Regenerated from rule definitions via `pnpm docs:constitution`; a drift test fails CI if the committed file falls out of sync.
 - **[docs/agent-prompt.md](./docs/agent-prompt.md)** — context for an LLM agent helping a user adopt Effective. Load this when your agent tooling needs to onboard a project.
 
 The rest of this README is the 60-second pitch.
