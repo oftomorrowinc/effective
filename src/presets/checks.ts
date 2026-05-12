@@ -1,3 +1,5 @@
+import { promises as fs } from 'node:fs';
+import path from 'node:path';
 import { scanFilesForEscapeHatches } from '../escape-hatches/scan.js';
 import { validateEscapeHatches } from '../escape-hatches/validate.js';
 import { catalogueStubChecks } from './rules/stubs.js';
@@ -143,6 +145,181 @@ export const migrationHasExercisingTest: CustomCheck = (rule, ctx) => {
   return findings;
 };
 
+const SOURCE_EXT_RE = /\.(tsx?|jsx?|mjs|cjs)$/;
+const IGNORED_DIRS = new Set([
+  'node_modules',
+  'dist',
+  'build',
+  'coverage',
+  '.git',
+  '.effective',
+  '.next',
+  '.turbo',
+  'out',
+]);
+
+const EXPORT_NAME_RES: readonly RegExp[] = [
+  /^\s*export\s+function\s+(\w+)/gm,
+  /^\s*export\s+async\s+function\s+(\w+)/gm,
+  /^\s*export\s+const\s+(\w+)/gm,
+  /^\s*export\s+let\s+(\w+)/gm,
+  /^\s*export\s+var\s+(\w+)/gm,
+  /^\s*export\s+class\s+(\w+)/gm,
+  /^\s*export\s+default\s+function\s+(\w+)/gm,
+  /^\s*export\s+default\s+async\s+function\s+(\w+)/gm,
+  /^\s*export\s+default\s+class\s+(\w+)/gm,
+];
+const NAMED_RE_EXPORT_RE = /^\s*export\s*\{\s*([^}]+)\}/gm;
+
+function extractExportNames(content: string): string[] {
+  const names = new Set<string>();
+  for (const re of EXPORT_NAME_RES) {
+    re.lastIndex = 0;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(content)) !== null) {
+      if (m[1]) names.add(m[1]);
+    }
+  }
+  NAMED_RE_EXPORT_RE.lastIndex = 0;
+  let nm: RegExpExecArray | null;
+  while ((nm = NAMED_RE_EXPORT_RE.exec(content)) !== null) {
+    const inner = nm[1] ?? '';
+    for (const part of inner.split(',')) {
+      const cleaned = part.trim();
+      if (cleaned.length === 0) continue;
+      // `export { foo as bar }` — bar is the exported name
+      const aliasMatch = /\bas\s+(\w+)$/.exec(cleaned);
+      const exportedName = aliasMatch?.[1] ?? cleaned.replace(/\s+/, ' ').split(' ')[0];
+      if (exportedName && /^\w+$/.test(exportedName)) names.add(exportedName);
+    }
+  }
+  return [...names];
+}
+
+interface ExportRecord {
+  file: ChangedFile;
+  name: string;
+}
+
+async function walkSourceFiles(
+  root: string,
+  visit: (absPath: string, relPath: string) => Promise<void>,
+): Promise<void> {
+  async function go(dir: string): Promise<void> {
+    let entries: import('node:fs').Dirent[];
+    try {
+      // The walk root is ctx.repo (or a subdir under it) — the rule's whole
+      // purpose is to enumerate caller candidates across the repository,
+      // so a literal path here would defeat the rule.
+      // eslint-disable-next-line security/detect-non-literal-fs-filename
+      entries = await fs.readdir(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      if (IGNORED_DIRS.has(entry.name)) continue;
+      if (entry.name.startsWith('.')) continue;
+      const abs = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        await go(abs);
+      } else if (entry.isFile() && SOURCE_EXT_RE.test(entry.name)) {
+        const rel = path.relative(root, abs).replaceAll('\\', '/');
+        await visit(abs, rel);
+      }
+    }
+  }
+  await go(root);
+}
+
+/**
+ * Real detection for `new-exports-have-non-test-callers`.
+ *
+ * Scans every newly added non-test source file in the diff for exported
+ * names (functions, classes, consts, named re-exports, default function/
+ * class declarations). For each exported name, walks the repository
+ * looking for a non-test caller — any source file outside the test
+ * pattern that references the name as a word. Files lacking any non-
+ * test caller produce a HIGH finding flagging the export as scaffolded
+ * without runtime wiring.
+ *
+ * Limitations (deliberate):
+ * - Modified files: skipped. Without git baseline parsing we can't tell
+ *   which exports are *new* vs. pre-existing. Coverage will catch this
+ *   when we layer git baseline diff parsing in a follow-up.
+ * - Type-only exports (`export type X`, `export interface Y`): skipped.
+ *   They're not runtime values; the rule's concern is runtime wiring.
+ * - Aggregate re-exports (`export * from './foo'`): skipped. Names
+ *   are not visible at this point without resolving the re-export
+ *   target.
+ * - Default unnamed exports (`export default <expression>`): skipped.
+ *   No name to search for.
+ *
+ * Requires `ctx.repo` (git-backed source). For inline sources the check
+ * silently returns no findings — there's no filesystem to walk.
+ */
+export const newExportsHaveNonTestCallers: CustomCheck = async (rule, ctx) => {
+  if (ctx.repo === undefined) return [];
+  const newSourceFiles = ctx.changedFiles.filter(
+    (f) =>
+      f.status === 'added' &&
+      SOURCE_EXT_RE.test(f.path) &&
+      !TEST_PATH_RE.test(f.path) &&
+      !MIGRATION_PATH_RE.test(f.path),
+  );
+  if (newSourceFiles.length === 0) return [];
+
+  const records: ExportRecord[] = [];
+  for (const file of newSourceFiles) {
+    for (const name of extractExportNames(file.content)) {
+      records.push({ file, name });
+    }
+  }
+  if (records.length === 0) return [];
+
+  // Single repo walk; for each file, check every export name. Skip the
+  // source file itself (a file is not its own caller).
+  const seenAsNonTestCaller = new Set<string>();
+  const newFilePaths = new Set(newSourceFiles.map((f) => f.path));
+  await walkSourceFiles(ctx.repo, async (abs, rel) => {
+    if (newFilePaths.has(rel)) return;
+    if (TEST_PATH_RE.test(rel)) return;
+    let content: string;
+    try {
+      // Same justification as the readdir above — the walker reads every
+      // source file under the repo to look for caller references.
+      // eslint-disable-next-line security/detect-non-literal-fs-filename
+      content = await fs.readFile(abs, 'utf8');
+    } catch {
+      return;
+    }
+    for (const r of records) {
+      const key = `${r.file.path}|${r.name}`;
+      if (seenAsNonTestCaller.has(key)) continue;
+      // Export names are JS identifiers (\w+ captured upstream), so the
+      // constructed regex is bounded and safe from injection.
+      // eslint-disable-next-line security/detect-non-literal-regexp
+      const wordRe = new RegExp(`\\b${r.name}\\b`);
+      if (wordRe.test(content)) seenAsNonTestCaller.add(key);
+    }
+  });
+
+  const findings: Finding[] = [];
+  for (const r of records) {
+    const key = `${r.file.path}|${r.name}`;
+    if (seenAsNonTestCaller.has(key)) continue;
+    findings.push({
+      ruleId: rule.id,
+      severity: rule.defaultSeverity,
+      category: rule.category,
+      message: `New export \`${r.name}\` in ${r.file.path} has no non-test caller. Wire it into a runtime path before shipping, or remove it — scaffolding tested in isolation drifts away from the real integration surface.`,
+      evidence: r.name,
+      location: { file: r.file.path },
+      source: { kind: 'rule', ruleId: rule.id },
+    });
+  }
+  return findings;
+};
+
 /**
  * Built-in custom-check registry. Merged into every verify() call by
  * default; users can override any entry by passing their own
@@ -154,5 +331,6 @@ export const builtInChecks: Readonly<Record<string, CustomCheck>> = {
   exceptionsMustCiteJustification,
   noDisabledTestsWithoutException,
   migrationHasExercisingTest,
+  newExportsHaveNonTestCallers,
   ...catalogueStubChecks,
 };

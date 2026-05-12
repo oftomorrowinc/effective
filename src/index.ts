@@ -48,6 +48,7 @@ export {
   exceptionsMustCiteJustification,
   noDisabledTestsWithoutException,
   migrationHasExercisingTest,
+  newExportsHaveNonTestCallers,
 } from './presets/index.js';
 export { renderChecklist } from './checklist.js';
 export type { ChecklistInput } from './checklist.js';

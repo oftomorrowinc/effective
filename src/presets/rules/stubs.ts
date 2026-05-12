@@ -30,7 +30,7 @@ export const catalogueStubChecks: Readonly<Record<string, CustomCheck>> = {
   noParallelSystemsWithoutMigration: noop,
   retirementTaskDeclaredAsDependency: noop,
   canonicalValidationNotBypassed: noop,
-  newExportsHaveNonTestCallers: noop,
+  // newExportsHaveNonTestCallers moved to a real implementation in checks.ts.
   noWrapperOverFirstClassPrimitive: noop,
   testCountNonDecreasing: noop,
   mocksOnlyAtExternalBoundaries: noop,

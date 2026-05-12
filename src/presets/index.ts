@@ -11,4 +11,5 @@ export {
   exceptionsMustCiteJustification,
   noDisabledTestsWithoutException,
   migrationHasExercisingTest,
+  newExportsHaveNonTestCallers,
 } from './checks.js';
