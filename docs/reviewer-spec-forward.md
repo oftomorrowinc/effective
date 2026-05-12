@@ -78,6 +78,51 @@ citations don't get re-judged unless their surroundings changed):
    because the underlying issue genuinely can't be addressed inline,
    not because fixing was inconvenient.
 
+## What the reviewer checks on protected-path edits
+
+The `protected-paths-respected` rule fires CRITICAL on any diff
+touching files in `config.protected`. For human contributors, the
+workflow is `--no-verify` with rationale in the commit message and
+PR description (see `CONTRIBUTING.md` § "The two-path constitutional-
+change workflow"). The CI gate catches the diff regardless of
+whether `--no-verify` was used locally; the reviewer evaluates the
+rationale's substance.
+
+For each PR whose diff touches protected paths, the reviewer:
+
+1. **Confirms substantive rationale in the commit message.** Not
+   just "needed for X" or "fixing issue Y" — the rationale should
+   name what's being changed at the constitutional level and why
+   the change is the right shape. "Adding a built-in exception
+   category for the recurring pattern we see in fs.readdir callers"
+   is substantive; "small fix" isn't.
+
+2. **Confirms the PR description names which protected file(s) the
+   PR edits.** The contributor should have called out the
+   constitutional change explicitly so the reviewer doesn't have to
+   reconstruct intent from the diff.
+
+3. **Verifies rationale-diff consistency.** The rationale should
+   match what the diff actually changes. A rationale claiming "adding
+   a new built-in exception category" on a diff that disables a rule
+   instead is a soft fabrication signal — the contributor wrote
+   plausible-sounding rationale that doesn't describe their actual
+   change.
+
+4. **Flags `--no-verify` on non-protected paths.** If the commit was
+   pushed with `--no-verify` but the diff doesn't touch any
+   protected file, the bypass was unnecessary. Either the
+   contributor misunderstood when to use `--no-verify` (worth
+   surfacing) or there's an issue that warranted bypassing the gate
+   that's not visible in the diff (also worth surfacing).
+
+These checks parallel the citation-substance checks above —
+deterministic engine catches structural violations; reviewer
+catches substance violations. The CI gate already prevents
+protected-path diffs from merging without going through the PR
+flow; the reviewer's job is judging whether the rationale that
+authorized the change is real.
+
 ## Shape of reviewer findings
 
 Same `Finding` interface as deterministic rules. The reviewer's
