@@ -14,13 +14,11 @@ function buildFileMatcher(rule: PatternRule): (path: string) => boolean {
 function toGlobalRegex(rule: PatternRule): RegExp {
   if (rule.pattern instanceof RegExp) {
     const flags = rule.pattern.flags.includes('g') ? rule.pattern.flags : `${rule.pattern.flags}g`;
-    // Pattern comes from the project's own constitution config — trusted code,
-    // not user-supplied input. Suppression scoped to this single construction.
-    // eslint-disable-next-line security/detect-non-literal-regexp
+    // eslint-disable-next-line security/detect-non-literal-regexp -- exception-id: caller-validated-dynamic-key
     return new RegExp(rule.pattern.source, flags);
   }
   const escaped = rule.pattern.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
-  // eslint-disable-next-line security/detect-non-literal-regexp
+  // eslint-disable-next-line security/detect-non-literal-regexp -- exception-id: caller-validated-dynamic-key
   return new RegExp(escaped, 'g');
 }
 

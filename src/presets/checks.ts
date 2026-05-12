@@ -249,9 +249,7 @@ export const newExportsHaveNonTestCallers: CustomCheck = async (rule, ctx) => {
     if (TEST_PATH_RE.test(rel)) continue;
     let content: string;
     try {
-      // The walker yielded this path; reading it is intentional. Suppression
-      // scoped to this one read.
-      // eslint-disable-next-line security/detect-non-literal-fs-filename
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- exception-id: intentional-source-tree-walker
       content = await fs.readFile(abs, 'utf8');
     } catch {
       continue;
@@ -259,9 +257,7 @@ export const newExportsHaveNonTestCallers: CustomCheck = async (rule, ctx) => {
     for (const r of records) {
       const key = `${r.file.path}|${r.name}`;
       if (seenAsNonTestCaller.has(key)) continue;
-      // Export names are JS identifiers (\w+ captured upstream), so the
-      // constructed regex is bounded and safe from injection.
-      // eslint-disable-next-line security/detect-non-literal-regexp
+      // eslint-disable-next-line security/detect-non-literal-regexp -- exception-id: caller-validated-dynamic-key
       const wordRe = new RegExp(`\\b${r.name}\\b`);
       if (wordRe.test(content)) seenAsNonTestCaller.add(key);
     }

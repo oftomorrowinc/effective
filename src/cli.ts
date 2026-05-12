@@ -87,12 +87,12 @@ async function main(): Promise<void> {
     const result = await dispatch(process.argv.slice(2), process.cwd());
     if (result.stdout.length > 0) process.stdout.write(result.stdout);
     if (result.stderr.length > 0) process.stderr.write(result.stderr);
-    // eslint-disable-next-line n/no-process-exit, unicorn/no-process-exit
+    // eslint-disable-next-line n/no-process-exit, unicorn/no-process-exit -- exception-id: cli-fatal-exit
     process.exit(result.exitCode);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     process.stderr.write(`effective: ${message}\n`);
-    // eslint-disable-next-line n/no-process-exit, unicorn/no-process-exit
+    // eslint-disable-next-line n/no-process-exit, unicorn/no-process-exit -- exception-id: cli-fatal-exit
     process.exit(2);
   }
 }

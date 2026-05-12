@@ -110,6 +110,19 @@ export const BuiltInExceptionCategory = z.enum([
   'prettier-ascii-diagrams',
   'prettier-markdown-alignment',
 
+  // Filesystem walkers reading caller-supplied directory paths. The walker's
+  // contract IS dynamic-path traversal; `security/detect-non-literal-fs-filename`
+  // is conservative about it. Sites: audit/lint scanners, plugin loaders,
+  // build tools enumerating source files.
+  'intentional-source-tree-walker',
+
+  // Dynamic key access (`record[key]`) and dynamic regex construction
+  // (`new RegExp(pattern)`) where the key/pattern is bounded by upstream
+  // validation (Zod-parsed config, rule definition). The eslint security
+  // rules can't see the upstream validation; this category accepts that
+  // responsibility.
+  'caller-validated-dynamic-key',
+
   // Project-specific catch-all. Use when the exception doesn't fit a
   // built-in category. Should be rare; prefer extending the built-in list
   // upstream if a project hits the same shape repeatedly.

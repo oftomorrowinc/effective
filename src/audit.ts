@@ -56,7 +56,7 @@ export interface AuditResult {
 }
 
 async function readAsChangedFile(absolutePath: string, repo: string): Promise<ChangedFile> {
-  // eslint-disable-next-line security/detect-non-literal-fs-filename -- caller-supplied repo + walked paths
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- exception-id: intentional-source-tree-walker
   const content = await fs.readFile(absolutePath, 'utf8');
   return {
     path: path.relative(repo, absolutePath).replaceAll('\\', '/'),

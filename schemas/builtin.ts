@@ -31,11 +31,17 @@ import type { Exception, ExceptionRegistry } from './exception.js';
 const cliFatalExit: Exception = {
   id: 'cli-fatal-exit',
   category: 'cli-fatal-exit',
-  mechanism: 'c8-ignore',
+  // Multi-mechanism: the same structural condition (CLI dispatch branch
+  // ending in `process.exit`) trips two distinct suppression mechanisms.
+  // The c8-ignore covers the coverage gap (the branch isn't unit-tested);
+  // the eslint-disable covers `n/no-process-exit` / `unicorn/no-process-exit`
+  // (calling `process.exit` is the right thing to do in a CLI's outer
+  // handler). Both flow from the same root cause; both legitimate.
+  mechanism: null,
   context:
-    "CLI entrypoints have an `if (process.argv[1] === fileURLToPath(import.meta.url))` (or similar `require.main === module`) dispatch branch that fires only when the file is invoked directly via tsx/node, never when imported as a module by tests. The branch typically calls a top-level orchestration function and translates its result into process.exit(N). Both halves are exercised by integration tests that shell out to the CLI; the unit-coverage gate doesn't see them.",
+    "CLI entrypoints have an `if (process.argv[1] === fileURLToPath(import.meta.url))` (or similar `require.main === module`) dispatch branch that fires only when the file is invoked directly via tsx/node, never when imported as a module by tests. The branch typically calls a top-level orchestration function and translates its result into process.exit(N). Both halves are exercised by integration tests that shell out to the CLI; the unit-coverage gate doesn't see them. The terminating `process.exit` call also trips `n/no-process-exit` / `unicorn/no-process-exit` — which are right to flag the call everywhere EXCEPT a CLI's outermost handler, where translating an exit code IS the legitimate semantics.",
   retirementCondition:
-    "Retire when an integration-coverage harness exercises every CLI's argv[1] dispatch and the branch lands inside the merged-coverage gate's denominator without false-positive timeouts.",
+    "Retire when an integration-coverage harness exercises every CLI's argv[1] dispatch AND the eslint rule supports a 'this-is-the-outer-handler' annotation. Until then, the CLI's outermost translate-to-exit-code line is the load-bearing site for both suppressions.",
   addedDate: '2026-04-22',
   status: 'active',
 };
@@ -244,6 +250,30 @@ const prettierMarkdownAlignment: Exception = {
   status: 'active',
 };
 
+const intentionalSourceTreeWalker: Exception = {
+  id: 'intentional-source-tree-walker',
+  category: 'intentional-source-tree-walker',
+  mechanism: 'eslint-disable',
+  context:
+    "Filesystem walkers that consume caller-supplied directory paths (`fs.readdir(dir)`, `fs.readFile(absolutePath)` inside a recursive crawler) trip `security/detect-non-literal-fs-filename`. The whole point of the walker is dynamic-path traversal — that's the contract its caller invoked it for. Common sites: audit/lint-style scanners walking a repository tree, plugin loaders enumerating an extensions directory, build tools collecting source files. The eslint rule is conservative; the read happens at a path the caller authorized to enter.",
+  retirementCondition:
+    'Retire per-site when the walker no longer reads paths it derived from traversal (e.g., the caller passes an explicit allow-list and the walker becomes a literal-path consumer), or when the eslint rule gains a trusted-source annotation for documented walker patterns.',
+  addedDate: '2026-05-12',
+  status: 'active',
+};
+
+const callerValidatedDynamicKey: Exception = {
+  id: 'caller-validated-dynamic-key',
+  category: 'caller-validated-dynamic-key',
+  mechanism: 'eslint-disable',
+  context:
+    "Dynamic key access (`record[someKey]`) and dynamic regex construction (`new RegExp(pattern)`) trip `security/detect-object-injection` and `security/detect-non-literal-regexp`. The pattern fires legitimately when the key/pattern is bounded by upstream validation: a registry lookup with the keys typed via a Zod-parsed config, a regex constructed from a rule's `pattern` field whose source already lives in the constitution. The eslint rule can't see the upstream validation; the suppression accepts that responsibility.",
+  retirementCondition:
+    'Retire per-site when the dynamic shape becomes static (e.g., switch to a Map keyed by a string-literal union, or a pre-compiled regex table), or when the eslint rule supports trust annotations linked to a typed validator.',
+  addedDate: '2026-05-12',
+  status: 'active',
+};
+
 /**
  * The full set of built-in exception templates. Projects spread this into
  * their own exception registry as a starting point.
@@ -285,4 +315,6 @@ export const builtInExceptions: ExceptionRegistry = {
   [prettierAlignedDataTables.id]: prettierAlignedDataTables,
   [prettierAsciiDiagrams.id]: prettierAsciiDiagrams,
   [prettierMarkdownAlignment.id]: prettierMarkdownAlignment,
+  [intentionalSourceTreeWalker.id]: intentionalSourceTreeWalker,
+  [callerValidatedDynamicKey.id]: callerValidatedDynamicKey,
 };

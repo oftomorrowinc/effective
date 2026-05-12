@@ -89,9 +89,7 @@ export function resolveConstitution(
   const protectedPathMap = new Map<string, ProtectedPath>();
 
   for (const presetName of config.extends ?? []) {
-    // presets is a string-keyed registry supplied by the caller; key is a
-    // preset name from the project's own constitution.
-    // eslint-disable-next-line security/detect-object-injection
+    // eslint-disable-next-line security/detect-object-injection -- exception-id: caller-validated-dynamic-key
     const preset = presets[presetName];
     if (!preset) {
       throw new Error(

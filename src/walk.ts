@@ -60,10 +60,7 @@ export async function walkSourceFiles(root: string, options: WalkOptions = {}): 
   async function go(dir: string): Promise<void> {
     let entries: import('node:fs').Dirent[];
     try {
-      // The walk root is caller-controlled (audit, escape-hatch scan,
-      // new-exports caller check). Suppression scoped to this single
-      // intentional dynamic read.
-      // eslint-disable-next-line security/detect-non-literal-fs-filename
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- exception-id: intentional-source-tree-walker
       entries = await fs.readdir(dir, { withFileTypes: true });
     } catch {
       return;
