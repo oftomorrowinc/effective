@@ -74,7 +74,7 @@ export const noDisabledTestsWithoutException: CustomCheck = (rule, ctx) => {
           ruleId: rule.id,
           severity: rule.defaultSeverity,
           category: rule.category,
-          message: `Disabled test (.${hit.shape}) without an exception-id annotation. Either fix the test, or register an exception in .effective/exceptions.ts and cite its id in a comment above or beside the disable.`,
+          message: `Disabled test (.${hit.shape}) without an exception-id annotation. Either fix the test, or register an exception under the config's \`exceptions\` field and cite its id in a comment above or beside the disable.`,
           evidence: line.trim(),
           location: { file: file.path, line: index + 1, column: hit.column },
           source: { kind: 'rule', ruleId: rule.id },

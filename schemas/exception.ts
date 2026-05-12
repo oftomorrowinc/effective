@@ -197,7 +197,8 @@ export type Exception = z.infer<typeof Exception>;
 
 /**
  * Exception registry — a map of ID → Exception. Projects compose this from
- * `builtin.exceptions` plus their own additions in .effective/exceptions.ts.
+ * `builtin.exceptions` plus their own additions inline in the config's
+ * `exceptions` field.
  */
 export const ExceptionRegistry = z.record(z.string(), Exception);
 export type ExceptionRegistry = z.infer<typeof ExceptionRegistry>;

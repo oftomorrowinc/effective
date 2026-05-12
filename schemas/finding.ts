@@ -107,7 +107,7 @@ export const Finding = z.object({
    *
    * Bad:  "skip not allowed"
    * Good: ".skip on a test without an exception ref. Add a tracked exception in
-   *        .effective/exceptions.ts and cite its ID in the comment, or fix the
+   *        the config's `exceptions` field and cite its ID in the comment, or fix the
    *        underlying test failure."
    */
   message: z.string(),

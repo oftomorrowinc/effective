@@ -21,7 +21,7 @@ const noDisabledTestsWithoutException: Rule = rule.custom({
   prompt: {
     summary: 'No `.skip` / `.todo` / `xit` / `xdescribe` on tests without a tracked exception.',
     guidance:
-      'A test that fails under a change must be fixed, not silenced. Disabling a test ships an invisible regression — CI stays green while the test that defended a behavior stops running. If a test genuinely cannot pass right now, register an exception in `.effective/exceptions.ts` with a retirement condition naming when the test should be re-enabled, and cite the exception id in a comment on the same line as the disable or on the line directly above. The check accepts the citation as surface evidence; the `exceptions.must-cite-justification` rule separately validates that every cited id resolves to a real registry entry.',
+      "A test that fails under a change must be fixed, not silenced. Disabling a test ships an invisible regression — CI stays green while the test that defended a behavior stops running. If a test genuinely cannot pass right now, register an exception under the config's `exceptions` field with a retirement condition naming when the test should be re-enabled, and cite the exception id in a comment on the same line as the disable or on the line directly above. The check accepts the citation as surface evidence; the `exceptions.must-cite-justification` rule separately validates that every cited id resolves to a real registry entry.",
     examples: {
       bad: "it.skip('handles concurrent writes', () => { ... });",
       good:

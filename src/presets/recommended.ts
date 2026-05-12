@@ -24,7 +24,7 @@ const FOUNDATION_RULES: readonly Rule[] = [
     prompt: {
       summary: 'Every escape hatch must cite a tracked exception id.',
       guidance:
-        'Suppression comments — c8 ignore, @ts-expect-error, eslint-disable, prettier-ignore — must include `exception-id: <id>` matching an entry in `.effective/exceptions.ts`. Add a new exception (with category, context, retirement condition) rather than leaving a bare suppression.',
+        "Suppression comments — c8 ignore, @ts-expect-error, eslint-disable, prettier-ignore — must include `exception-id: <id>` matching an entry in the config's `exceptions` field. Add a new exception (with category, context, retirement condition) rather than leaving a bare suppression.",
     },
   }),
   rule.forbidPattern(/\bconsole\.(log|error|warn|debug|trace|info)\b|\bdebugger\b|\/\/\s*DEBUG\b/, {

@@ -83,7 +83,7 @@ export function validateEscapeHatches(input: ValidateInput): Finding[] {
           missing,
           `${describeKind(hatch)} with no \`exception-id:\` reference`,
           `${describeKind(hatch)} at ${hatch.location.file}:${String(hatch.location.line)} ` +
-            'is missing an `exception-id:` reference. Add a tracked exception in `.effective/exceptions.ts` ' +
+            "is missing an `exception-id:` reference. Add a tracked exception under the config's `exceptions` field " +
             'and cite its id in the comment, or fix the underlying issue so the suppression is no longer needed.',
         ),
       );
@@ -96,7 +96,7 @@ export function validateEscapeHatches(input: ValidateInput): Finding[] {
           hatch,
           input,
           unknown,
-          `exception-id "${hatch.exceptionId}" is not in .effective/exceptions.ts`,
+          `exception-id "${hatch.exceptionId}" is not in the config's \`exceptions\` registry`,
           `${describeKind(hatch)} cites \`exception-id: ${hatch.exceptionId}\` but no such ` +
             'exception is registered. Register it (with category, context, retirement condition) or remove the ref.',
         ),

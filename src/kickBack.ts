@@ -106,7 +106,7 @@ export function kickBack(input: KickBackInput): string {
     '## What to do next',
     [
       '1. Fix the underlying issue for each finding above. Read the evidence carefully — the location and the snippet identify the exact site.',
-      '2. Do **not** disable rules, weaken assertions, or skip tests to make findings disappear. If a true exception is needed, add it to `.effective/exceptions.ts` with a justification and a retirement condition, then cite the exception id at the use site.',
+      "2. Do **not** disable rules, weaken assertions, or skip tests to make findings disappear. If a true exception is needed, add it to the config's `exceptions` field with a justification and a retirement condition, then cite the exception id at the use site.",
       '3. Re-run `verify()`. If new findings appear, address them the same way. The verdict only flips to `pass` when zero CRITICAL findings remain.',
     ].join('\n'),
     '',

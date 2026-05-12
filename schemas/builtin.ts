@@ -3,8 +3,8 @@ import type { Exception, ExceptionRegistry } from './exception.js';
 /**
  * Built-in exception categories — exception template entries shipped with
  * the package. Each is a CATEGORY-level entry, not a project-specific
- * instance. Projects compose these into their .effective/exceptions.ts
- * via the spread operator.
+ * instance. Projects compose these into their config's `exceptions`
+ * field via the spread operator (`...seeds.builtInExceptions`).
  *
  * The categories cover the recurring exception shapes observed across
  * TypeScript projects. New categories are added through the same
@@ -248,7 +248,7 @@ const prettierMarkdownAlignment: Exception = {
  * The full set of built-in exception templates. Projects spread this into
  * their own exception registry as a starting point.
  *
- * Example usage in a project's .effective/exceptions.ts:
+ * Example usage in a project's `effective.config.{ts,js}`:
  *
  *   import { defineExceptions, seeds } from 'effective';
  *
