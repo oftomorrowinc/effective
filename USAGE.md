@@ -66,11 +66,11 @@
 ### Installation
 
 ```bash
-npm install effective
+npm install @oftomorrow/effective
 # or
-pnpm add effective
+pnpm add @oftomorrow/effective
 # or
-yarn add effective
+yarn add @oftomorrow/effective
 ```
 
 Peer dependencies: `zod >= 3.x`. No other runtime dependencies.
@@ -109,7 +109,7 @@ in it explain each section.
 ### Your first verify
 
 ```ts
-import { verify } from 'effective';
+import { verify } from '@oftomorrow/effective';
 import { config } from './effective.config';
 
 const result = await verify({
@@ -150,7 +150,7 @@ Lives at the repo root. Looks like this:
 
 ```ts
 // effective.config.ts
-import { defineConfig, presets, rule } from 'effective';
+import { defineConfig, presets, rule } from '@oftomorrow/effective';
 
 export const config = defineConfig({
   extends: [presets.recommended],
@@ -313,7 +313,7 @@ toolchain: {
 Then register the parser function:
 
 ```ts
-import { registerParser } from 'effective';
+import { registerParser } from '@oftomorrow/effective';
 
 registerParser('my-checker', async ({ stdout, exitCode }) => {
   const parsed = JSON.parse(stdout);
@@ -514,7 +514,7 @@ The exceptions registry lives inline on the Constitution under
 
 ```ts
 // effective.config.ts
-import { defineConfig, seeds } from 'effective';
+import { defineConfig, seeds } from '@oftomorrow/effective';
 
 export default defineConfig({
   extends: ['recommended'],
@@ -620,7 +620,7 @@ ID. Either remove those hatches or migrate them to a different exception.
 ### With Claude Code
 
 ```ts
-import { prepare, verify, kickBack } from 'effective';
+import { prepare, verify, kickBack } from '@oftomorrow/effective';
 import { config } from './effective.config';
 import { spawn } from 'child_process';
 
@@ -679,7 +679,7 @@ for (let attempt = 1; attempt <= 5; attempt++) {
 The same pattern works with any model client:
 
 ```ts
-import { prepare, verify, kickBack } from 'effective';
+import { prepare, verify, kickBack } from '@oftomorrow/effective';
 import { config } from './effective.config';
 import Anthropic from '@anthropic-ai/sdk';
 import { writeFilesFromDiff } from './my-file-writer';
@@ -759,7 +759,7 @@ there, and returns findings without touching your working tree.
 Step 1: install and run `init`.
 
 ```bash
-npm install effective
+npm install @oftomorrow/effective
 npx effective init
 ```
 

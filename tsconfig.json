@@ -42,8 +42,8 @@
 
     "baseUrl": ".",
     "paths": {
-      "effective": ["./src/index.ts"],
-      "effective/schemas": ["./src/schemas.ts"]
+      "@oftomorrow/effective": ["./src/index.ts"],
+      "@oftomorrow/effective/schemas": ["./src/schemas.ts"]
     }
   },
   "include": [

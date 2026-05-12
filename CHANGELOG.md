@@ -6,6 +6,17 @@ project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- **Package renamed to `@oftomorrow/effective`.** The unscoped `effective`
+  name on npm was taken by an abandoned 2017 package; scoping under
+  `@oftomorrow` aligns with the namespace where future packages
+  (`@oftomorrow/effective-reviewer`, etc.) will live. The CLI command
+  (`npx effective`) and config file (`effective.config.ts`) are
+  unchanged — only the install path and `import` specifier move to the
+  scoped form (`pnpm add @oftomorrow/effective`,
+  `import { ... } from '@oftomorrow/effective'`).
+
 ### Added
 
 - **`protected-paths-respected` foundation rule.** New CRITICAL rule
@@ -21,7 +32,7 @@ rationale }` entries; the rationale is required (non-empty) so
   defaults a project augments. Surfaced through
   `VerifyContext.protectedPaths` and
   `ResolvedConstitution.protectedPaths`; `ProtectedPath` type
-  exported from `effective`.
+  exported from `@oftomorrow/effective`.
 - **`src/init/protected-detection.json`** registry. JSON-only
   contribution point for default protected-path candidates. Init
   evaluates per-entry detection predicates (`devDependency`,

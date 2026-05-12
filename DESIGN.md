@@ -611,7 +611,7 @@ on the Constitution under `exceptions`.
 
 ```ts
 // effective.config.ts
-import { defineConfig, seeds } from 'effective';
+import { defineConfig, seeds } from '@oftomorrow/effective';
 
 export default defineConfig({
   extends: ['recommended'],
@@ -806,12 +806,17 @@ deterministic ceiling is.
   package. Reclaiming via npm's dispute process is months of effort with
   no guaranteed outcome. Not worth the wait.
 
-**What we chose:** `effective`, unscoped. Imports read `from 'effective'`,
-the CLI is `npx effective`, and the config file is `effective.config.ts`.
-The name reads cleanly in prose, conveys the purpose, and avoids the
-scope friction. Future sibling packages (`@effective/review`,
-`@effective/scopes` if we ever publish them) can adopt a scope at that
-time without retroactively scoping the main package.
+**What we chose:** `@oftomorrow/effective`. We initially planned to ship
+under the unscoped name, but the bare `effective` slot on npm was already
+taken by an unrelated, abandoned 2017 package; chasing it through dispute
+resolution would have cost weeks for an uncertain outcome. Scoping
+under `@oftomorrow` (the publishing org's namespace) sidesteps the squat
+without compromise: imports read `from '@oftomorrow/effective'`, the CLI
+is still `npx effective` (the `bin` entry stays unscoped), and the config
+file is still `effective.config.ts`. The scope also leaves clean room for
+future sibling packages — `@oftomorrow/effective-reviewer`,
+`@oftomorrow/effective-scopes`, and so on — to live in the same
+namespace without retroactive rename pressure on the core package.
 
 ### Why not LangChain-style orchestration
 
