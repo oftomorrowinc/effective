@@ -140,6 +140,8 @@ export function renderConstitution(constitution: Constitution): string {
     '',
     "Each section groups rules by purpose. Within each group, rules are sorted by id so the section anchors (`#<rule-id>`) are stable across regenerations. For freshness, see this file's git history.",
     '',
+    "Examples in this document are drawn from real observed instances. Some reference project-specific vocabulary (e.g., `TEST_BUSINESS_ID`, `ui_component`); the principle generalizes — adapt the example to your project's primitives.",
+    '',
   ];
 
   const groups = classifyGroups(constitution.rules ?? []);

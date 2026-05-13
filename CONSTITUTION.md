@@ -4,6 +4,8 @@ This document is the human-readable projection of the recommended preset's activ
 
 Each section groups rules by purpose. Within each group, rules are sorted by id so the section anchors (`#<rule-id>`) are stable across regenerations. For freshness, see this file's git history.
 
+Examples in this document are drawn from real observed instances. Some reference project-specific vocabulary (e.g., `TEST_BUSINESS_ID`, `ui_component`); the principle generalizes — adapt the example to your project's primitives.
+
 ## Foundation rules
 
 Foundation rules don't reference a catalogue entry. They defend against general hygiene, security, and governance failure modes that apply across projects, and typically link to a `relatedPrinciple` rather than a specific observed pattern.
@@ -178,7 +180,7 @@ _Good:_
 
 ```ts
 files: ['src/legacy/**'], rules: { 'no-console': 'off' }
-// commit: 'refactor: legacy/* sunset path -- core-D42: legacy-files-keep-console'
+// commit: 'refactor: legacy/* sunset path -- internal-D42: legacy-files-keep-console'
 ```
 ---
 
