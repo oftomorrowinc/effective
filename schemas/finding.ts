@@ -151,5 +151,12 @@ export const VerifyResult = z.object({
    * diff's changed files; for audit, it's over the full scan.
    */
   escapeHatchCount: z.number().int().nonnegative().optional(),
+  /**
+   * Number of rules the project's config has explicitly disabled via
+   * the `disable` map. Counted from `config.disable` at the top level
+   * (does NOT recurse into `extends` presets — those disables are
+   * preset-author choices, not project drift signal).
+   */
+  disabledRulesCount: z.number().int().nonnegative().optional(),
 });
 export type VerifyResult = z.infer<typeof VerifyResult>;

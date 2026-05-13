@@ -89,16 +89,34 @@ effective verify` (or `npx effective ...`, etc.), the outer package
   `--keep-worktree=<mode>`, `--no-keep-worktree`. Inline and staged
   sources don't create a worktree, so the option is a no-op for them.
 
-- **`escapeHatchCount` on `VerifyResult` and `AuditResult`; rendered in
-  the pretty reporter after the LOW count.** Total escape-hatch
-  comments (`c8 ignore`, `@ts-expect-error`, `eslint-disable`,
-  `prettier-ignore`) across the scanned files — both those citing a
-  valid `exception-id` and those without. Surfaced separately from
-  findings so adopters can track suppression growth over time as a
-  project-health metric rather than only seeing per-violation
-  findings. For `verify`, the count covers the diff's changed files;
-  for `audit`, it covers the full scan. JSON output includes
-  `escapeHatchCount` as a top-level field on the result.
+- **New `Rules:` summary row; `escapeHatchCount` and new
+  `disabledRulesCount` consolidated there.** The pretty output now
+  splits violations and suppression metadata onto separate rows:
+
+  ```
+  Findings: 0 total — 0 CRITICAL, 0 HIGH, 0 MED, 0 LOW
+  Rules:    4 disabled, 11 skipped, 21 escape hatches
+  ```
+
+  The Findings row no longer carries the escape-hatch count. The
+  Rules row groups the three "rule enforcement is suppressed or
+  inapplicable here" signals:
+  - _disabled_ — rules the project's `effective.config.ts` turned
+    off via the `disable` map. Previously invisible; now surfaced
+    as a drift signal. `disabledRulesCount` added to `VerifyResult`
+    and `AuditResult`.
+  - _skipped_ — rules the engine couldn't apply in this context
+    (audit-only; verify never skips). The existing per-reason
+    detail section continues to list which rules and why.
+  - _escape hatches_ — third-party-tool suppressions
+    (`@ts-expect-error`, `eslint-disable`, `c8 ignore`,
+    `prettier-ignore`). Total across the scanned files; for `verify`
+    the diff's changed files, for `audit` the full scan.
+
+  The Rules row is omitted in verify when neither count is computable
+  (inline-source callers that don't pass a config). Audit always
+  renders it. JSON output exposes both fields as top-level result
+  properties.
 
 - **`CONSTITUTION.md` — generated reference of the recommended preset.**
   Human-readable projection of every shipped rule (severity, category,

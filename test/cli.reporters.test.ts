@@ -67,6 +67,29 @@ describe('renderResult — pretty', () => {
     expect(out).toContain('PASS');
     expect(out).toContain('No findings');
   });
+
+  it('renders a Rules: row with disabled-rule + escape-hatch counts when present', () => {
+    const out = renderResult(
+      {
+        ...sampleResult,
+        escapeHatchCount: 7,
+        disabledRulesCount: 3,
+      },
+      'pretty',
+    );
+    expect(out).toContain('Rules:');
+    expect(out).toContain('3 disabled');
+    expect(out).toContain('7 escape hatches');
+    // Findings row no longer carries the escape-hatch count.
+    const findingsLine = out.split('\n').find((line) => line.startsWith('Findings:'));
+    expect(findingsLine).toBeDefined();
+    expect(findingsLine).not.toContain('escape hatch');
+  });
+
+  it('omits the Rules: row when neither field is present', () => {
+    const out = renderResult(sampleResult, 'pretty');
+    expect(out).not.toContain('Rules:');
+  });
 });
 
 describe('renderResult — json', () => {

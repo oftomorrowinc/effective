@@ -62,6 +62,11 @@ export interface AuditResult {
    * track suppression growth over time as a project-health metric.
    */
   readonly escapeHatchCount: number;
+  /**
+   * Number of rules the project's config explicitly disabled via its
+   * `disable` map. Counted from `config.disable` at the top level.
+   */
+  readonly disabledRulesCount: number;
 }
 
 async function readAsChangedFile(absolutePath: string, repo: string): Promise<ChangedFile> {
@@ -168,11 +173,13 @@ export async function audit(input: AuditInput): Promise<AuditResult> {
 
   const deduped = dedupeBySignature(findings);
   const escapeHatchCount = scanFilesForEscapeHatches(changedFiles).length;
+  const disabledRulesCount = Object.keys(input.config.disable ?? {}).length;
   return {
     findings: deduped,
     summary: summarizeFindings(deduped),
     skipped,
     filesScanned: changedFiles.map((f) => f.path),
     escapeHatchCount,
+    disabledRulesCount,
   };
 }

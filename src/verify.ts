@@ -194,12 +194,14 @@ export async function verify(input: VerifyInput): Promise<VerifyResult> {
 
     const deduped = dedupeBySignature(findings);
     const escapeHatchCount = scanFilesForEscapeHatches(ctx.changedFiles).length;
+    const disabledRulesCount = Object.keys(input.config.disable ?? {}).length;
     const verdict = computeVerdict(deduped);
     const result: VerifyResult = {
       verdict,
       findings: deduped,
       summary: summarizeFindings(deduped),
       escapeHatchCount,
+      disabledRulesCount,
     };
     // Decide cleanup policy after we know the verdict so 'on-pass' can
     // preserve the worktree when something failed and the adopter
