@@ -14,7 +14,7 @@
   ],
   "license": "MIT",
   "type": "module",
-  "private": "false",
+  "private": false,
   "sideEffects": false,
   "engines": {
     "node": ">=20.0.0"
