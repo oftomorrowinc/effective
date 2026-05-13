@@ -61,7 +61,7 @@ describe('runInitCommand — scaffolding', () => {
       expect(rels.has(path.join('.effective', 'exceptions.ts'))).toBe(false);
 
       const config = await readFile(path.join(dir, 'effective.config.ts'), 'utf8');
-      expect(config).toContain("import { defineConfig, seeds } from 'effective'");
+      expect(config).toContain("import { defineConfig, seeds } from '@oftomorrow/effective'");
       expect(config).toContain("extends: ['recommended']");
       expect(config).toContain('export default defineConfig({');
       expect(config).toContain('exceptions: {');
@@ -77,7 +77,7 @@ describe('runInitCommand — scaffolding', () => {
       expect(rels.has('effective.config.js')).toBe(true);
 
       const config = await readFile(path.join(dir, 'effective.config.js'), 'utf8');
-      expect(config).toContain("const { defineConfig, seeds } = require('effective')");
+      expect(config).toContain("const { defineConfig, seeds } = require('@oftomorrow/effective')");
       expect(config).toContain('module.exports = defineConfig({');
       expect(config).toContain('exceptions: {');
     });

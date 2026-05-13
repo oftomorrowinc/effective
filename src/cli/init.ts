@@ -208,8 +208,8 @@ function renderConfigTemplate(ctx: InitContext): string {
   const { lines, ambiguityComments } = buildToolchainBlock(ctx);
   const today = new Date().toISOString().slice(0, 10);
   const importStmt = ctx.typescript
-    ? "import { defineConfig, seeds } from 'effective';"
-    : "const { defineConfig, seeds } = require('effective');";
+    ? "import { defineConfig, seeds } from '@oftomorrow/effective';"
+    : "const { defineConfig, seeds } = require('@oftomorrow/effective');";
   const exportStmt = ctx.typescript ? 'export default' : 'module.exports =';
   const nameLine = `    name: '${ctx.packageName ?? 'my-project'}',`;
   const versionLine =

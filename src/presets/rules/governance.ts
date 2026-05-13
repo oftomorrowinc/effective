@@ -69,7 +69,7 @@ const filesScopedRuleOverridesCiteDecision: Rule = rule.custom({
       bad: "files: ['src/legacy/**'], rules: { 'no-console': 'off' }  // no citation",
       good:
         "files: ['src/legacy/**'], rules: { 'no-console': 'off' }\n" +
-        "// commit: 'refactor: legacy/* sunset path -- core-D42: legacy-files-keep-console'",
+        "// commit: 'refactor: legacy/* sunset path -- internal-D42: legacy-files-keep-console'",
     },
   },
 });

@@ -42,14 +42,15 @@
 
     "baseUrl": ".",
     "paths": {
-      "effective": ["./src/index.ts"],
-      "effective/schemas": ["./src/schemas.ts"]
+      "@oftomorrow/effective": ["./src/index.ts"],
+      "@oftomorrow/effective/schemas": ["./src/schemas.ts"]
     }
   },
   "include": [
     "src/**/*",
     "schemas/**/*",
     "test/**/*",
+    "scripts/**/*",
     "*.config.ts",
     "*.config.js",
     "eslint.config.js",

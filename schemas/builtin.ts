@@ -277,7 +277,7 @@ const callerValidatedDynamicKey: Exception = {
  *
  * Example usage in a project's `effective.config.{ts,js}`:
  *
- *   import { defineExceptions, seeds } from 'effective';
+ *   import { defineExceptions, seeds } from '@oftomorrow/effective';
  *
  *   export default defineExceptions({
  *     ...seeds.builtInExceptions,

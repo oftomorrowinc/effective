@@ -26,7 +26,7 @@ Two ways to use Effective. Most adopters start with the CLI; the programmatic AP
 
 ```bash
 # One-time setup
-npm install -D effective
+npm install -D @oftomorrow/effective
 npx effective init
 
 # Establish a baseline on the existing codebase
@@ -50,7 +50,7 @@ All commands accept `--help`. Wiring `verify` into CI and a pre-push hook is the
 For callers building agent loops, the programmatic API gives finer control:
 
 ```ts
-import { prepare, verify, kickBack } from 'effective';
+import { prepare, verify, kickBack } from '@oftomorrow/effective';
 import { config } from './effective.config'; // your constitution
 import { callModel } from './my-model-client';
 
@@ -90,6 +90,7 @@ Three pure functions. You own the loop, the credentials, the model client. Effec
 - **[USAGE.md](./USAGE.md)** — how to wire it up, configure rules, author scopes, maintain the exceptions registry, adopt gradually on an existing codebase.
 - **[DESIGN.md](./DESIGN.md)** — why the package is shaped the way it is, including the alternatives we considered and rejected.
 - **[CONTRIBUTING.md](./CONTRIBUTING.md)** — how to contribute catalogue entries, exception categories, protected-path defaults, and rules; the two-path workflow for constitutional changes.
+- **[CONSTITUTION.md](./CONSTITUTION.md)** — generated reference of every rule shipped with the recommended preset (severity, category, role applicability, prompt projection). Regenerated from rule definitions via `pnpm docs:constitution`; a drift test fails CI if the committed file falls out of sync.
 - **[docs/agent-prompt.md](./docs/agent-prompt.md)** — context for an LLM agent helping a user adopt Effective. Load this when your agent tooling needs to onboard a project.
 
 The rest of this README is the 60-second pitch.
@@ -358,7 +359,7 @@ Effective reads your project's constitution from `effective.config.ts` at the re
 
 ```ts
 // effective.config.ts
-import { defineConfig, presets, rule } from 'effective';
+import { defineConfig, presets, rule } from '@oftomorrow/effective';
 
 export const config = defineConfig({
   // Start from the full Effective catalogue
@@ -418,7 +419,7 @@ Effective turns escape hatches into a tracked, justified, retire-able registry. 
 
 ```ts
 // effective.config.ts
-import { defineConfig, seeds } from 'effective';
+import { defineConfig, seeds } from '@oftomorrow/effective';
 
 export default defineConfig({
   extends: ['recommended'],
@@ -470,9 +471,9 @@ This feature is independently valuable from the LLM-failure framing — any team
 ## Installation
 
 ```bash
-npm install effective
+npm install @oftomorrow/effective
 # or
-pnpm add effective
+pnpm add @oftomorrow/effective
 
 npx effective init
 ```

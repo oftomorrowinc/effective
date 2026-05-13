@@ -27,7 +27,7 @@ each section does and why so it's clear what to change for adaptation.
 
 ```ts
 // effective.config.ts
-import { defineConfig, seeds } from 'effective';
+import { defineConfig, seeds } from '@oftomorrow/effective';
 
 export default defineConfig({
   // The recommended preset ships the foundation rules + the catalogue-

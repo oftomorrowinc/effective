@@ -3,7 +3,7 @@
 // to drop the toolchain rules (this repo's CI already runs them
 // directly) and clarify what `effective verify` is responsible for.
 
-import { defineConfig, seeds } from 'effective';
+import { defineConfig, seeds } from '@oftomorrow/effective';
 
 export default defineConfig({
   // The recommended preset includes the full catalogue at strict severity.

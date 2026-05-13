@@ -6,8 +6,31 @@ project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- **Package renamed to `@oftomorrow/effective`.** The unscoped `effective`
+  name on npm was taken by an abandoned 2017 package; scoping under
+  `@oftomorrow` aligns with the namespace where future packages
+  (`@oftomorrow/effective-reviewer`, etc.) will live. The CLI command
+  (`npx effective`) and config file (`effective.config.ts`) are
+  unchanged — only the install path and `import` specifier move to the
+  scoped form (`pnpm add @oftomorrow/effective`,
+  `import { ... } from '@oftomorrow/effective'`).
+
 ### Added
 
+- **`CONSTITUTION.md` — generated reference of the recommended preset.**
+  Human-readable projection of every shipped rule (severity, category,
+  role applicability, related principle or catalogue entry, prompt
+  summary + guidance + examples), grouped by purpose (foundation,
+  catalogue-driven, toolchain wrappers, meta) and sorted by id within
+  each group so section anchors are stable. Regenerated via
+  `pnpm docs:constitution`; `test/constitution-drift.test.ts` fails CI
+  if the committed file falls out of sync. Generator
+  (`scripts/generate-constitution.ts`) is deterministic — no date or
+  git SHA in the output, so freshness comes from
+  `git log CONSTITUTION.md`, not from the file itself. Shipped in the
+  npm tarball (added to `package.json` `files`).
 - **`protected-paths-respected` foundation rule.** New CRITICAL rule
   that flags any diff touching files declared under the new
   `Constitution.protected` field. Distinct from the lane rule: lane
@@ -21,7 +44,7 @@ rationale }` entries; the rationale is required (non-empty) so
   defaults a project augments. Surfaced through
   `VerifyContext.protectedPaths` and
   `ResolvedConstitution.protectedPaths`; `ProtectedPath` type
-  exported from `effective`.
+  exported from `@oftomorrow/effective`.
 - **`src/init/protected-detection.json`** registry. JSON-only
   contribution point for default protected-path candidates. Init
   evaluates per-entry detection predicates (`devDependency`,

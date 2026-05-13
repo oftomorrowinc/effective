@@ -141,7 +141,7 @@ the generated config manually.
 ### 2. Install + init
 
 ```bash
-pnpm add -D effective    # or `npm install -D` / `yarn add -D`
+pnpm add -D @oftomorrow/effective    # or `npm install -D` / `yarn add -D`
 npx effective init
 ```
 
