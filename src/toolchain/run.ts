@@ -26,6 +26,46 @@ const DEFAULT_TIMEOUT_MS = 5 * 60 * 1000;
 const MAX_BUFFER_BYTES = 50 * 1024 * 1024;
 
 /**
+ * Strip nested-package-manager pollutants from inherited env before
+ * spawning a child.
+ *
+ * When effective itself is invoked via `pnpm exec effective verify`
+ * (or `npx effective ...`, `yarn effective ...`), the outer package
+ * manager sets a swarm of `npm_*`, `PNPM_*`, and `INIT_CWD`
+ * variables describing its own workspace context. effective's
+ * toolchain step then spawns the project's `pnpm typecheck` /
+ * `pnpm test` / etc., and the inner pnpm sees env vars from the
+ * OUTER pnpm's context and resolves workspace roots, module paths,
+ * and lifecycle hooks from the wrong base — symptoms range from
+ * "TS2307: Cannot find module 'effective'" to test runners exiting
+ * 1 with no visible error. The fix is to scrub these prefixes
+ * before merging with the caller's explicit env.
+ *
+ * What we strip:
+ * - `npm_*` — npm-compat vars set by every modern PM
+ * - `NPM_*` — uppercase variants (NPM_CONFIG_*, NPM_TOKEN, etc.)
+ * - `PNPM_*` — pnpm-specific
+ * - `INIT_CWD` — the directory the outer PM was invoked from
+ *
+ * Caller's explicit `input.env` is unaffected — if a user really
+ * wants to pass `npm_config_foo` to a child, they can set it
+ * explicitly and it'll override the sanitized inherited env.
+ */
+function sanitizeInheritedEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  const out: NodeJS.ProcessEnv = {};
+  for (const [key, value] of Object.entries(env)) {
+    if (value === undefined) continue;
+    if (key.startsWith('npm_')) continue;
+    if (key.startsWith('NPM_')) continue;
+    if (key.startsWith('PNPM_')) continue;
+    if (key === 'INIT_CWD') continue;
+    // eslint-disable-next-line security/detect-object-injection -- exception-id: caller-validated-dynamic-key -- key is one we just read from the same env object; not user input
+    out[key] = value;
+  }
+  return out;
+}
+
+/**
  * Run a shell command and capture its output.
  *
  * The command runs through the user's shell so familiar invocations like
@@ -42,7 +82,7 @@ const MAX_BUFFER_BYTES = 50 * 1024 * 1024;
 export async function runCommand(input: RunInput): Promise<RunResult> {
   const cwd = input.cwd ?? process.cwd();
   const timeoutMs = input.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-  const env = { ...process.env, ...input.env };
+  const env = { ...sanitizeInheritedEnv(process.env), ...input.env };
   const startedAt = Date.now();
 
   return new Promise<RunResult>((resolve) => {

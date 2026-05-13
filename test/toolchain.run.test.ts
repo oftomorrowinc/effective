@@ -27,12 +27,61 @@ describe('runCommand', () => {
     expect(result.cwd).toBe('/tmp');
   });
 
-  it('merges env over process.env', async () => {
+  it('merges env over sanitized process.env', async () => {
     const result = await runCommand({
       command: `node -e "process.stdout.write(process.env.EFFECTIVE_TEST_VAR ?? 'missing')"`,
       env: { EFFECTIVE_TEST_VAR: 'present' },
     });
     expect(result.stdout).toBe('present');
+  });
+
+  it('strips nested-package-manager pollutants from inherited env', async () => {
+    // Simulate the polluted env an outer `pnpm exec` would set.
+    const original = process.env;
+    process.env = {
+      ...original,
+      npm_config_user_agent: 'pnpm/10 npm/? node/v22.0.0',
+      npm_lifecycle_event: 'exec',
+      npm_package_json: '/wrong/path/package.json',
+      NPM_CONFIG_REGISTRY: 'https://bad.example.com/',
+      PNPM_HOME: '/wrong/pnpm-home',
+      INIT_CWD: '/wrong/init/cwd',
+      SAFE_PASS_THROUGH: 'kept',
+    };
+    try {
+      const result = await runCommand({
+        command:
+          `node -e "process.stdout.write(JSON.stringify({` +
+          `npm_config_user_agent: process.env.npm_config_user_agent ?? null,` +
+          `npm_lifecycle_event: process.env.npm_lifecycle_event ?? null,` +
+          `npm_package_json: process.env.npm_package_json ?? null,` +
+          `NPM_CONFIG_REGISTRY: process.env.NPM_CONFIG_REGISTRY ?? null,` +
+          `PNPM_HOME: process.env.PNPM_HOME ?? null,` +
+          `INIT_CWD: process.env.INIT_CWD ?? null,` +
+          `SAFE_PASS_THROUGH: process.env.SAFE_PASS_THROUGH ?? null,` +
+          `}))"`,
+      });
+      const inherited = JSON.parse(result.stdout) as Record<string, string | null>;
+      expect(inherited.npm_config_user_agent).toBeNull();
+      expect(inherited.npm_lifecycle_event).toBeNull();
+      expect(inherited.npm_package_json).toBeNull();
+      expect(inherited.NPM_CONFIG_REGISTRY).toBeNull();
+      expect(inherited.PNPM_HOME).toBeNull();
+      expect(inherited.INIT_CWD).toBeNull();
+      expect(inherited.SAFE_PASS_THROUGH).toBe('kept');
+    } finally {
+      process.env = original;
+    }
+  });
+
+  it('preserves caller-supplied env vars even if they share the sanitized prefixes', async () => {
+    // A user explicitly setting an npm_ var wins over the strip — the
+    // sanitizer only guards against inherited pollution.
+    const result = await runCommand({
+      command: `node -e "process.stdout.write(process.env.npm_config_explicit ?? 'missing')"`,
+      env: { npm_config_explicit: 'kept' },
+    });
+    expect(result.stdout).toBe('kept');
   });
 
   it('times out long-running commands and marks timedOut=true', async () => {
