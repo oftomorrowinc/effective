@@ -69,6 +69,24 @@ export interface VerifyInput {
    * caller supplies whatever is available.
    */
   commitMetadata?: CommitMetadata;
+  /**
+   * Worktree-cleanup behavior for git sources.
+   *
+   * - `'on-pass'` (default): keep the worktree at `.effective/work` if
+   *   the run produces any CRITICAL finding, remove it on pass. Lets
+   *   the adopter `cd .effective/work` and rerun the failing toolchain
+   *   command by hand to see what went wrong, without polluting a
+   *   clean tree.
+   * - `'always'`: keep the worktree regardless of verdict. Useful when
+   *   iterating on the constitution itself or when chaining multiple
+   *   inspections of the same run.
+   * - `'never'`: always remove. Matches the previous behavior; appropriate
+   *   for CI environments where the runner is ephemeral anyway.
+   *
+   * Inline and staged sources don't create a worktree; this option is
+   * a no-op for them.
+   */
+  keepWorktree?: 'on-pass' | 'always' | 'never';
 }
 
 export function dedupeBySignature(findings: readonly Finding[]): Finding[] {
@@ -167,13 +185,26 @@ export async function verify(input: VerifyInput): Promise<VerifyResult> {
 
     const deduped = dedupeBySignature(findings);
     const escapeHatchCount = scanFilesForEscapeHatches(ctx.changedFiles).length;
-    return {
-      verdict: computeVerdict(deduped),
+    const verdict = computeVerdict(deduped);
+    const result: VerifyResult = {
+      verdict,
       findings: deduped,
       summary: summarizeFindings(deduped),
       escapeHatchCount,
     };
-  } finally {
-    await cleanup();
+    // Decide cleanup policy after we know the verdict so 'on-pass' can
+    // preserve the worktree when something failed and the adopter
+    // needs to inspect.
+    const policy = input.keepWorktree ?? 'on-pass';
+    const shouldKeep = policy === 'always' || (policy === 'on-pass' && verdict !== 'pass');
+    if (!shouldKeep) await cleanup();
+    return result;
+  } catch (error) {
+    // Errors during the rule pass shouldn't leak the worktree either —
+    // honor the same policy. Treat thrown errors as "not pass" so the
+    // default 'on-pass' policy keeps the tree for inspection.
+    const policy = input.keepWorktree ?? 'on-pass';
+    if (policy === 'never') await cleanup();
+    throw error;
   }
 }

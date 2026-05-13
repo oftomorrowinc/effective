@@ -48,6 +48,30 @@ effective verify` (or `npx effective ...`, etc.), the outer package
 
 ### Added
 
+- **Toolchain findings now include a tail of the failing command's
+  output.** When a toolchain rule fires (lint / typecheck / tests /
+  coverage / custom), the aggregate finding's `message` now contains
+  up to the last 20 lines of stderr (or stdout if stderr is empty),
+  framed by the existing "exited with code N" line on top and the
+  rule's prompt guidance below. Previously the message was just
+  "exited with code 1" — adopters had to crawl into `.effective/work`
+  to see the actual error. Now the immediate finding shows
+  "typecheck exited with code 1\n<the actual TS errors>" and the
+  worktree is only needed for the long tail. JSON output carries
+  the same expanded message; `evidence` stays as the short
+  "exited with code N" form for scriptable filtering.
+
+- **`keepWorktree` option on `verify()` / `--keep-worktree` CLI
+  flag.** Controls cleanup of the `.effective/work` worktree after
+  a verify run. Three modes: `'on-pass'` (default) keeps the
+  worktree if the run produced any CRITICAL finding so the adopter
+  can `cd .effective/work && pnpm typecheck` and see the real
+  error in context; `'always'` keeps regardless of verdict; `'never'`
+  matches the previous behavior (always remove — appropriate for
+  ephemeral CI runners). CLI surface: `--keep-worktree`,
+  `--keep-worktree=<mode>`, `--no-keep-worktree`. Inline and staged
+  sources don't create a worktree, so the option is a no-op for them.
+
 - **`escapeHatchCount` on `VerifyResult` and `AuditResult`; rendered in
   the pretty reporter after the LOW count.** Total escape-hatch
   comments (`c8 ignore`, `@ts-expect-error`, `eslint-disable`,
