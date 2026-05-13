@@ -6,6 +6,7 @@
 > intentionally delayed until validation is complete. See
 > [CHANGELOG.md](./CHANGELOG.md) for what's stable enough to depend on.
 
+[![npm](https://img.shields.io/npm/v/@oftomorrow/effective/rc.svg)](https://www.npmjs.com/package/@oftomorrow/effective)
 [![CI](https://github.com/oftomorrowinc/effective/actions/workflows/ci.yml/badge.svg)](https://github.com/oftomorrowinc/effective/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 [![TypeScript](https://img.shields.io/badge/TypeScript-Ready-blue.svg)](https://www.typescriptlang.org/)
