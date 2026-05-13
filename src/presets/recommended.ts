@@ -9,7 +9,7 @@ import type { Constitution, Rule } from '../schemas.js';
 /**
  * Foundation-tier rules — lane, exceptions, toolchain gates. These
  * are the package's own machinery, not catalogue-driven. Tests-pass /
- * lint-clean / typecheck-clean / coverage-non-decreasing are the four
+ * lint-clean / typecheck-clean / coverage-meets-threshold are the four
  * universal toolchain gates every project should run; the lane and
  * exceptions rules enforce structural invariants the package itself
  * ships.
@@ -116,12 +116,13 @@ const FOUNDATION_RULES: readonly Rule[] = [
     },
   }),
   rule.toolchain({
-    id: 'toolchain.coverage-non-decreasing',
+    id: 'toolchain.coverage-meets-threshold',
     tool: 'coverage',
-    failOn: 'any-output',
+    failOn: 'count-non-zero',
     prompt: {
-      summary: 'Coverage thresholds are met.',
-      guidance: 'Write the missing test. Do not lower the coverage threshold to silence the gate.',
+      summary: 'Coverage thresholds (lines / statements / functions / branches ≥ 90%) are met.',
+      guidance:
+        "The coverage parser emits a finding per metric that falls below 90% — `lines-below-threshold`, `statements-below-threshold`, etc. — and this gate fires when any of them are present. Write the missing test. Do not lower the threshold (via the coverage tool's config or by suppressing the parser) to silence the gate. The check is threshold-based, not baseline-comparison-based: improving coverage from 0% to 60% still leaves the gate red because 60% is below the 90% target; that's the rule operating correctly, not a regression report.",
     },
   }),
 ];

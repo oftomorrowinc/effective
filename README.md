@@ -502,7 +502,7 @@ Be aware of the split.
 - Architecture: `new-exports-have-non-test-callers`
 - Data discipline: `migration-has-exercising-test`
 - Toolchain: `toolchain.lint-clean`, `toolchain.typecheck-clean`,
-  `toolchain.tests-pass`, `toolchain.coverage-non-decreasing`†
+  `toolchain.tests-pass`, `toolchain.coverage-meets-threshold`
 - Spec: `spec.test-names-land-verbatim`, `spec.assertions-not-narrowed`,
   `spec.no-extra-tests-claiming-spec`
 
@@ -532,10 +532,12 @@ land real check implementations against each stub. Projects extending
 the preset can override any stub by passing a real implementation in
 `verify({ customChecks })`.
 
-†`coverage-non-decreasing` runs the toolchain command and parses
-output, but the `non-decreasing` semantic isn't fully wired — it
-currently fails on `any-output` rather than against a recorded
-baseline. Track this rule with care until baseline-tracking lands.
+`coverage-meets-threshold` enforces a fixed 90% threshold across
+lines / statements / functions / branches; per-metric findings name
+the specific dimension that's short. Comparison against a recorded
+baseline ("coverage did not decrease from main") isn't implemented
+yet — if you want non-decreasing semantics, run your coverage tool's
+own baseline check alongside this gate.
 
 ---
 

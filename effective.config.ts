@@ -24,8 +24,8 @@ export default defineConfig({
       'Pre-push hook runs `pnpm typecheck` directly; avoids worktree node_modules dependency.',
     'toolchain.tests-pass':
       'Pre-push hook runs `pnpm test` directly; avoids worktree node_modules dependency.',
-    'toolchain.coverage-non-decreasing':
-      'Coverage tracking against a moving baseline is not implemented in the engine yet; vitest config enforces thresholds.',
+    'toolchain.coverage-meets-threshold':
+      'Vitest config already enforces the same per-metric thresholds at test time; running this through the worktree-isolated path would duplicate the work and require the worktree node_modules cache to be primed.',
   },
 
   // Exception registry — built-in templates spread with any project-

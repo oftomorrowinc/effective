@@ -196,7 +196,7 @@ pnpm add -D @vitest/coverage-v8
 ```
 
 Without it, `vitest run --coverage` exits non-zero and the
-`toolchain.coverage-non-decreasing` rule fires.
+`toolchain.coverage-meets-threshold` rule fires.
 
 ### First `verify` is slow
 
@@ -204,25 +204,25 @@ The first run installs an isolated `node_modules` into
 `.effective/node_modules`. Expect 1–5 minutes depending on dep tree
 size. Subsequent runs reuse the install.
 
-### `toolchain.coverage-non-decreasing` is currently coarse
+### `toolchain.coverage-meets-threshold` enforces a fixed 90% floor
 
-It fails on `any-output`, not against a recorded baseline (the
-engine doesn't yet track coverage history). Two reasonable
-mitigations:
+The rule fires when any per-metric coverage (lines, statements,
+functions, branches) is below 90%. Comparison against a recorded
+baseline ("did coverage decrease from main?") isn't implemented —
+the gate is a hard threshold. If your project isn't at 90% yet,
+either:
 
-1. Disable the rule and run coverage separately in your existing CI:
+1. Lift coverage to 90% — write the tests; this is the rule
+   operating as intended.
+2. Disable the rule with rationale while you're climbing:
    ```ts
    disable: {
-     'toolchain.coverage-non-decreasing':
-       'Baseline tracking pending; coverage thresholds enforced by vitest config.',
+     'toolchain.coverage-meets-threshold':
+       'Codebase at ~70%; lifting to 90% scheduled for <date>. Tracked in <issue>.',
    }
    ```
-2. Configure your coverage script to exit non-zero only on a real
-   regression (e.g., enforce thresholds in `vitest.config.ts`); the
-   rule then fires only when those thresholds drop.
-
-Choose (1) for fastest path; choose (2) if you want effective.verify
-to be the single gate.
+3. Run a separate baseline-comparison step in your CI alongside the
+   rule, if non-decreasing semantics matter to you.
 
 ### Stubbed catalogue rules are silent
 

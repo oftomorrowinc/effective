@@ -492,16 +492,16 @@ A write followed by a refetch + validation, without transaction wrapping, is a s
 
 Toolchain rules wrap the project's existing lint, typecheck, test, and coverage tooling and translate exit codes / output into findings. The actual command and parser are configured in `effective.config.{ts,js}` under `toolchain`.
 
-### toolchain.coverage-non-decreasing
+### toolchain.coverage-meets-threshold
 
 - **Kind:** `toolchain`
 - **Severity:** CRITICAL
 - **Category:** toolchain
 - **Applies to roles:** all
 
-**Summary.** Coverage thresholds are met.
+**Summary.** Coverage thresholds (lines / statements / functions / branches ≥ 90%) are met.
 
-Write the missing test. Do not lower the coverage threshold to silence the gate.
+The coverage parser emits a finding per metric that falls below 90% — `lines-below-threshold`, `statements-below-threshold`, etc. — and this gate fires when any of them are present. Write the missing test. Do not lower the threshold (via the coverage tool's config or by suppressing the parser) to silence the gate. The check is threshold-based, not baseline-comparison-based: improving coverage from 0% to 60% still leaves the gate red because 60% is below the 90% target; that's the rule operating correctly, not a regression report.
 ---
 
 ### toolchain.lint-clean
