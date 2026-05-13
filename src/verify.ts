@@ -87,6 +87,14 @@ export interface VerifyInput {
    * a no-op for them.
    */
   keepWorktree?: 'on-pass' | 'always' | 'never';
+  /**
+   * Skip the post-checkout `pnpm install` / `npm ci` / `yarn install`
+   * step in `prepareWorktree`. Useful for fast iteration when the
+   * worktree's `node_modules` is already populated from a previous
+   * run (combine with `keepWorktree: 'always'`), or when you've
+   * mounted node_modules some other way. Default: false (install runs).
+   */
+  skipInstall?: boolean;
 }
 
 export function dedupeBySignature(findings: readonly Finding[]): Finding[] {
@@ -143,6 +151,7 @@ export async function verify(input: VerifyInput): Promise<VerifyResult> {
         customChecks,
         artifacts,
         exceptions,
+        ...(input.skipInstall === true ? { skipInstall: true } : {}),
       });
       ctx = loaded.ctx;
       cleanup = loaded.cleanup;

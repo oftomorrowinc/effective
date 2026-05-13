@@ -11,6 +11,37 @@ export interface WorktreeOptions {
   worktreePath?: string;
   /** Directory to persist node_modules between runs. Defaults to `<repo>/.effective/node_modules`. */
   sharedNodeModulesPath?: string;
+  /**
+   * Skip the post-checkout `<package-manager> install` step. By default,
+   * `prepareWorktree` detects the project's lockfile and runs the
+   * matching frozen install (`pnpm install --frozen-lockfile`,
+   * `npm ci`, `yarn install --immutable`) so per-package `node_modules`
+   * directories exist for monorepo workspace projects — without that,
+   * toolchain commands like `pnpm -r typecheck` fail with
+   * `sh: tsc: command not found` because the workspace symlinks live
+   * in per-package node_modules that aren't tracked by git. Set to
+   * `true` if you've populated the worktree some other way (e.g. by
+   * mounting a pre-installed `node_modules`).
+   */
+  skipInstall?: boolean;
+}
+
+interface InstallPlan {
+  manager: 'pnpm' | 'npm' | 'yarn';
+  command: string;
+}
+
+async function detectInstallPlan(repoRoot: string): Promise<InstallPlan | undefined> {
+  if (await exists(path.join(repoRoot, 'pnpm-lock.yaml'))) {
+    return { manager: 'pnpm', command: 'pnpm install --frozen-lockfile' };
+  }
+  if (await exists(path.join(repoRoot, 'yarn.lock'))) {
+    return { manager: 'yarn', command: 'yarn install --immutable' };
+  }
+  if (await exists(path.join(repoRoot, 'package-lock.json'))) {
+    return { manager: 'npm', command: 'npm ci' };
+  }
+  return undefined;
 }
 
 export interface WorktreeHandle {
@@ -62,8 +93,23 @@ async function symlinkNodeModules(worktreePath: string, sharedPath: string): Pro
 
 /**
  * Create (or rebuild) the isolated worktree where `verify()` will run
- * toolchain commands. Reuses a persisted `node_modules` directory via a
- * symlink so subsequent runs don't reinstall.
+ * toolchain commands.
+ *
+ * Two paths depending on the project shape:
+ *
+ *   - **Project has a lockfile** (pnpm/npm/yarn): run the matching
+ *     frozen install inside the worktree after checkout. This is the
+ *     only way per-package `node_modules` directories (which workspace
+ *     projects rely on for `tsc` / `vitest` / etc. invoked from inside
+ *     a workspace package) end up in the worktree — they're not
+ *     tracked by git, and a shared-root symlink can't fabricate them.
+ *     Package-manager caches (pnpm's global store, npm's cache) make
+ *     repeat installs fast (~1–3s) on warm machines.
+ *
+ *   - **No lockfile** (toy projects, demos): fall back to the original
+ *     shared-symlink behavior. `<repo>/.effective/node_modules` is
+ *     symlinked into the worktree so downstream tools see *some*
+ *     node_modules, even if it's empty on first run.
  */
 export async function prepareWorktree(options: WorktreeOptions): Promise<WorktreeHandle> {
   const worktreePath = options.worktreePath ?? path.join(options.repo, '.effective', 'work');
@@ -86,7 +132,22 @@ export async function prepareWorktree(options: WorktreeOptions): Promise<Worktre
       `git worktree add failed (exit ${String(result.exitCode)}): ${result.stderr.trim()}`,
     );
   }
-  await symlinkNodeModules(worktreePath, sharedNodeModulesPath);
+
+  const plan = options.skipInstall === true ? undefined : await detectInstallPlan(worktreePath);
+  if (plan === undefined) {
+    await symlinkNodeModules(worktreePath, sharedNodeModulesPath);
+  } else {
+    const installResult = await runCommand({ command: plan.command, cwd: worktreePath });
+    if (installResult.exitCode !== 0) {
+      const tail = (installResult.stderr.trim() || installResult.stdout.trim())
+        .split('\n')
+        .slice(-15)
+        .join('\n');
+      throw new Error(
+        `${plan.manager} install in worktree failed (exit ${String(installResult.exitCode)}):\n${tail}`,
+      );
+    }
+  }
 
   return {
     path: worktreePath,

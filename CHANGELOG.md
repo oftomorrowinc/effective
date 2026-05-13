@@ -48,6 +48,23 @@ effective verify` (or `npx effective ...`, etc.), the outer package
 
 ### Added
 
+- **`prepareWorktree` runs the project's frozen install in the
+  worktree by default.** Detects a `pnpm-lock.yaml` / `yarn.lock` /
+  `package-lock.json` and runs `pnpm install --frozen-lockfile` /
+  `yarn install --immutable` / `npm ci` respectively inside
+  `.effective/work` after `git worktree add`. This is the only way
+  per-package `node_modules` directories — which workspace projects
+  rely on for `tsc` / `vitest` / etc. invoked from inside a workspace
+  package — end up in the worktree, since those directories aren't
+  tracked by git and a shared-root symlink can't fabricate them.
+  Cost on a warm machine: ~1–3s for pnpm (hard-links from the global
+  store), similar for yarn-berry, ~5–10s for npm depending on dep
+  count. Adopters can opt out via `--skip-install` (CLI) or
+  `skipInstall: true` (programmatic) when iterating with a
+  pre-populated worktree (combine with `--keep-worktree=always`) or
+  when they've staged `node_modules` some other way. Projects with
+  no lockfile fall back to the previous shared-symlink behavior.
+
 - **Toolchain findings now include a tail of the failing command's
   output.** When a toolchain rule fires (lint / typecheck / tests /
   coverage / custom), the aggregate finding's `message` now contains

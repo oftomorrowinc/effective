@@ -76,12 +76,14 @@ export async function runVerifyCommand(args: ParsedArgs, cwd: string): Promise<V
   const reporter = reporterOf(args);
   const source = sourceOf(args, cwd);
   const keepWorktree = keepWorktreeOf(args);
+  const skipInstall = args.flags.has('skip-install');
   const result = await verify({
     scope: DEFAULT_SCOPE,
     config: loaded.config,
     source,
     ...(loaded.config.exceptions === undefined ? {} : { exceptions: loaded.config.exceptions }),
     ...(keepWorktree === undefined ? {} : { keepWorktree }),
+    ...(skipInstall ? { skipInstall: true } : {}),
   });
   return {
     stdout: `${renderResult(result, reporter)}\n`,

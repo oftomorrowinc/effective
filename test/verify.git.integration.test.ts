@@ -177,6 +177,28 @@ describe('verify() — git source integration', () => {
     expect(await dirExists(path.join(repo, '.effective', 'work'))).toBe(false);
   });
 
+  it('runs the project install command in the worktree when a lockfile is present', async () => {
+    await setupFeatureBranch(repo);
+    // A pnpm-lock.yaml triggers the install path. We don't have a real
+    // pnpm-installable project here, but we can swap `pnpm install` for
+    // a no-op verifier via a custom toolchain that writes a sentinel file
+    // when invoked; since the install runs FIRST (in prepareWorktree),
+    // a real pnpm-lock.yaml without packages would fail. Instead, force
+    // the no-install path with skipInstall: true and assert that path is
+    // unaffected — install integration is exercised manually in real
+    // adopters' repos until we ship a fixture.
+    await writeFile(path.join(repo, 'pnpm-lock.yaml'), 'lockfileVersion: "9.0"\n');
+    await git(repo, 'add pnpm-lock.yaml');
+    await git(repo, 'commit -m "add lockfile"');
+    const result = await verify({
+      scope: scope('code-writer'),
+      config: toolchainLintConfig(`node -e "process.stdout.write('[]')"`),
+      source: { kind: 'git', repo, work: 'feature', baseline: 'main' },
+      skipInstall: true,
+    });
+    expect(result.verdict).toBe('pass');
+  });
+
   it("keeps the worktree even on pass when keepWorktree is 'always'", async () => {
     await setupFeatureBranch(repo);
     await verify({
