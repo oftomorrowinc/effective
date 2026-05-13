@@ -1,8 +1,31 @@
 import type { Finding, ToolchainRule } from '../../schemas.js';
 import type { ToolchainResult, VerifyContext } from '../../source/types.js';
 
+const OUTPUT_TAIL_LINES = 20;
+
 function resultKey(rule: ToolchainRule): string {
   return rule.tool === 'custom' && rule.name !== undefined ? rule.name : rule.tool;
+}
+
+/**
+ * The last few lines of the failing command's output, so the finding's
+ * message gives the adopter the actual error rather than just "exit
+ * code 1." Prefers stderr (where compilers / test runners typically
+ * write failures); falls back to stdout if stderr is empty (some tools
+ * write everything to stdout). Trims to a fixed line count; the worktree
+ * still holds the full output if the adopter needs more.
+ */
+function outputTail(result: ToolchainResult): string {
+  const raw = result.stderr.trim().length > 0 ? result.stderr : result.stdout;
+  const trimmed = raw.trim();
+  if (trimmed.length === 0) return '';
+  const lines = trimmed.split('\n');
+  if (lines.length <= OUTPUT_TAIL_LINES) return trimmed;
+  const omitted = lines.length - OUTPUT_TAIL_LINES;
+  return [
+    `... (${String(omitted)} earlier line(s) omitted)`,
+    ...lines.slice(-OUTPUT_TAIL_LINES),
+  ].join('\n');
 }
 
 function shouldFail(rule: ToolchainRule, result: ToolchainResult): boolean {
@@ -60,12 +83,18 @@ export function checkToolchain(rule: ToolchainRule, ctx: VerifyContext): Finding
   if (!shouldFail(rule, result)) {
     return result.findings ? [...result.findings] : [];
   }
+  const tail = outputTail(result);
+  const failureLine = describeFailure(rule, result);
+  const message =
+    tail.length === 0
+      ? `${failureLine} ${rule.prompt.guidance}`
+      : `${failureLine}\n${tail}\n\n${rule.prompt.guidance}`;
   const aggregateFinding: Finding = {
     ruleId: rule.id,
     severity: rule.defaultSeverity,
     category: rule.category,
-    evidence: describeFailure(rule, result),
-    message: `${describeFailure(rule, result)} ${rule.prompt.guidance}`,
+    evidence: failureLine,
+    message,
     source: { kind: 'toolchain', tool: rule.tool === 'custom' ? 'custom' : rule.tool },
   };
   return [aggregateFinding, ...(result.findings ?? [])];
