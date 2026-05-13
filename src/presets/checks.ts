@@ -177,6 +177,12 @@ const EXPORT_NAME_RES: readonly RegExp[] = [
   /^\s*export\s+default\s+class\s+(\w+)/gm,
 ];
 const NAMED_RE_EXPORT_RE = /^\s*export\s*\{\s*([^}]+)\}/gm;
+// `type` and `interface` keywords inside `export { ... }` are type-only
+// re-exports — they have no runtime value and so by definition have no
+// runtime callers. Filtering them here prevents the rule from extracting
+// the literal word `type` (or `interface`) as an export name, which
+// would otherwise trivially "match" everywhere via regex.
+const TYPE_ONLY_KEYWORD_RE = /^(?:type|interface)\b/;
 
 function extractExportNames(content: string): string[] {
   const names = new Set<string>();
@@ -194,6 +200,7 @@ function extractExportNames(content: string): string[] {
     for (const part of inner.split(',')) {
       const cleaned = part.trim();
       if (cleaned.length === 0) continue;
+      if (TYPE_ONLY_KEYWORD_RE.test(cleaned)) continue;
       // `export { foo as bar }` — bar is the exported name
       const aliasMatch = /\bas\s+(\w+)$/.exec(cleaned);
       const exportedName = aliasMatch?.[1] ?? cleaned.replace(/\s+/, ' ').split(' ')[0];
@@ -201,6 +208,57 @@ function extractExportNames(content: string): string[] {
     }
   }
   return [...names];
+}
+
+/**
+ * Whether `name` is referenced inside its own source file at a site
+ * other than its export declaration(s) — a CLI-entry block that calls
+ * an exported function, two same-file exports that compose, etc. The
+ * cross-file caller walk skips the source file (a file isn't *its own*
+ * external caller); this catches the same-file case so single-file
+ * scripts that export + invoke don't false-positive.
+ *
+ * Implementation: count `\bname\b` occurrences in the file, subtract
+ * occurrences inside export-declaration shapes that bind `name`. If
+ * the difference is positive, the name appears somewhere outside an
+ * export declaration — i.e. it's used.
+ */
+function hasSameFileUsage(content: string, name: string): boolean {
+  // eslint-disable-next-line security/detect-non-literal-regexp -- exception-id: caller-validated-dynamic-key
+  const wordRe = new RegExp(`\\b${name}\\b`, 'g');
+  const totalMatches = content.match(wordRe);
+  const totalCount = totalMatches === null ? 0 : totalMatches.length;
+  if (totalCount === 0) return false;
+
+  const exportPatterns: readonly RegExp[] = [
+    // eslint-disable-next-line security/detect-non-literal-regexp -- exception-id: caller-validated-dynamic-key
+    new RegExp(`^\\s*export\\s+(?:async\\s+)?function\\s+${name}\\b`, 'gm'),
+    // eslint-disable-next-line security/detect-non-literal-regexp -- exception-id: caller-validated-dynamic-key
+    new RegExp(`^\\s*export\\s+(?:const|let|var)\\s+${name}\\b`, 'gm'),
+    // eslint-disable-next-line security/detect-non-literal-regexp -- exception-id: caller-validated-dynamic-key
+    new RegExp(`^\\s*export\\s+class\\s+${name}\\b`, 'gm'),
+    // eslint-disable-next-line security/detect-non-literal-regexp -- exception-id: caller-validated-dynamic-key
+    new RegExp(`^\\s*export\\s+default\\s+(?:async\\s+)?function\\s+${name}\\b`, 'gm'),
+    // eslint-disable-next-line security/detect-non-literal-regexp -- exception-id: caller-validated-dynamic-key
+    new RegExp(`^\\s*export\\s+default\\s+class\\s+${name}\\b`, 'gm'),
+  ];
+  let declarationCount = 0;
+  for (const re of exportPatterns) {
+    const matches = content.match(re);
+    if (matches !== null) declarationCount += matches.length;
+  }
+
+  // `export { name }` / `export { name as alias }` / `export { name } from '...'`
+  // — one declaration per appearance of the name inside the braces.
+  const namedExportBlocks = content.match(/^\s*export\s*\{[^}]+\}/gm) ?? [];
+  // eslint-disable-next-line security/detect-non-literal-regexp -- exception-id: caller-validated-dynamic-key
+  const insideBraceRe = new RegExp(`\\b${name}\\b`, 'g');
+  for (const block of namedExportBlocks) {
+    const blockMatches = block.match(insideBraceRe);
+    if (blockMatches !== null) declarationCount += blockMatches.length;
+  }
+
+  return totalCount > declarationCount;
 }
 
 interface ExportRecord {
@@ -219,17 +277,30 @@ interface ExportRecord {
  * test caller produce a HIGH finding flagging the export as scaffolded
  * without runtime wiring.
  *
+ * What counts as a caller:
+ * - Any reference to the exported name in a non-test source file other
+ *   than the file the export lives in.
+ * - Same-file references outside the export-declaration line itself.
+ *   This catches single-file scripts that export a function and invoke
+ *   it in their own CLI-entry block (e.g. `scripts/*.ts`), which
+ *   external-import-based detection would mis-flag.
+ *
  * Limitations (deliberate):
  * - Modified files: skipped. Without git baseline parsing we can't tell
  *   which exports are *new* vs. pre-existing. Coverage will catch this
  *   when we layer git baseline diff parsing in a follow-up.
- * - Type-only exports (`export type X`, `export interface Y`): skipped.
- *   They're not runtime values; the rule's concern is runtime wiring.
+ * - Type-only exports (`export type X`, `export interface Y`): not
+ *   enumerated as exports in the first place — the regex set is
+ *   value-only. `export { type X }` is filtered explicitly.
  * - Aggregate re-exports (`export * from './foo'`): skipped. Names
  *   are not visible at this point without resolving the re-export
  *   target.
  * - Default unnamed exports (`export default <expression>`): skipped.
  *   No name to search for.
+ * - Framework-discovered hook exports (Next.js page/layout, etc.):
+ *   not yet handled. The rule fires; projects suppress via the
+ *   `disable` config or per-export exception until a path-convention
+ *   model lands.
  *
  * Requires `ctx.repo` (git-backed source). For inline sources the check
  * silently returns no findings — there's no filesystem to walk.
@@ -283,6 +354,10 @@ export const newExportsHaveNonTestCallers: CustomCheck = async (rule, ctx) => {
   for (const r of records) {
     const key = `${r.file.path}|${r.name}`;
     if (seenAsNonTestCaller.has(key)) continue;
+    // Same-file usage counts: a single-file script that exports a
+    // function and invokes it in its own CLI-entry block is wired,
+    // even though no *other* source file imports the name.
+    if (hasSameFileUsage(r.file.content, r.name)) continue;
     findings.push({
       ruleId: rule.id,
       severity: rule.defaultSeverity,
