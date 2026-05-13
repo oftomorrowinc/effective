@@ -141,5 +141,15 @@ export const VerifyResult = z.object({
       total: z.number().int().nonnegative(),
     })
     .optional(),
+  /**
+   * Total number of escape-hatch comments (`c8 ignore`,
+   * `@ts-expect-error`, `eslint-disable`, `prettier-ignore`) in the
+   * scanned files — both those that cite a valid `exception-id` and
+   * those that don't. Surfaced separately from findings so adopters
+   * can track suppression growth over time as a project-health metric,
+   * not just a violation count. For verify, the count is over the
+   * diff's changed files; for audit, it's over the full scan.
+   */
+  escapeHatchCount: z.number().int().nonnegative().optional(),
 });
 export type VerifyResult = z.infer<typeof VerifyResult>;

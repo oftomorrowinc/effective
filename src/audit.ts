@@ -8,6 +8,7 @@ import { compilePatterns } from './glob.js';
 import { walkSourceFiles } from './walk.js';
 import { dedupeBySignature } from './verify.js';
 import { summarizeFindings } from './verdict.js';
+import { scanFilesForEscapeHatches } from './escape-hatches/scan.js';
 import type { FindingSummary } from './verdict.js';
 import type { ChangedFile, CustomCheck, ToolchainResult, VerifyContext } from './source/types.js';
 import type { Constitution, ExceptionRegistry, Finding, Rule, Scope } from './schemas.js';
@@ -53,6 +54,14 @@ export interface AuditResult {
   readonly skipped: readonly AuditSkipReason[];
   /** Source files the audit walked (relative paths). */
   readonly filesScanned: readonly string[];
+  /**
+   * Total escape-hatch comments (`c8 ignore`, `@ts-expect-error`,
+   * `eslint-disable`, `prettier-ignore`) found across the scanned
+   * files — both those that cite a valid `exception-id` and those
+   * that don't. Surfaced separately from findings so adopters can
+   * track suppression growth over time as a project-health metric.
+   */
+  readonly escapeHatchCount: number;
 }
 
 async function readAsChangedFile(absolutePath: string, repo: string): Promise<ChangedFile> {
@@ -158,10 +167,12 @@ export async function audit(input: AuditInput): Promise<AuditResult> {
   }
 
   const deduped = dedupeBySignature(findings);
+  const escapeHatchCount = scanFilesForEscapeHatches(changedFiles).length;
   return {
     findings: deduped,
     summary: summarizeFindings(deduped),
     skipped,
     filesScanned: changedFiles.map((f) => f.path),
+    escapeHatchCount,
   };
 }

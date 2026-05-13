@@ -8,6 +8,35 @@ project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- **`toolchain.coverage-non-decreasing` renamed to
+  `toolchain.coverage-meets-threshold`; `failOn` corrected from
+  `any-output` to `count-non-zero`.** The previous id promised baseline
+  comparison the engine doesn't implement, and the `any-output` mode
+  fired on every run (coverage tooling always writes a summary,
+  regardless of whether thresholds are met). The new rule fires only
+  when one or more per-metric thresholds (lines / statements /
+  functions / branches < 90%) are actually below floor — surfaced
+  through the per-metric findings the v8/c8/istanbul parser already
+  emits. Breaking for users with `disable: { 'toolchain.coverage-
+non-decreasing': ... }` or override entries — update the key to the
+  new id. The "non-decreasing" semantic remains unimplemented; run
+  your coverage tool's own baseline check alongside this gate if you
+  need it.
+
+- **`runCommand` strips nested-package-manager env pollutants before
+  spawning.** When effective itself is invoked via `pnpm exec
+effective verify` (or `npx effective ...`, etc.), the outer package
+  manager sets `npm_*` / `NPM_*` / `PNPM_*` / `INIT_CWD` vars
+  describing its own workspace context. effective's toolchain step
+  then spawned the project's own `pnpm typecheck` / `pnpm test` / etc.
+  with those vars still attached, and the inner pnpm resolved
+  workspace roots from the wrong base — symptoms ranged from
+  "TS2307: Cannot find module 'effective'" to test runners exiting
+  non-zero with no visible error and coverage producing inconsistent
+  output. The fix scrubs the inherited prefixes; caller-supplied
+  env (via `runCommand({ env })`) is unaffected. Affects any toolchain
+  command effective spawns under any package manager.
+
 - **Package renamed to `@oftomorrow/effective`.** The unscoped `effective`
   name on npm was taken by an abandoned 2017 package; scoping under
   `@oftomorrow` aligns with the namespace where future packages
@@ -18,6 +47,17 @@ project adheres to [Semantic Versioning](https://semver.org/).
   `import { ... } from '@oftomorrow/effective'`).
 
 ### Added
+
+- **`escapeHatchCount` on `VerifyResult` and `AuditResult`; rendered in
+  the pretty reporter after the LOW count.** Total escape-hatch
+  comments (`c8 ignore`, `@ts-expect-error`, `eslint-disable`,
+  `prettier-ignore`) across the scanned files — both those citing a
+  valid `exception-id` and those without. Surfaced separately from
+  findings so adopters can track suppression growth over time as a
+  project-health metric rather than only seeing per-violation
+  findings. For `verify`, the count covers the diff's changed files;
+  for `audit`, it covers the full scan. JSON output includes
+  `escapeHatchCount` as a top-level field on the result.
 
 - **`CONSTITUTION.md` — generated reference of the recommended preset.**
   Human-readable projection of every shipped rule (severity, category,

@@ -7,6 +7,7 @@ import type { InlineSource } from './source/inline.js';
 import { loadGitSource, loadStagedSource } from './source/git-source.js';
 import { computeVerdict, summarizeFindings } from './verdict.js';
 import { builtInChecks, presets } from './presets/index.js';
+import { scanFilesForEscapeHatches } from './escape-hatches/scan.js';
 import type { Constitution, ExceptionRegistry, Finding, Scope, VerifyResult } from './schemas.js';
 import type { CommitMetadata, CustomCheck } from './source/types.js';
 
@@ -165,10 +166,12 @@ export async function verify(input: VerifyInput): Promise<VerifyResult> {
     }
 
     const deduped = dedupeBySignature(findings);
+    const escapeHatchCount = scanFilesForEscapeHatches(ctx.changedFiles).length;
     return {
       verdict: computeVerdict(deduped),
       findings: deduped,
       summary: summarizeFindings(deduped),
+      escapeHatchCount,
     };
   } finally {
     await cleanup();

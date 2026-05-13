@@ -47,8 +47,12 @@ function prettyReport(result: VerifyResult): string {
   out.push(`Verdict: ${verdictBadge(result.verdict)}`);
   if (result.summary) {
     const s = result.summary;
+    const hatchSuffix =
+      result.escapeHatchCount === undefined
+        ? ''
+        : `, ${String(result.escapeHatchCount)} escape hatch(es)`;
     out.push(
-      `Findings: ${String(s.total)} total — ${String(s.critical)} CRITICAL, ${String(s.high)} HIGH, ${String(s.med)} MED, ${String(s.low)} LOW`,
+      `Findings: ${String(s.total)} total — ${String(s.critical)} CRITICAL, ${String(s.high)} HIGH, ${String(s.med)} MED, ${String(s.low)} LOW${hatchSuffix}`,
     );
   }
   if (result.findings.length === 0) {
