@@ -50,6 +50,18 @@ function prettyReport(result: VerifyResult): string {
     out.push(
       `Findings: ${String(s.total)} total — ${String(s.critical)} CRITICAL, ${String(s.high)} HIGH, ${String(s.med)} MED, ${String(s.low)} LOW`,
     );
+    const disabled = result.disabledRulesCount;
+    const hatches = result.escapeHatchCount;
+    if (disabled !== undefined || hatches !== undefined) {
+      // No "skipped" component for verify — verify runs every applicable
+      // rule (audit is where skip-because-context exists). Emit just the
+      // pieces we have, in the same `Rules:` row used by audit so the
+      // two surfaces stay legible side-by-side.
+      const parts: string[] = [];
+      if (disabled !== undefined) parts.push(`${String(disabled)} disabled`);
+      if (hatches !== undefined) parts.push(`${String(hatches)} escape hatches`);
+      out.push(`Rules:    ${parts.join(', ')}`);
+    }
   }
   if (result.findings.length === 0) {
     out.push('No findings.');

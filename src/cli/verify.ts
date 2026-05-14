@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { loadConfig, loadConfigFromPath } from '../config/load.js';
 import { verify } from '../verify.js';
-import type { VerifySource } from '../verify.js';
+import type { VerifyInput, VerifySource } from '../verify.js';
 import { renderResult } from './reporters.js';
 import type { ReporterName } from './reporters.js';
 import type { ParsedArgs } from './args.js';
@@ -46,6 +46,27 @@ const DEFAULT_SCOPE: Scope = {
   role: 'free-form',
 };
 
+function keepWorktreeOf(args: ParsedArgs): VerifyInput['keepWorktree'] {
+  // Three exclusive surface forms:
+  //   --keep-worktree            => 'always' (keep regardless of verdict)
+  //   --keep-worktree=on-pass    => 'on-pass' (keep when failing; this is also the default)
+  //   --keep-worktree=always     => 'always'
+  //   --keep-worktree=never      => 'never' (always remove)
+  //   --no-keep-worktree         => 'never'
+  if (args.flags.has('no-keep-worktree')) return 'never';
+  const explicit = args.options['keep-worktree'];
+  if (explicit !== undefined) {
+    if (explicit !== 'on-pass' && explicit !== 'always' && explicit !== 'never') {
+      throw new Error(
+        `Unknown --keep-worktree value "${explicit}". Valid values: on-pass, always, never.`,
+      );
+    }
+    return explicit;
+  }
+  if (args.flags.has('keep-worktree')) return 'always';
+  return undefined; // let verify() apply its default ('on-pass')
+}
+
 export async function runVerifyCommand(args: ParsedArgs, cwd: string): Promise<VerifyCliResult> {
   const configFlag = args.options.config;
   const loaded =
@@ -54,11 +75,15 @@ export async function runVerifyCommand(args: ParsedArgs, cwd: string): Promise<V
       : await loadConfigFromPath(path.resolve(cwd, configFlag));
   const reporter = reporterOf(args);
   const source = sourceOf(args, cwd);
+  const keepWorktree = keepWorktreeOf(args);
+  const skipInstall = args.flags.has('skip-install');
   const result = await verify({
     scope: DEFAULT_SCOPE,
     config: loaded.config,
     source,
     ...(loaded.config.exceptions === undefined ? {} : { exceptions: loaded.config.exceptions }),
+    ...(keepWorktree === undefined ? {} : { keepWorktree }),
+    ...(skipInstall ? { skipInstall: true } : {}),
   });
   return {
     stdout: `${renderResult(result, reporter)}\n`,

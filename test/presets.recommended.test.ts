@@ -13,7 +13,7 @@ describe('presets.recommended — shape', () => {
     expect(ids).toContain('toolchain.lint-clean');
     expect(ids).toContain('toolchain.typecheck-clean');
     expect(ids).toContain('toolchain.tests-pass');
-    expect(ids).toContain('toolchain.coverage-non-decreasing');
+    expect(ids).toContain('toolchain.coverage-meets-threshold');
     expect(ids).toContain('specd-test-names-land-verbatim');
   });
 
@@ -65,7 +65,7 @@ describe('presets.recommended — shape', () => {
       'toolchain.lint-clean',
       'toolchain.typecheck-clean',
       'toolchain.tests-pass',
-      'toolchain.coverage-non-decreasing',
+      'toolchain.coverage-meets-threshold',
       'no-stray-debug-output',
       'no-hardcoded-secrets',
     ]);
@@ -124,7 +124,7 @@ describe('appliesToRoles — role filtering', () => {
         'toolchain.lint-clean': 'inline source — no toolchain results',
         'toolchain.typecheck-clean': 'inline source — no toolchain results',
         'toolchain.tests-pass': 'inline source — no toolchain results',
-        'toolchain.coverage-non-decreasing': 'inline source — no toolchain results',
+        'toolchain.coverage-meets-threshold': 'inline source — no toolchain results',
       },
     };
     const reviewerScope = scope('reviewer', { editable: [] });
@@ -152,7 +152,7 @@ describe('appliesToRoles — role filtering', () => {
         'toolchain.lint-clean': 'inline source — no toolchain results',
         'toolchain.typecheck-clean': 'inline source — no toolchain results',
         'toolchain.tests-pass': 'inline source — no toolchain results',
-        'toolchain.coverage-non-decreasing': 'inline source — no toolchain results',
+        'toolchain.coverage-meets-threshold': 'inline source — no toolchain results',
         'lane.editable-respected': 'wide editable for this test',
       },
     };
@@ -212,7 +212,7 @@ describe('verify() — extends: ["recommended"] auto-loads the built-in preset',
         'toolchain.lint-clean': 'inline source — no toolchain results',
         'toolchain.typecheck-clean': 'inline source — no toolchain results',
         'toolchain.tests-pass': 'inline source — no toolchain results',
-        'toolchain.coverage-non-decreasing': 'inline source — no toolchain results',
+        'toolchain.coverage-meets-threshold': 'inline source — no toolchain results',
       },
     };
     const result = await verify({

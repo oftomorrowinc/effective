@@ -24,7 +24,7 @@ const BASE_CONFIG: Constitution = {
     'toolchain.lint-clean': 'temp repo — no toolchain',
     'toolchain.typecheck-clean': 'temp repo — no toolchain',
     'toolchain.tests-pass': 'temp repo — no toolchain',
-    'toolchain.coverage-non-decreasing': 'temp repo — no toolchain',
+    'toolchain.coverage-meets-threshold': 'temp repo — no toolchain',
   },
 };
 

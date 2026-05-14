@@ -1,6 +1,6 @@
 {
   "name": "@oftomorrow/effective",
-  "version": "0.1.0-rc.3",
+  "version": "0.1.0-rc.4",
   "description": "A shared constitution for collaborative work on a codebase, with mechanical enforcement that runs against any worker's output — agent, human, or script.",
   "keywords": [
     "constitution",
@@ -14,7 +14,7 @@
   ],
   "license": "MIT",
   "type": "module",
-  "private": "false",
+  "private": false,
   "sideEffects": false,
   "engines": {
     "node": ">=20.0.0"

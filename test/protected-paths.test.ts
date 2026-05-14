@@ -12,7 +12,7 @@ const BASE_CONFIG: Omit<Constitution, 'protected'> = {
     'toolchain.lint-clean': 'no toolchain in inline tests',
     'toolchain.typecheck-clean': 'no toolchain in inline tests',
     'toolchain.tests-pass': 'no toolchain in inline tests',
-    'toolchain.coverage-non-decreasing': 'no toolchain in inline tests',
+    'toolchain.coverage-meets-threshold': 'no toolchain in inline tests',
   },
 };
 

@@ -8,6 +8,35 @@ project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- **`toolchain.coverage-non-decreasing` renamed to
+  `toolchain.coverage-meets-threshold`; `failOn` corrected from
+  `any-output` to `count-non-zero`.** The previous id promised baseline
+  comparison the engine doesn't implement, and the `any-output` mode
+  fired on every run (coverage tooling always writes a summary,
+  regardless of whether thresholds are met). The new rule fires only
+  when one or more per-metric thresholds (lines / statements /
+  functions / branches < 90%) are actually below floor — surfaced
+  through the per-metric findings the v8/c8/istanbul parser already
+  emits. Breaking for users with `disable: { 'toolchain.coverage-
+non-decreasing': ... }` or override entries — update the key to the
+  new id. The "non-decreasing" semantic remains unimplemented; run
+  your coverage tool's own baseline check alongside this gate if you
+  need it.
+
+- **`runCommand` strips nested-package-manager env pollutants before
+  spawning.** When effective itself is invoked via `pnpm exec
+effective verify` (or `npx effective ...`, etc.), the outer package
+  manager sets `npm_*` / `NPM_*` / `PNPM_*` / `INIT_CWD` vars
+  describing its own workspace context. effective's toolchain step
+  then spawned the project's own `pnpm typecheck` / `pnpm test` / etc.
+  with those vars still attached, and the inner pnpm resolved
+  workspace roots from the wrong base — symptoms ranged from
+  "TS2307: Cannot find module 'effective'" to test runners exiting
+  non-zero with no visible error and coverage producing inconsistent
+  output. The fix scrubs the inherited prefixes; caller-supplied
+  env (via `runCommand({ env })`) is unaffected. Affects any toolchain
+  command effective spawns under any package manager.
+
 - **Package renamed to `@oftomorrow/effective`.** The unscoped `effective`
   name on npm was taken by an abandoned 2017 package; scoping under
   `@oftomorrow` aligns with the namespace where future packages
@@ -18,6 +47,76 @@ project adheres to [Semantic Versioning](https://semver.org/).
   `import { ... } from '@oftomorrow/effective'`).
 
 ### Added
+
+- **`prepareWorktree` runs the project's frozen install in the
+  worktree by default.** Detects a `pnpm-lock.yaml` / `yarn.lock` /
+  `package-lock.json` and runs `pnpm install --frozen-lockfile` /
+  `yarn install --immutable` / `npm ci` respectively inside
+  `.effective/work` after `git worktree add`. This is the only way
+  per-package `node_modules` directories — which workspace projects
+  rely on for `tsc` / `vitest` / etc. invoked from inside a workspace
+  package — end up in the worktree, since those directories aren't
+  tracked by git and a shared-root symlink can't fabricate them.
+  Cost on a warm machine: ~1–3s for pnpm (hard-links from the global
+  store), similar for yarn-berry, ~5–10s for npm depending on dep
+  count. Adopters can opt out via `--skip-install` (CLI) or
+  `skipInstall: true` (programmatic) when iterating with a
+  pre-populated worktree (combine with `--keep-worktree=always`) or
+  when they've staged `node_modules` some other way. Projects with
+  no lockfile fall back to the previous shared-symlink behavior.
+
+- **Toolchain findings now include a tail of the failing command's
+  output.** When a toolchain rule fires (lint / typecheck / tests /
+  coverage / custom), the aggregate finding's `message` now contains
+  up to the last 20 lines of stderr (or stdout if stderr is empty),
+  framed by the existing "exited with code N" line on top and the
+  rule's prompt guidance below. Previously the message was just
+  "exited with code 1" — adopters had to crawl into `.effective/work`
+  to see the actual error. Now the immediate finding shows
+  "typecheck exited with code 1\n<the actual TS errors>" and the
+  worktree is only needed for the long tail. JSON output carries
+  the same expanded message; `evidence` stays as the short
+  "exited with code N" form for scriptable filtering.
+
+- **`keepWorktree` option on `verify()` / `--keep-worktree` CLI
+  flag.** Controls cleanup of the `.effective/work` worktree after
+  a verify run. Three modes: `'on-pass'` (default) keeps the
+  worktree if the run produced any CRITICAL finding so the adopter
+  can `cd .effective/work && pnpm typecheck` and see the real
+  error in context; `'always'` keeps regardless of verdict; `'never'`
+  matches the previous behavior (always remove — appropriate for
+  ephemeral CI runners). CLI surface: `--keep-worktree`,
+  `--keep-worktree=<mode>`, `--no-keep-worktree`. Inline and staged
+  sources don't create a worktree, so the option is a no-op for them.
+
+- **New `Rules:` summary row; `escapeHatchCount` and new
+  `disabledRulesCount` consolidated there.** The pretty output now
+  splits violations and suppression metadata onto separate rows:
+
+  ```
+  Findings: 0 total — 0 CRITICAL, 0 HIGH, 0 MED, 0 LOW
+  Rules:    4 disabled, 11 skipped, 21 escape hatches
+  ```
+
+  The Findings row no longer carries the escape-hatch count. The
+  Rules row groups the three "rule enforcement is suppressed or
+  inapplicable here" signals:
+  - _disabled_ — rules the project's `effective.config.ts` turned
+    off via the `disable` map. Previously invisible; now surfaced
+    as a drift signal. `disabledRulesCount` added to `VerifyResult`
+    and `AuditResult`.
+  - _skipped_ — rules the engine couldn't apply in this context
+    (audit-only; verify never skips). The existing per-reason
+    detail section continues to list which rules and why.
+  - _escape hatches_ — third-party-tool suppressions
+    (`@ts-expect-error`, `eslint-disable`, `c8 ignore`,
+    `prettier-ignore`). Total across the scanned files; for `verify`
+    the diff's changed files, for `audit` the full scan.
+
+  The Rules row is omitted in verify when neither count is computable
+  (inline-source callers that don't pass a config). Audit always
+  renders it. JSON output exposes both fields as top-level result
+  properties.
 
 - **`CONSTITUTION.md` — generated reference of the recommended preset.**
   Human-readable projection of every shipped rule (severity, category,

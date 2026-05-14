@@ -7,6 +7,7 @@ import type { InlineSource } from './source/inline.js';
 import { loadGitSource, loadStagedSource } from './source/git-source.js';
 import { computeVerdict, summarizeFindings } from './verdict.js';
 import { builtInChecks, presets } from './presets/index.js';
+import { scanFilesForEscapeHatches } from './escape-hatches/scan.js';
 import type { Constitution, ExceptionRegistry, Finding, Scope, VerifyResult } from './schemas.js';
 import type { CommitMetadata, CustomCheck } from './source/types.js';
 
@@ -68,6 +69,32 @@ export interface VerifyInput {
    * caller supplies whatever is available.
    */
   commitMetadata?: CommitMetadata;
+  /**
+   * Worktree-cleanup behavior for git sources.
+   *
+   * - `'on-pass'` (default): keep the worktree at `.effective/work` if
+   *   the run produces any CRITICAL finding, remove it on pass. Lets
+   *   the adopter `cd .effective/work` and rerun the failing toolchain
+   *   command by hand to see what went wrong, without polluting a
+   *   clean tree.
+   * - `'always'`: keep the worktree regardless of verdict. Useful when
+   *   iterating on the constitution itself or when chaining multiple
+   *   inspections of the same run.
+   * - `'never'`: always remove. Matches the previous behavior; appropriate
+   *   for CI environments where the runner is ephemeral anyway.
+   *
+   * Inline and staged sources don't create a worktree; this option is
+   * a no-op for them.
+   */
+  keepWorktree?: 'on-pass' | 'always' | 'never';
+  /**
+   * Skip the post-checkout `pnpm install` / `npm ci` / `yarn install`
+   * step in `prepareWorktree`. Useful for fast iteration when the
+   * worktree's `node_modules` is already populated from a previous
+   * run (combine with `keepWorktree: 'always'`), or when you've
+   * mounted node_modules some other way. Default: false (install runs).
+   */
+  skipInstall?: boolean;
 }
 
 export function dedupeBySignature(findings: readonly Finding[]): Finding[] {
@@ -124,6 +151,7 @@ export async function verify(input: VerifyInput): Promise<VerifyResult> {
         customChecks,
         artifacts,
         exceptions,
+        ...(input.skipInstall === true ? { skipInstall: true } : {}),
       });
       ctx = loaded.ctx;
       cleanup = loaded.cleanup;
@@ -165,12 +193,29 @@ export async function verify(input: VerifyInput): Promise<VerifyResult> {
     }
 
     const deduped = dedupeBySignature(findings);
-    return {
-      verdict: computeVerdict(deduped),
+    const escapeHatchCount = scanFilesForEscapeHatches(ctx.changedFiles).length;
+    const disabledRulesCount = Object.keys(input.config.disable ?? {}).length;
+    const verdict = computeVerdict(deduped);
+    const result: VerifyResult = {
+      verdict,
       findings: deduped,
       summary: summarizeFindings(deduped),
+      escapeHatchCount,
+      disabledRulesCount,
     };
-  } finally {
-    await cleanup();
+    // Decide cleanup policy after we know the verdict so 'on-pass' can
+    // preserve the worktree when something failed and the adopter
+    // needs to inspect.
+    const policy = input.keepWorktree ?? 'on-pass';
+    const shouldKeep = policy === 'always' || (policy === 'on-pass' && verdict !== 'pass');
+    if (!shouldKeep) await cleanup();
+    return result;
+  } catch (error) {
+    // Errors during the rule pass shouldn't leak the worktree either —
+    // honor the same policy. Treat thrown errors as "not pass" so the
+    // default 'on-pass' policy keeps the tree for inspection.
+    const policy = input.keepWorktree ?? 'on-pass';
+    if (policy === 'never') await cleanup();
+    throw error;
   }
 }

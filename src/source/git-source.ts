@@ -76,6 +76,8 @@ export interface LoadGitSourceInput {
   readonly customChecks: Readonly<Record<string, CustomCheck>>;
   readonly artifacts: Readonly<Record<string, unknown>>;
   readonly exceptions: ExceptionRegistry;
+  /** Skip the post-checkout install step in `prepareWorktree`. */
+  readonly skipInstall?: boolean;
 }
 
 export interface LoadedSource {
@@ -112,7 +114,11 @@ export async function loadGitSource(input: LoadGitSourceInput): Promise<LoadedSo
     };
   }
 
-  const handle = await prepareWorktree({ repo: input.repo, work: input.work });
+  const handle = await prepareWorktree({
+    repo: input.repo,
+    work: input.work,
+    ...(input.skipInstall === true ? { skipInstall: true } : {}),
+  });
   const toolchainResults = await collectToolchainResults(input.resolved, handle.path);
   return {
     ctx: assembleContext(

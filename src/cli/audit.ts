@@ -49,11 +49,12 @@ function groupBySeverity(findings: readonly Finding[]): Map<Severity, Finding[]>
 }
 
 function renderPretty(result: AuditResult): string {
-  const { summary, findings, skipped, filesScanned } = result;
+  const { summary, findings, skipped, filesScanned, escapeHatchCount, disabledRulesCount } = result;
   const lines: string[] = [];
   lines.push(
     `Audit complete — scanned ${String(filesScanned.length)} source file(s).`,
     `Findings: ${String(summary.total)} total — ${String(summary.critical)} CRITICAL, ${String(summary.high)} HIGH, ${String(summary.med)} MED, ${String(summary.low)} LOW`,
+    `Rules:    ${String(disabledRulesCount)} disabled, ${String(skipped.length)} skipped, ${String(escapeHatchCount)} escape hatches`,
   );
   if (findings.length === 0) {
     lines.push('No findings.');

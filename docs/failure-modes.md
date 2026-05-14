@@ -222,30 +222,35 @@ it works there. The fix is whatever makes that install succeed — npm
 auth, registry config, lockfile sync. Once the deps are installed in
 `.effective/node_modules`, subsequent verify runs skip the install.
 
-### Coverage rule fires on every run
+### Coverage rule fires when project coverage is below 90%
 
 ```
-⛔ CRITICAL  toolchain.coverage-non-decreasing  @  (project-wide)
-    coverage produced output. Write the missing test.
+⛔ CRITICAL  toolchain.coverage-meets-threshold  @  (project-wide)
+    coverage reported N issue(s). Write the missing test.
 ```
 
-**Diagnosis:** The `coverage-non-decreasing` rule's `failOn:
-'any-output'` semantic doesn't match what coverage commands actually
-do (they always produce output). The rule's `non-decreasing` name
-promises something the engine doesn't yet enforce.
+**Diagnosis:** `coverage-meets-threshold` enforces a per-metric 90%
+floor (lines / statements / functions / branches). The parser emits
+a child finding per metric that's short — those are the "N issues"
+the aggregate cites. The rule is threshold-based, not baseline-
+comparison-based: improving coverage from 0% to 60% still leaves
+the gate red because 60% < 90%; that's the rule operating correctly.
 
-**Fix:** Disable the rule for now and run coverage in your existing
-CI step:
+**Fix:** Write the missing tests, or — if you're adopting on a
+codebase that won't hit 90% soon — disable the rule with rationale
+until the coverage floor is reached:
 
 ```ts
 disable: {
-  'toolchain.coverage-non-decreasing':
-    'Baseline tracking pending; coverage thresholds enforced separately by vitest config.',
+  'toolchain.coverage-meets-threshold':
+    'Codebase at ~60% line coverage; lifting to 90% scheduled for Q3. Tracked in <issue>.',
 },
 ```
 
-Track the rule's status in the README — when baseline tracking lands,
-re-enable.
+Note: prior to rc.4 this rule was named `toolchain.coverage-non-
+decreasing` and fired on `failOn: 'any-output'` (which matched
+every run regardless of coverage state). If you're upgrading from
+an earlier rc, rename the entry in your `disable` map.
 
 ---
 

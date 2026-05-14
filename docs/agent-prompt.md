@@ -95,16 +95,17 @@ silently fix them.
    auth, peer-dep conflicts, or monorepo hoisting issues, they'll
    surface there too. Confirming the install works at the project
    root preempts a confusing first-verify failure.
-3. **Is `toolchain.coverage-non-decreasing` going to fire?** Only
+3. **Is `toolchain.coverage-meets-threshold` going to fire?** Only
    applies if a coverage script exists in `package.json` (init
    omits the toolchain entry when no `test:coverage` / `coverage`
    script is detected, and the rule silently skips with no command
-   to run). If a coverage script IS present: the rule's current
-   `failOn: 'any-output'` semantic doesn't match what coverage
-   commands actually do (they always produce output), so it fires
-   on every run. Add it to `disable` with rationale (see the
-   adaptation block in `docs/examples/typescript-vitest-eslint.md`).
-   If no coverage script: skip this check.
+   to run). When present, the rule fires only when one or more
+   per-metric thresholds (lines / statements / functions / branches
+   < 90%) are not met — the coverage-summary parser drives the
+   failure, not the existence of output. If your project's coverage
+   is below 90% and you don't intend to lift it before the first
+   verify, add the rule to `disable` with rationale; otherwise leave
+   it enabled.
 
 The pre-existing-suppressions inventory used to live here as a
 fourth pre-flight check; it now happens in step 4 (`audit`) of the
@@ -181,8 +182,8 @@ If any `// EDIT:` comment is present, resolve it with the user.
 - If pre-flight check 2 found existing unjustified suppressions, add
   the `exceptions.must-cite-justification` override (CRITICAL → HIGH)
   with rationale.
-- If pre-flight check 4 applies, add the
-  `toolchain.coverage-non-decreasing` disable.
+- If pre-flight check 3 applies (coverage below 90% with no plan to
+  lift), add the `toolchain.coverage-meets-threshold` disable.
 
 These overrides are NOT generated automatically by init — they
 require the LLM (you) to identify the conditions and propose the
@@ -580,8 +581,8 @@ relevant section when revising.
 - First-verify drowns adopters with dozens of unjustified-suppression
   CRITICALs → Pre-flight 2 + the audit-escapes section, with a
   single-hatch vs. many-hatch split.
-- `toolchain.coverage-non-decreasing` fires on every run when a
-  coverage script exists → Pre-flight 4.
+- `toolchain.coverage-meets-threshold` fires when project coverage
+  is below 90% → Pre-flight 3.
 - Internal vocabulary (catalogue, foundation rule, adversarial-by-
   optimization) used without definition → Glossary.
 - `prepare()` / `verify()` / `kickBack()` mentioned as if all three

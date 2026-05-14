@@ -22,7 +22,7 @@ export default defineConfig({
     'toolchain.lint-clean': 'temp',
     'toolchain.typecheck-clean': 'temp',
     'toolchain.tests-pass': 'temp',
-    'toolchain.coverage-non-decreasing': 'temp',
+    'toolchain.coverage-meets-threshold': 'temp',
   },
 });
 `,
