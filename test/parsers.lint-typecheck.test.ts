@@ -73,6 +73,44 @@ describe('parseEslint', () => {
     ])}`;
     expect(parseEslint(runResult({ stdout })).count).toBe(1);
   });
+
+  it('tolerates trailing garbage after JSON (e.g., pnpm ELIFECYCLE)', () => {
+    // pnpm appends `ELIFECYCLE` exit messages after the wrapped tool's
+    // output when the tool exits non-zero. JSON.parse is strict about
+    // trailing chars; the parser bracket-counts to the JSON value's end
+    // so the trailing text doesn't break the parse.
+    const json = JSON.stringify([
+      {
+        filePath: 'x.ts',
+        messages: [{ ruleId: 'r', severity: 2, message: 'm', line: 1, column: 1 }],
+      },
+    ]);
+    const stdout = `> core@0.0.0 lint /tmp/core\n> eslint . --format json\n\n${json}\n\n ELIFECYCLE  Command failed with exit code 1.`;
+    expect(parseEslint(runResult({ stdout, exitCode: 1 })).count).toBe(1);
+  });
+
+  it('handles JSON values containing brackets inside strings', () => {
+    // Ensure bracket-counting respects string literals — a "}" inside
+    // a message string mustn't decrement depth.
+    const json = JSON.stringify([
+      {
+        filePath: 'x.ts',
+        messages: [
+          {
+            ruleId: 'r',
+            severity: 2,
+            message: 'unexpected token }', // closing brace inside the message
+            line: 1,
+            column: 1,
+          },
+        ],
+      },
+    ]);
+    const stdout = `${json}\n ELIFECYCLE  Command failed with exit code 1.`;
+    const result = parseEslint(runResult({ stdout, exitCode: 1 }));
+    expect(result.count).toBe(1);
+    expect(result.findings[0]?.evidence).toContain('}');
+  });
 });
 
 describe('parseTsc', () => {
