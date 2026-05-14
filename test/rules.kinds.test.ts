@@ -151,6 +151,76 @@ describe('checkToolchain', () => {
     ).toHaveLength(1);
   });
 
+  it('includes a stderr tail in the aggregate message when no parsed findings exist', () => {
+    const findings = checkToolchain(
+      baseRule,
+      ctx({
+        toolchainResults: {
+          lint: tcResult({
+            exitCode: 1,
+            stderr: 'fatal: cannot find tsconfig\nerror TS5083: cannot read file',
+          }),
+        },
+      }),
+    );
+    expect(findings.length).toBe(1);
+    expect(findings[0]?.message).toContain('cannot find tsconfig');
+    expect(findings[0]?.message).toContain('error TS5083');
+  });
+
+  it("omits the stderr tail when the parser produced findings (don't drown the per-issue output)", () => {
+    // When a parser successfully extracts per-issue findings, the raw
+    // tail is redundant — and for JSON-emitting tools (eslint --format
+    // json), the "tail" is one giant unformatted line that floods the
+    // terminal. Aggregate's message stays short.
+    const findings = checkToolchain(
+      { ...baseRule, failOn: 'count-non-zero' },
+      ctx({
+        toolchainResults: {
+          lint: tcResult({
+            exitCode: 1,
+            count: 1,
+            stdout: '[{"filePath":"a.ts","messages":[{"ruleId":"r","severity":2,"message":"m"}]}]',
+            findings: [
+              {
+                ruleId: 'eslint:no-console',
+                severity: 'HIGH',
+                category: 'toolchain',
+                evidence: 'console.log used',
+                message: 'ESLint reports no-console',
+                source: { kind: 'toolchain', tool: 'lint' },
+              },
+            ],
+          }),
+        },
+      }),
+    );
+    // Aggregate finding (first) + the one parsed finding (second).
+    expect(findings).toHaveLength(2);
+    const aggregate = findings[0];
+    expect(aggregate?.message).not.toContain('filePath');
+    expect(aggregate?.message).not.toContain('messages');
+  });
+
+  it('truncates super-long lines in the stderr tail (single-line JSON blob protection)', () => {
+    const giantLine = 'x'.repeat(2000);
+    const findings = checkToolchain(
+      baseRule,
+      ctx({
+        toolchainResults: {
+          lint: tcResult({
+            exitCode: 1,
+            stderr: giantLine,
+          }),
+        },
+      }),
+    );
+    expect(findings.length).toBe(1);
+    expect(findings[0]?.message).toContain('chars truncated');
+    // Final message should not contain the full 2000-x run.
+    expect((findings[0]?.message ?? '').includes('x'.repeat(1000))).toBe(false);
+  });
+
   it('forwards pre-parsed findings even on pass', () => {
     const rule: ToolchainRule = { ...baseRule, failOn: 'non-zero-exit' };
     const findings = checkToolchain(
