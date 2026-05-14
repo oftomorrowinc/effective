@@ -6,6 +6,48 @@ project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **JSON-parsing parsers tolerate trailing pnpm/npm noise.** When
+  effective spawns a JSON-emitting tool through `pnpm` / `npm` and the
+  tool exits non-zero, the wrapping package manager appends an
+  ` ELIFECYCLE  Command failed with exit code N` line after the JSON
+  output. `parseTrailingJson` previously sliced from the first `{`/`[`
+  to end-of-buffer and handed that to `JSON.parse`, which is strict
+  about trailing chars and threw — the failure was swallowed and the
+  parser returned no findings, so the toolchain rule's
+  `count-non-zero` check saw count=0 and effective reported PASS on a
+  run with real issues. The shared utility now bracket-counts (respecting
+  string literals) to the JSON value's end and parses only that slice.
+  Fixes affect every JSON-emitting parser: eslint, vitest, jest, v8/c8
+  coverage. Discovered by Core's dogfooding session — verify reported
+  "0 issues" on 35 real lint errors.
+
+- **Aggregate toolchain finding omits raw-output tail when parser
+  already produced per-issue findings.** A failing `eslint --format
+json` emits a single ~50KB JSON line. The rc.4 stderr-tail feature
+  helpfully included that in the aggregate finding's message, which
+  drowned the actual per-issue findings under screens of unformatted
+  JSON. Now: when the parser produced structured findings, the
+  aggregate's message is short (`lint reported 35 issue(s). Fix the
+underlying issue.`) and the per-issue findings render normally
+  below. The raw tail still appears when no parsed findings exist —
+  that's the silent-failure diagnostic path. Also: each tail line is
+  capped at 500 chars with a `(N chars truncated)` marker so a single
+  super-long line can never dominate the output.
+
+- **tsc parser strips `pnpm -r` workspace prefix and prepends the
+  workspace dir to the finding's file path.** `pnpm -r typecheck` in a
+  monorepo prefixes every line with `<package-dir> <script-name>: `.
+  The previous regex captured `packages/foo typecheck: src/bar.ts` as
+  the file path — confusing for humans, broken for any tooling
+  resolving the path. The parser now detects the prefix (requires a
+  `/` in the dir portion to avoid false matches on `word:` patterns
+  inside error messages), strips it, and prepends the workspace dir
+  so `location.file` reads `packages/foo/src/bar.ts` — correctly
+  editor-clickable and grep-able from the monorepo root. Plain
+  single-package `tsc --noEmit` invocations are unaffected.
+
 ### Changed
 
 - **`toolchain.coverage-non-decreasing` renamed to

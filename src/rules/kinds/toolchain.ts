@@ -2,9 +2,22 @@ import type { Finding, ToolchainRule } from '../../schemas.js';
 import type { ToolchainResult, VerifyContext } from '../../source/types.js';
 
 const OUTPUT_TAIL_LINES = 20;
+const OUTPUT_TAIL_LINE_MAX_CHARS = 500;
 
 function resultKey(rule: ToolchainRule): string {
   return rule.tool === 'custom' && rule.name !== undefined ? rule.name : rule.tool;
+}
+
+/**
+ * Truncate a single line to a sane length so a one-line JSON blob
+ * (`eslint --format json`, `vitest --reporter json`, etc.) doesn't
+ * dump tens of KB into a finding's message. The full output is
+ * always available in the worktree if an adopter needs it.
+ */
+function truncateLine(line: string): string {
+  if (line.length <= OUTPUT_TAIL_LINE_MAX_CHARS) return line;
+  const omitted = line.length - OUTPUT_TAIL_LINE_MAX_CHARS;
+  return `${line.slice(0, OUTPUT_TAIL_LINE_MAX_CHARS)}… (${String(omitted)} chars truncated)`;
 }
 
 /**
@@ -12,19 +25,20 @@ function resultKey(rule: ToolchainRule): string {
  * message gives the adopter the actual error rather than just "exit
  * code 1." Prefers stderr (where compilers / test runners typically
  * write failures); falls back to stdout if stderr is empty (some tools
- * write everything to stdout). Trims to a fixed line count; the worktree
- * still holds the full output if the adopter needs more.
+ * write everything to stdout). Trims to a fixed line count AND a
+ * per-line character cap; the worktree still holds the full output if
+ * the adopter needs more.
  */
 function outputTail(result: ToolchainResult): string {
   const raw = result.stderr.trim().length > 0 ? result.stderr : result.stdout;
   const trimmed = raw.trim();
   if (trimmed.length === 0) return '';
-  const lines = trimmed.split('\n');
-  if (lines.length <= OUTPUT_TAIL_LINES) return trimmed;
-  const omitted = lines.length - OUTPUT_TAIL_LINES;
+  const allLines = trimmed.split('\n').map((l) => truncateLine(l));
+  if (allLines.length <= OUTPUT_TAIL_LINES) return allLines.join('\n');
+  const omitted = allLines.length - OUTPUT_TAIL_LINES;
   return [
-    `... (${String(omitted)} earlier line(s) omitted)`,
-    ...lines.slice(-OUTPUT_TAIL_LINES),
+    `… (${String(omitted)} earlier line(s) omitted)`,
+    ...allLines.slice(-OUTPUT_TAIL_LINES),
   ].join('\n');
 }
 
@@ -83,7 +97,12 @@ export function checkToolchain(rule: ToolchainRule, ctx: VerifyContext): Finding
   if (!shouldFail(rule, result)) {
     return result.findings ? [...result.findings] : [];
   }
-  const tail = outputTail(result);
+  // Only include the raw-output tail when no parsed findings exist —
+  // when the parser produced structured per-issue findings, the tail
+  // is at best redundant and at worst (eslint --format json) drowns
+  // the actual findings under a screen of unformatted JSON.
+  const hasParsedFindings = (result.findings?.length ?? 0) > 0;
+  const tail = hasParsedFindings ? '' : outputTail(result);
   const failureLine = describeFailure(rule, result);
   const message =
     tail.length === 0
