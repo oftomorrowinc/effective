@@ -6,6 +6,34 @@ project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **`skipCategories` and `skipRules` options on `verify()`; new
+  `SkippedRule` shape; `result.skipped` lists what didn't run.**
+  Inline-source callers (long-running runners doing per-step gate
+  checks) previously had to either spawn toolchain commands at every
+  step (slow, wrong-by-design at intermediate commits) or supply
+  synthetic passing `toolchainResults` to keep the engine quiet.
+  Neither was honest. The new options let a caller declare "this
+  invocation doesn't include the toolchain category" and the engine
+  skips matching rules cleanly, recording each skip in
+  `result.skipped` with reason `'category-excluded'` or
+  `'rule-excluded'`. The CLI's `verify --against` path still runs
+  everything by default — this is purely the programmatic-API
+  affordance to mirror `audit`'s existing `--include-toolchain`
+  opt-in but in reverse.
+
+  Existing `AuditSkipReason` type is now an alias for the shared
+  `SkippedRule` (both audit and verify return the same shape under
+  `result.skipped`); the old name remains exported for
+  back-compat. Audit's reasons (`diff-only`, `lane-no-scope`,
+  `meta-no-report`, `toolchain-not-included`) are unchanged.
+
+  Requested by Core 2.0's runner (see Core's
+  `packages/runner-core/src/gates/effective-verify.ts` Slice 16c —
+  workaround was synthetic-passing-results, now replaceable with
+  `skipCategories: ['toolchain']`).
+
 ### Fixed
 
 - **JSON-parsing parsers tolerate trailing pnpm/npm noise.** When

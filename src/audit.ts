@@ -11,7 +11,14 @@ import { summarizeFindings } from './verdict.js';
 import { scanFilesForEscapeHatches } from './escape-hatches/scan.js';
 import type { FindingSummary } from './verdict.js';
 import type { ChangedFile, CustomCheck, ToolchainResult, VerifyContext } from './source/types.js';
-import type { Constitution, ExceptionRegistry, Finding, Rule, Scope } from './schemas.js';
+import type {
+  Constitution,
+  ExceptionRegistry,
+  Finding,
+  Rule,
+  Scope,
+  SkippedRule,
+} from './schemas.js';
 
 export interface AuditInput {
   /** The project's constitution. */
@@ -40,10 +47,14 @@ export interface AuditInput {
   readonly onlyRuleId?: string;
 }
 
-export interface AuditSkipReason {
-  readonly ruleId: string;
-  readonly reason: 'diff-only' | 'toolchain-not-included' | 'meta-no-report' | 'lane-no-scope';
-}
+/**
+ * Backwards-compat alias for {@link SkippedRule}. The audit-specific
+ * name predates verify gaining the same skip surface in rc.6; new
+ * code should prefer the shared `SkippedRule` type from the public
+ * schemas re-export, but this alias remains exported so existing
+ * adopters' imports don't break.
+ */
+export type AuditSkipReason = SkippedRule;
 
 export interface AuditResult {
   /** Findings produced by the audit pass. */
@@ -51,7 +62,7 @@ export interface AuditResult {
   /** Per-severity counts. */
   readonly summary: FindingSummary;
   /** Rules skipped, with reason. Reported so the user knows what didn't run. */
-  readonly skipped: readonly AuditSkipReason[];
+  readonly skipped: readonly SkippedRule[];
   /** Source files the audit walked (relative paths). */
   readonly filesScanned: readonly string[];
   /**
@@ -89,7 +100,7 @@ function withBuiltInPresets(options: ResolveOptions): ResolveOptions {
   };
 }
 
-function shouldSkip(rule: Rule, includeToolchain: boolean): AuditSkipReason['reason'] | undefined {
+function shouldSkip(rule: Rule, includeToolchain: boolean): SkippedRule['reason'] | undefined {
   if (rule.diffOnly === true) return 'diff-only';
   if (rule.kind === 'lane') return 'lane-no-scope';
   if (rule.kind === 'meta') return 'meta-no-report';
@@ -158,7 +169,7 @@ export async function audit(input: AuditInput): Promise<AuditResult> {
   };
 
   const findings: Finding[] = [];
-  const skipped: AuditSkipReason[] = [];
+  const skipped: SkippedRule[] = [];
 
   for (const rule of resolved.rules.values()) {
     if (input.onlyRuleId !== undefined && rule.id !== input.onlyRuleId) continue;
