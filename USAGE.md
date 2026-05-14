@@ -644,7 +644,7 @@ const scope = {
   editable: ['app/api/signals/**', 'lib/rate-limit/**', 'test/**'],
 };
 
-let prompt = prepare({
+let prepared = prepare({
   scope,
   config,
   original:
@@ -652,11 +652,10 @@ let prompt = prepare({
 });
 
 for (let attempt = 1; attempt <= 5; attempt++) {
-  await runClaudeCode(prompt, '.effective/work');
+  await runClaudeCode(prepared.prompt, '.effective/work');
 
   const { verdict, findings } = await verify({
-    scope,
-    config,
+    ...prepared,
     source: {
       kind: 'git',
       repo: '.',
@@ -670,7 +669,10 @@ for (let attempt = 1; attempt <= 5; attempt++) {
     break;
   }
 
-  prompt = kickBack({ findings, previousPrompt: prompt });
+  prepared = {
+    ...prepared,
+    prompt: kickBack({ findings, previousPrompt: prepared.prompt }),
+  };
 }
 ```
 
@@ -695,20 +697,22 @@ async function callModel(prompt: string): Promise<string> {
   return message.content[0].type === 'text' ? message.content[0].text : '';
 }
 
-let prompt = prepare({ scope, config, original: userPrompt });
+let prepared = prepare({ scope, config, original: userPrompt });
 
 for (let attempt = 1; attempt <= 5; attempt++) {
-  const response = await callModel(prompt);
+  const response = await callModel(prepared.prompt);
   await writeFilesFromDiff(response, '.effective/work');
 
   const { verdict, findings } = await verify({
-    scope,
-    config,
+    ...prepared,
     source: { kind: 'git', repo: '.', work: 'feature-x', baseline: 'main' },
   });
 
   if (verdict === 'pass') break;
-  prompt = kickBack({ findings, previousPrompt: prompt });
+  prepared = {
+    ...prepared,
+    prompt: kickBack({ findings, previousPrompt: prepared.prompt }),
+  };
 }
 ```
 
@@ -862,17 +866,59 @@ constitution closer to strict.
 
 ## Understanding `prepare()` output
 
-When you call `prepare({ scope, config, original })`, the returned string
-is your original prompt augmented with three things, in order:
+When you call `prepare({ scope, config, original })`, you get back a
+`PreparedAgent` bundle:
+
+```ts
+{
+  prompt: string; // the augmented prompt — what you dispatch
+  scope: Scope; // the scope you passed in, returned for type-safe spread
+  config: Constitution; // the constitution you passed in, returned for type-safe spread
+  mode: 'full' | 'concise'; // which projection was rendered
+}
+```
+
+The `prompt` is your original prompt augmented with three things, in order:
 
 1. The scope context (goal, role, editable paths, expectations)
 2. The relevant rule guidance for the scope
 3. The Pre-Success Checklist — the items the worker should verify before
-   marking the work done
+   marking the work done (full mode only; concise mode omits the checklist)
 
 The output is plain text designed to be passed verbatim to the model. You
 don't need to parse or post-process it. The structure is consistent enough
 that workers learn to read it the same way every time.
+
+The `scope` and `config` fields are returned so the same values can flow
+into `verify()` via spread: `await verify({ ...prepared, source })`. This
+keeps the prepare → verify roundtrip honest at the type level — the
+scope and config the worker was prepared against are exactly the ones
+verify evaluates them by. Without the bundle, the two calls were
+independent and drift was caller-hygiene.
+
+### `mode: 'full' | 'concise'`
+
+Default is `'full'`. Pass `mode: 'concise'` to emit a much shorter
+projection — one-line summaries of applicable rules with no guidance,
+no examples, no checklist. Typical size against the recommended preset:
+~3–5 KB vs. ~15–30 KB for full mode.
+
+Use concise mode when:
+
+- You're calling `prepare()` at high frequency (per agent step in a
+  long-running runner)
+- The `verify` + `kickBack` loop is your safety net — kickBack already
+  re-emits a tripped rule's full guidance, so the agent learns
+  specifics on demand rather than memorizing the catalogue up front
+- The token bill matters at scale
+
+Use full mode (the default) when:
+
+- An agent is new to a role and needs the catalogue up front
+- You're in retrospective dialog walking through what fired and why
+- Dispatch is infrequent and the cost is irrelevant
+
+See `docs/examples/agent-loop-integration.md` for the canonical wiring.
 
 ### What gets added to your prompt
 

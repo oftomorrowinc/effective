@@ -117,20 +117,24 @@ describe('verify — end-to-end', () => {
 });
 
 describe('full loop: prepare → verify → kickBack → next prompt', () => {
-  it('preserves rule ids across all three projections', async () => {
+  it('preserves rule ids across all three projections; bundle spreads cleanly into verify', async () => {
     const config: Constitution = { rules: [patternRule('no-todo'), laneRule()] };
     const s = scope('code-writer', { goal: 'Implement rate limiter', editable: ['app/**'] });
-    const prompt = prepare({
+    const prepared = prepare({
       scope: s,
       config,
       original: 'Build the rate limiter for /api/signals.',
     });
-    expect(prompt).toContain('no-todo');
-    expect(prompt).toContain('lane.editable-respected');
+    expect(prepared.prompt).toContain('no-todo');
+    expect(prepared.prompt).toContain('lane.editable-respected');
+    expect(prepared.scope).toBe(s);
+    expect(prepared.config).toBe(config);
 
+    // Spreading the bundle into verify is the canonical pattern — the
+    // type system enforces "the scope I prepared for is the scope I
+    // verify against."
     const result = await verify({
-      scope: s,
-      config,
+      ...prepared,
       source: {
         kind: 'inline',
         changedFiles: [
@@ -140,7 +144,7 @@ describe('full loop: prepare → verify → kickBack → next prompt', () => {
       },
     });
     expect(result.verdict).toBe('fail');
-    const next = kickBack({ findings: result.findings, previousPrompt: prompt });
+    const next = kickBack({ findings: result.findings, previousPrompt: prepared.prompt });
     expect(next).toContain('no-todo');
     expect(next).toContain('lane.editable-respected');
     expect(next).toContain('Build the rate limiter for /api/signals.');
