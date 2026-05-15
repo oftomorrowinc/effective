@@ -269,6 +269,15 @@ Each finding carries:
 
 `CRITICAL` findings fail the verdict. Anything else is informational, recorded in the findings list, but doesn't fail.
 
+**Programmatic-API options for runners.** `verify()` accepts a few options designed for callers wiring it into long-running agent loops:
+
+- **`skipCategories: ['toolchain']`** — skip rules whose `category` matches. Lets inline-source callers gate per-step without spawning lint/typecheck/test (slow, wrong-by-design at intermediate commits); toolchain rules still run at PR time via `effective verify --against main`.
+- **`skipRules: ['rule-id']`** — surgical opt-out by rule id.
+- **`keepWorktree: 'on-pass' | 'always' | 'never'`** — controls cleanup of `.effective/work` after a verify run. Default `'on-pass'` (preserved on failure so you can `cd` in and inspect). CLI flag: `--keep-worktree[=mode]`.
+- **`skipInstall: true`** — skip the post-checkout install in the worktree. Combine with `keepWorktree: 'always'` for fast iteration over a pre-populated worktree. CLI flag: `--skip-install`.
+
+Skipped rules appear in `result.skipped` with reason `'category-excluded'` / `'rule-excluded'`. See [docs/examples/agent-loop-integration.md](./docs/examples/agent-loop-integration.md) for the canonical runner wiring.
+
 ### `kickBack()` — turn findings into the next prompt
 
 ```ts

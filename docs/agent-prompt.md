@@ -305,6 +305,91 @@ disable block.
 
 ---
 
+## Programmatic-API integration (long-running agent runners)
+
+When the user is wiring `prepare` + `verify` into their own runner
+(not invoking the CLI from CI), three additions matter beyond what
+the CLI exposes:
+
+**`prepare()` returns `PreparedAgent`, not a bare string.** The
+shape is `{ prompt, scope, config, mode }`. Spread the bundle into
+`verify` — the type system then enforces that the scope and config
+the worker was prepared against are the same ones verify evaluates
+by:
+
+```ts
+const prepared = prepare({ scope, config, original });
+// dispatch agent with prepared.prompt
+const result = await verify({ ...prepared, source });
+```
+
+Without the bundle, the two calls were independent and drift was
+caller-hygiene. This is the canonical pattern.
+
+**`mode: 'concise'` for high-frequency dispatch.** Default `'full'`
+emits every applicable rule's full guidance + examples + checklist
+(15–30 KB depending on rule count). `'concise'` emits role
+identity + editable paths + expectations + one-line summary of
+each rule (~3–5 KB). For a runner doing per-step dispatch on every
+agent step (sometimes hundreds per workflow), the token bill at
+production scale matters. The verify + kickBack loop is the safety
+net — kickBack re-emits a tripped rule's full guidance on retry,
+so the agent learns specifics on demand rather than memorizing
+the catalogue up front.
+
+Use `'concise'` at per-step dispatch when verify is the gate; use
+`'full'` (default) when an agent is new to a role, in
+retrospective dialog, or when dispatch is infrequent.
+
+**`skipCategories: ['toolchain']` for per-step gating.** At
+intermediate workflow steps, spawning lint / typecheck / test is
+slow (1–5s per run) and wrong by design (a test-writer's commit is
+supposed to fail `toolchain.tests-pass` because implementation
+lands later). For inline-source per-step verify, skip the
+toolchain category cleanly:
+
+```ts
+const result = await verify({
+  ...prepared,
+  source: { kind: 'inline', changedFiles },
+  skipCategories: ['toolchain'],
+});
+```
+
+Toolchain rules still fire at PR time via the CLI `effective
+verify --against main` against the committed branch. Skipped rules
+appear in `result.skipped` with reason `'category-excluded'`.
+
+For surgical opt-outs by rule id, `skipRules: ['rule.id']` is
+parallel.
+
+See `docs/examples/agent-loop-integration.md` for the canonical
+runner wiring (template load → interpolate → prepare → dispatch →
+verify → kickback).
+
+## Worktree-iteration affordances
+
+For adopters debugging a verify failure or iterating on the
+constitution itself, two CLI flags matter:
+
+- **`--keep-worktree`** — default is `on-pass`: the `.effective/work`
+  worktree is preserved if the run produced any CRITICAL finding so
+  the user can `cd .effective/work && pnpm typecheck` and see the
+  real error. Pass `--keep-worktree=always` for unconditional
+  preservation (iterating on the constitution), `=never` for
+  ephemeral CI runners. Programmatic-API equivalent:
+  `verify({ ..., keepWorktree: 'always' })`.
+
+- **`--skip-install`** — by default `prepareWorktree` runs the
+  project's lockfile install in the worktree after `git worktree
+add`. This is what gives workspace projects their per-package
+  `node_modules`. When iterating with a pre-populated worktree
+  (combine with `--keep-worktree=always`), `--skip-install` skips
+  the re-install for fast turnaround. Programmatic:
+  `verify({ ..., skipInstall: true })`.
+
+---
+
 ## Common project-shape variations
 
 The `docs/examples/` directory covers project shapes one at a time.
