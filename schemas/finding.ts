@@ -125,6 +125,36 @@ export type Finding = z.infer<typeof Finding>;
 export const Verdict = z.enum(['pass', 'fail', 'needs-review']);
 export type Verdict = z.infer<typeof Verdict>;
 
+/**
+ * A rule that was NOT evaluated during a pass, with the reason. Shared
+ * between `verify()` and `audit()` so consumers (reporters, dashboards)
+ * see the same shape regardless of which entry point produced the run.
+ *
+ * Reasons:
+ * - `diff-only`        rule has `diffOnly: true`; `audit` has no diff
+ * - `lane-no-scope`    rule is a lane rule and the run has no scope
+ *                      (e.g., `audit` without a scope.editable)
+ * - `meta-no-report`   rule is a meta rule and no `agentReport` was
+ *                      passed to `verify()`
+ * - `toolchain-not-included` audit default; caller did not pass
+ *                      `--include-toolchain` / `includeToolchain: true`
+ * - `category-excluded`  caller passed the rule's `category` in
+ *                      `skipCategories`
+ * - `rule-excluded`    caller passed the rule's id in `skipRules`
+ */
+export const SkippedRule = z.object({
+  ruleId: z.string(),
+  reason: z.enum([
+    'diff-only',
+    'lane-no-scope',
+    'meta-no-report',
+    'toolchain-not-included',
+    'category-excluded',
+    'rule-excluded',
+  ]),
+});
+export type SkippedRule = z.infer<typeof SkippedRule>;
+
 export const VerifyResult = z.object({
   verdict: Verdict,
   findings: z.array(Finding),
@@ -158,5 +188,12 @@ export const VerifyResult = z.object({
    * preset-author choices, not project drift signal).
    */
   disabledRulesCount: z.number().int().nonnegative().optional(),
+  /**
+   * Rules that did NOT run during this verify pass, with reason. For
+   * verify, this is non-empty only when the caller passed
+   * `skipCategories` or `skipRules`. (Unlike audit, verify never
+   * skips rules by context.)
+   */
+  skipped: z.array(SkippedRule).optional(),
 });
 export type VerifyResult = z.infer<typeof VerifyResult>;

@@ -8,7 +8,15 @@ import { loadGitSource, loadStagedSource } from './source/git-source.js';
 import { computeVerdict, summarizeFindings } from './verdict.js';
 import { builtInChecks, presets } from './presets/index.js';
 import { scanFilesForEscapeHatches } from './escape-hatches/scan.js';
-import type { Constitution, ExceptionRegistry, Finding, Scope, VerifyResult } from './schemas.js';
+import type {
+  Constitution,
+  ExceptionRegistry,
+  Finding,
+  RuleCategory,
+  Scope,
+  SkippedRule,
+  VerifyResult,
+} from './schemas.js';
 import type { CommitMetadata, CustomCheck } from './source/types.js';
 
 function withBuiltInPresets(options: ResolveOptions): ResolveOptions {
@@ -95,6 +103,29 @@ export interface VerifyInput {
    * mounted node_modules some other way. Default: false (install runs).
    */
   skipInstall?: boolean;
+  /**
+   * Skip rules whose `category` field matches any value in this list.
+   * Mirrors `audit`'s `--include-toolchain` opt-in but in reverse: by
+   * default `verify` runs every rule that's applicable for the scope,
+   * which forces inline-source callers to either spawn real toolchain
+   * commands (slow, wrong-by-design at intermediate workflow steps) or
+   * supply synthetic passing `toolchainResults`. `skipCategories:
+   * ['toolchain']` lets a long-running runner do per-step gate checks
+   * (lane, schema, meta, custom) at millisecond latency and defer
+   * lint/typecheck/test/coverage to the PR-time CLI `verify --against`
+   * pass.
+   *
+   * Skipped rules appear in `result.skipped` so callers can audit the
+   * skip decision after the fact.
+   */
+  skipCategories?: readonly RuleCategory[];
+  /**
+   * Skip specific rules by id. Combined with `skipCategories` as a
+   * union — a rule that matches either is skipped. Use this for
+   * surgical opt-outs when category-level skipping would be too
+   * broad.
+   */
+  skipRules?: readonly string[];
 }
 
 export function dedupeBySignature(findings: readonly Finding[]): Finding[] {
@@ -178,17 +209,34 @@ export async function verify(input: VerifyInput): Promise<VerifyResult> {
       ctx = { ...ctx, commitMetadata: { ...ctx.commitMetadata, ...input.commitMetadata } };
     }
 
+    const skipCategorySet = new Set<RuleCategory>(input.skipCategories ?? []);
+    const skipRuleSet = new Set<string>(input.skipRules ?? []);
+    const skipped: SkippedRule[] = [];
     const findings: Finding[] = [];
     for (const rule of resolved.rules.values()) {
+      if (skipRuleSet.has(rule.id)) {
+        skipped.push({ ruleId: rule.id, reason: 'rule-excluded' });
+        continue;
+      }
+      if (skipCategorySet.has(rule.category)) {
+        skipped.push({ ruleId: rule.id, reason: 'category-excluded' });
+        continue;
+      }
       if (!ruleAppliesToRole(rule, scope.role)) continue;
       const ruleFindings = await checkRule(rule, ctx);
       findings.push(...ruleFindings);
     }
     // On a passing run, fold in pre-parsed toolchain findings that no rule
-    // explicitly consumed — they're still valuable signal.
-    for (const toolResult of Object.values(ctx.toolchainResults)) {
-      for (const finding of toolResult.findings ?? []) {
-        findings.push(finding);
+    // explicitly consumed — they're still valuable signal. Skip when the
+    // caller asked us not to run the toolchain category at all (otherwise
+    // we'd surface findings from results the caller may not have supplied
+    // by hand, e.g. when feeding empty toolchainResults to keep the engine
+    // honest).
+    if (!skipCategorySet.has('toolchain')) {
+      for (const toolResult of Object.values(ctx.toolchainResults)) {
+        for (const finding of toolResult.findings ?? []) {
+          findings.push(finding);
+        }
       }
     }
 
@@ -202,6 +250,7 @@ export async function verify(input: VerifyInput): Promise<VerifyResult> {
       summary: summarizeFindings(deduped),
       escapeHatchCount,
       disabledRulesCount,
+      ...(skipped.length > 0 ? { skipped } : {}),
     };
     // Decide cleanup policy after we know the verdict so 'on-pass' can
     // preserve the worktree when something failed and the adopter

@@ -1,5 +1,5 @@
 export { prepare } from './prepare.js';
-export type { PrepareInput } from './prepare.js';
+export type { PrepareInput, PreparedAgent } from './prepare.js';
 export { verify } from './verify.js';
 export type { GitSource, StagedSource, VerifyInput, VerifySource } from './verify.js';
 export type { FindingSummary } from './verdict.js';

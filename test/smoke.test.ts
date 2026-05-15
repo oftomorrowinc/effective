@@ -67,7 +67,7 @@ describe('severity vocabulary', () => {
 describe('phase-1 progress: orchestrators reachable', () => {
   const stubScope = { goal: 'noop', editable: [], role: 'free-form' as const };
 
-  it('prepare() returns a non-empty augmented prompt', () => {
+  it('prepare() returns a PreparedAgent bundle with non-empty prompt', () => {
     const out = prepare({
       scope: stubScope,
       config: {
@@ -87,8 +87,10 @@ describe('phase-1 progress: orchestrators reachable', () => {
       } as never,
       original: 'x',
     });
-    expect(typeof out).toBe('string');
-    expect(out.length).toBeGreaterThan(0);
+    expect(typeof out.prompt).toBe('string');
+    expect(out.prompt.length).toBeGreaterThan(0);
+    expect(out.mode).toBe('full');
+    expect(out.scope).toBe(stubScope);
   });
 
   it('verify() resolves to a pass verdict on an empty diff with a non-empty constitution', async () => {
