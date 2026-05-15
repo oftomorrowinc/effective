@@ -137,4 +137,13 @@ publish --tag rc` only updates `rc`. Could be scripted (a
 --skip-install`), but smarter caching would be a nice DX win —
   e.g., hash the lockfile and skip install when the hash matches.
 
+- **`CHANGELOG.md` not in the npm tarball.** The `files` array in
+  `package.json` ships `README.md`, `LICENSE`, `CONTRIBUTING.md`,
+  `CONSTITUTION.md`, and `dist/`. Adopters reading the package on
+  npmjs.com can't see what changed between releases without
+  navigating to GitHub. One-line fix: add `"CHANGELOG.md"` to
+  `files`. Land with any next protected-path PR (since touching
+  `package.json` already requires the admin-bypass dance for the
+  version bump). Cheap, no downsides, just got missed.
+
 These are noted, not assigned, not blocking.
