@@ -754,6 +754,90 @@ npx effective verify --work pr-123 --baseline main
 The package creates an isolated worktree of `pr-123`, runs the toolchain
 there, and returns findings without touching your working tree.
 
+### Verify options for runners and iterative debugging
+
+Beyond the basic `verify({ scope, config, source })` call, the
+programmatic API and CLI both surface several options designed for
+two specific shapes of caller: long-running agent runners (per-step
+inline verification) and adopters iterating on the constitution
+itself (fast worktree reuse).
+
+**`skipCategories` / `skipRules`** — skip rules during a verify
+pass. The programmatic-API mirror of `audit`'s
+`--include-toolchain` opt-in, in reverse:
+
+```ts
+const result = await verify({
+  ...prepared,
+  source: { kind: 'inline', changedFiles },
+  skipCategories: ['toolchain'],
+  // OR: skipRules: ['toolchain.lint-clean', 'toolchain.tests-pass'],
+});
+```
+
+The primary use case is inline-source callers in agent runners
+doing per-step gating. Spawning lint/typecheck/test on every step
+is slow (1–5s per run) and wrong-by-design at intermediate commits
+(a test-writer's commit is supposed to fail `tests-pass` because
+implementation lands later in the chain). Skip toolchain at
+per-step gates; let toolchain rules fire at PR time via
+`effective verify --against main` against the committed branch.
+
+Skipped rules show up in `result.skipped` with reason
+`'category-excluded'` or `'rule-excluded'`, parallel to audit's
+existing skipped-rules output. The shape is shared (`SkippedRule`).
+
+The CLI's `verify --against` path runs every applicable rule by
+default — `skipCategories` is programmatic-API-only. Callers
+wiring the CLI into CI should use `disable` in their
+`effective.config.ts` if they want a permanent opt-out rather than
+a per-invocation skip.
+
+**`keepWorktree` — control `.effective/work` cleanup.** Default
+`'on-pass'`: keep the worktree if the run produced any CRITICAL
+finding so you can `cd .effective/work && pnpm typecheck` and see
+the real error. `'always'`: keep regardless of verdict (useful for
+iterative debugging). `'never'`: always remove (appropriate for
+ephemeral CI runners).
+
+```ts
+const result = await verify({ ...prepared, source, keepWorktree: 'always' });
+```
+
+CLI:
+
+```bash
+npx effective verify --against main --keep-worktree         # =always
+npx effective verify --against main --keep-worktree=on-pass # default
+npx effective verify --against main --keep-worktree=never   # CI
+npx effective verify --against main --no-keep-worktree      # =never
+```
+
+**`skipInstall` — skip the worktree's lockfile install.**
+`prepareWorktree` runs `pnpm install --frozen-lockfile` / `npm ci`
+/ `yarn install --immutable` in the worktree after `git worktree
+add` — this is what populates per-package `node_modules` so
+workspace projects' `tsc` and `vitest` find their binaries.
+Adopters who've populated `node_modules` some other way (e.g.,
+mounted from a previous run via `--keep-worktree=always`) can skip
+it:
+
+```ts
+const result = await verify({ ...prepared, source, skipInstall: true });
+```
+
+CLI: `--skip-install`. The combination
+`--keep-worktree=always --skip-install` is the fast-iteration
+default for working on the constitution itself.
+
+### Programmatic vs. CLI surface
+
+The CLI is the cleanest path for CI integration and ad-hoc
+adopters; the programmatic API is for callers building runners,
+gates, or custom tooling. Both share the same engine; both consume
+the same `effective.config.{ts,js}`. Switching between them is
+zero-cost — your config doesn't change.
+
 ---
 
 ## Adopting on an existing codebase
