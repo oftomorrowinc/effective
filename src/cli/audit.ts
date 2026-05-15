@@ -1,8 +1,8 @@
 import path from 'node:path';
 import { loadConfig, loadConfigFromPath } from '../config/load.js';
 import { audit } from '../audit.js';
-import type { AuditResult, AuditSkipReason } from '../audit.js';
-import type { Finding, Severity } from '../schemas.js';
+import type { AuditResult } from '../audit.js';
+import type { Finding, Severity, SkippedRule } from '../schemas.js';
 import type { ParsedArgs } from './args.js';
 
 export interface AuditCliResult {
@@ -68,7 +68,7 @@ function renderPretty(result: AuditResult): string {
     }
   }
   if (skipped.length > 0) {
-    const grouped = new Map<AuditSkipReason['reason'], string[]>();
+    const grouped = new Map<SkippedRule['reason'], string[]>();
     for (const s of skipped) {
       const arr = grouped.get(s.reason) ?? [];
       arr.push(s.ruleId);
