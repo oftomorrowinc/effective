@@ -20,6 +20,52 @@ export interface PrepareInput {
   config: Constitution;
   original: string;
   resolveOptions?: ResolveOptions;
+  /**
+   * How much rule content to project into the prompt.
+   *
+   * - `'full'` (default): role identity + editable paths + expectations
+   *   + spec ref + every applicable rule's full prompt projection
+   *   (summary, guidance, bad/good examples) + the per-rule checklist
+   *   + verification footer. The canonical adoption shape — agents
+   *   learn the catalogue up front. Runs 15–30 KB depending on the
+   *   number of applicable rules.
+   *
+   * - `'concise'`: role identity + editable paths + expectations +
+   *   spec ref + one-line summary of each applicable rule + brief
+   *   verification footer. No guidance, no examples, no checklist.
+   *   Designed for high-frequency dispatch in long-running agent
+   *   runners where `verify` / `kickBack` is the authoritative
+   *   safety net and is expected to teach catalogue rules rule-by-
+   *   rule on retry. Typical size: ~3–5 KB even against the full
+   *   recommended preset. Use full mode when an agent is new to a
+   *   role or in retrospective dialog; use concise at dispatch when
+   *   the verify-kickback loop will surface specifics on demand.
+   */
+  mode?: 'full' | 'concise';
+}
+
+/**
+ * Bundle returned from `prepare()`. Carrying `scope` and `config`
+ * alongside the rendered prompt lets callers feed `verify()` the same
+ * inputs via spread, so the type system enforces "the scope I prepared
+ * for is the scope I verify against." Without the bundle, callers had
+ * to remember to pass identical scope/config to both calls — a real
+ * caller-hygiene gap when prepare and verify happen in different
+ * modules.
+ *
+ *   const prepared = prepare({ scope, config, original });
+ *   // dispatch agent with prepared.prompt
+ *   const result = await verify({ ...prepared, source });
+ */
+export interface PreparedAgent {
+  /** The rendered prompt — what the caller hands to the agent. */
+  prompt: string;
+  /** The scope used to render the prompt. Spreadable into `verify()`. */
+  scope: Scope;
+  /** The constitution used. Spreadable into `verify()`. */
+  config: Constitution;
+  /** Which projection mode was rendered. */
+  mode: 'full' | 'concise';
 }
 
 function formatRule(rule: Rule): string {
@@ -51,7 +97,45 @@ function formatEditable(scope: ResolvedScope): string {
   return scope.editable.map((p) => `- \`${p}\``).join('\n');
 }
 
-export function prepare(input: PrepareInput): string {
+function renderRulesFull(rules: readonly Rule[]): string[] {
+  if (rules.length === 0) {
+    return ['_No rules apply to this scope. Continue with care; the constitution is empty._'];
+  }
+  const out: string[] = [
+    `${String(rules.length)} rule(s) apply to this scope. Each one will be checked deterministically when you submit.`,
+  ];
+  for (const rule of rules) {
+    out.push('', formatRule(rule));
+  }
+  return out;
+}
+
+function renderRulesConcise(rules: readonly Rule[]): string[] {
+  if (rules.length === 0) {
+    return ['_No rules apply to this scope._'];
+  }
+  const out: string[] = [
+    `${String(rules.length)} rule(s) apply. Summary only — each rule's full guidance fires through \`verify\` + \`kickBack\` on retry.`,
+    '',
+  ];
+  for (const rule of rules) {
+    out.push(
+      `- \`${rule.id}\` (${rule.defaultSeverity}, ${rule.category}) — ${rule.prompt.summary}`,
+    );
+  }
+  return out;
+}
+
+const VERIFICATION_FOOTER_FULL =
+  'After you submit, `verify()` runs every rule above against your diff plus the project toolchain (lint, typecheck, tests, coverage). ' +
+  'Only `CRITICAL` findings fail the verdict; `HIGH`/`MED`/`LOW` are recorded as signal. ' +
+  'You have the time to do this work right. Honest failure with a diagnostic message is preferable to a shallow success.';
+
+const VERIFICATION_FOOTER_CONCISE =
+  'After you submit, `verify()` runs the rules listed above. If any fire, `kickBack()` will return the full guidance for the specific rule(s) you tripped — you do not need to internalize every rule up front. Honest failure with a diagnostic message is preferable to a shallow success.';
+
+export function prepare(input: PrepareInput): PreparedAgent {
+  const mode: PreparedAgent['mode'] = input.mode ?? 'full';
   const resolved = resolveConstitution(
     input.config,
     withBuiltInPresets(input.resolveOptions ?? {}),
@@ -83,31 +167,33 @@ export function prepare(input: PrepareInput): string {
     );
   }
 
-  sections.push('', '## Applicable rules');
-  if (rules.length === 0) {
-    sections.push('_No rules apply to this scope. Continue with care; the constitution is empty._');
-  } else {
+  sections.push(
+    '',
+    '## Applicable rules',
+    ...(mode === 'concise' ? renderRulesConcise(rules) : renderRulesFull(rules)),
+  );
+
+  if (mode === 'full') {
     sections.push(
-      `${String(rules.length)} rule(s) apply to this scope. Each one will be checked deterministically when you submit.`,
+      '',
+      renderChecklist({
+        scope,
+        applicableRules: rules,
+        allRules: [...resolved.rules.values()],
+      }),
     );
-    for (const rule of rules) {
-      sections.push('', formatRule(rule));
-    }
   }
 
   sections.push(
     '',
-    renderChecklist({
-      scope,
-      applicableRules: rules,
-      allRules: [...resolved.rules.values()],
-    }),
-    '',
     '## How verification will run',
-    'After you submit, `verify()` runs every rule above against your diff plus the project toolchain (lint, typecheck, tests, coverage). ' +
-      'Only `CRITICAL` findings fail the verdict; `HIGH`/`MED`/`LOW` are recorded as signal. ' +
-      'You have the time to do this work right. Honest failure with a diagnostic message is preferable to a shallow success.',
+    mode === 'concise' ? VERIFICATION_FOOTER_CONCISE : VERIFICATION_FOOTER_FULL,
   );
 
-  return sections.join('\n');
+  return {
+    prompt: sections.join('\n'),
+    scope: input.scope,
+    config: input.config,
+    mode,
+  };
 }

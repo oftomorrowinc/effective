@@ -6,7 +6,45 @@ project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed (BREAKING)
+
+- **`prepare()` now returns `PreparedAgent` (was `string`).** The new
+  shape is `{ prompt, scope, config, mode }`. Callers update one line:
+
+  ```ts
+  // before:
+  const prompt = prepare({ scope, config, original });
+
+  // after:
+  const { prompt } = prepare({ scope, config, original });
+
+  // or, preferred — spread the bundle into verify so the type system
+  // enforces that scope+config are the same on both sides:
+  const prepared = prepare({ scope, config, original });
+  const result = await verify({ ...prepared, source });
+  ```
+
+  Motivation surfaced by Core 2.0's runner integration: `prepare()`
+  and `verify()` were called in different modules; nothing forced
+  the scope and config flowing into both to agree. The bundle fixes
+  that at compile time. The 30-second migration cost is worth the
+  drift guarantee in 0.x prerelease.
+
 ### Added
+
+- **`prepare({ ..., mode: 'concise' })`.** New projection mode for
+  high-frequency dispatch in long-running agent runners. Emits role
+  identity + editable paths + expectations + one-line summary of
+  each applicable rule + brief verification footer. No `guidance`,
+  no `examples`, no checklist. Against the recommended preset,
+  output drops from ~28 KB (full mode) to ~6 KB — a 4–5× reduction.
+  The verify + kickBack loop is the safety net: when an agent
+  trips a rule, kickBack already re-emits that rule's full
+  guidance, so concise mode at dispatch + full guidance on retry
+  avoids front-loading the whole catalogue every step. Default
+  remains `'full'`. Requested by Core 2.0's runner — token bill at
+  production scale matters. Walked example in
+  `docs/examples/agent-loop-integration.md`.
 
 - **`skipCategories` and `skipRules` options on `verify()`; new
   `SkippedRule` shape; `result.skipped` lists what didn't run.**

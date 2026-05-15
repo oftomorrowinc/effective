@@ -66,19 +66,21 @@ const scope = {
   },
 };
 
-let prompt = prepare({ scope, config, original: userPrompt });
+let prepared = prepare({ scope, config, original: userPrompt });
 
 for (let attempt = 1; attempt <= 5; attempt++) {
-  await callModel(prompt); // your model, your creds; writes to the worktree
+  await callModel(prepared.prompt); // your model, your creds; writes to the worktree
 
   const { verdict, findings } = await verify({
-    scope,
-    config,
+    ...prepared, // scope + config flow through the bundle — same values prepare used
     source: { kind: 'git', repo: '.', work: 'feature-x', baseline: 'main' },
   });
 
   if (verdict === 'pass') return { ok: true, attempts: attempt };
-  prompt = kickBack({ findings, previousPrompt: prompt });
+  prepared = {
+    ...prepared,
+    prompt: kickBack({ findings, previousPrompt: prepared.prompt }),
+  };
 }
 
 throw new Error('attempts exhausted — needs human review');
@@ -230,7 +232,9 @@ When you add a rule, both projections update. When you change a rule, both updat
 ### `prepare()` — augment the prompt before the worker starts
 
 ```ts
-const augmentedPrompt = prepare({ scope, config, original: userPrompt });
+const prepared = prepare({ scope, config, original: userPrompt });
+// prepared.prompt — the augmented prompt to dispatch
+// prepared.scope, prepared.config — the same values, spreadable into verify()
 ```
 
 `prepare` reads the constitution and the scope, selects the rules that apply to this kind of work, and produces an augmented prompt that includes:
@@ -242,6 +246,10 @@ const augmentedPrompt = prepare({ scope, config, original: userPrompt });
 - An explicit commitment that the worker has the time to do the work right, and a clear statement that shortcuts will be caught and kicked back
 
 The worker reads the augmented prompt and knows what _done_ means before starting.
+
+**Two projection modes.** `mode: 'full'` (default) emits every applicable rule's full guidance + examples + checklist (~15–30 KB depending on rule count). `mode: 'concise'` emits one-line summaries only (~3–5 KB) for callers wiring `prepare` into a high-frequency dispatch loop where `verify` + `kickBack` is the safety net — kickBack re-emits a tripped rule's full guidance on retry, so the agent learns specifics on demand without front-loading the catalogue. See [docs/examples/agent-loop-integration.md](./docs/examples/agent-loop-integration.md) for the wiring.
+
+**The bundle (`prepared`) is the canonical handoff to verify.** `prepare()` returns `{ prompt, scope, config, mode }`; spreading that into `verify({ ...prepared, source })` ensures the scope and config that flowed into prepare are the same ones verify evaluates against — the type system catches drift that would otherwise be caller-hygiene.
 
 ### `verify()` — check the output against the rules
 
