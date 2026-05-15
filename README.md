@@ -1,4 +1,4 @@
-> **⚠️ Active Development — last reviewed 2026-05-12**
+> **⚠️ Active Development — last reviewed 2026-05-14**
 >
 > Effective is in active development and pre-1.0. The API, schema, and
 > rule behavior may change between versions. We're using `v0.1.0-rc.*`
