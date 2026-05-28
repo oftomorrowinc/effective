@@ -586,41 +586,7 @@ The constitution itself is append-only in spirit: entries can be deprecated (pat
 
 ## Acknowledgments
 
-Effective is shaped by feedback from real adoption in real codebases.
-Particular thanks to the people whose dogfooding and pointed critique
-across rc.3 → rc.7 made the package what it is:
-
-- **Eric Marcoullier** — early-adopter integration in a long-lived
-  polyglot pilot. Surfaced the long-lived integration branch
-  signal/noise problem, the elevated-PR / block-weakening gap on
-  protected configs, the modular governance-only preset ask, and the
-  baseline/ratchet need that's blocking adoption on existing
-  codebases. Also called out the verify-vs-staged ergonomics issue
-  and the severity-override-not-honored bug that now lives in
-  `docs/known-bugs.md`.
-- **Robertson Price** — dogfooded the runner-side integration of
-  `prepare()` and `verify()`. Drove the design of `mode: 'concise'`,
-  the `PreparedAgent` bundle for type-linked prepare→verify
-  roundtrips, the `skipCategories` opt-out, and the
-  `new-exports-have-non-test-callers` precision fix for tsx scripts +
-  framework-loaded page modules.
-- **David Sturgeon** — adopter on a pub-platform integration that
-  surfaced the `migration-has-exercising-test` precision concern on
-  pure DDL migrations, and the long-lived integration-branch
-  reviewer-noise problem from a different angle than Eric's pilot.
-- **John Sampson** — early reviewer who helped clarify the
-  agent-vs-human protected-path workflow and pressed the case for
-  formalizing it before it drifted into convention-only territory.
-- **Claude** — partner on every release-prep session from rc.3
-  forward. The "feature branch sits, gets batched into the next rc,
-  ships when there's enough delta" rhythm — and the matching
-  cadence of `docs/open-issues.md` capturing decisions for later —
-  came out of that collaboration.
-
-The catalogue's empirical bar (every entry has a real observed
-instance with provenance) only holds because real adopters were
-willing to run the package against work that mattered to them and
-report back what broke. Thank you.
+Thank you for all the feedback, ideas, and contributions that helped improve Effective: Eric Marcoullier, Robertson Price, David Sturgeon, John Sampson, and Claude.
 
 ---
 
