@@ -166,4 +166,57 @@ describe('no-hardcoded-secrets (foundation)', () => {
     });
     expect(result.verdict).toBe('fail');
   });
+
+  it('does NOT fire on a markdown doc quoting an AWS canonical example key', async () => {
+    // The rule used to default `in` to `**/*`, which caught its own
+    // documentation: docs/failure-modes.md quotes AWS's canonical
+    // `AKIA...EXAMPLE` shape to demonstrate what the rule catches,
+    // and the rule then fired on the doc itself. The narrowed glob
+    // (`**/*.{ts,tsx,js,jsx,mjs,cjs,mts,cts,json,yaml,yml}`) excludes
+    // Markdown so docs can illustrate the pattern without false
+    // positives.
+    const token = 'AKIA' + 'IOSFODNN7EXAMPLE';
+    const result = await verify({
+      scope: scope('code-writer'),
+      config: { extends: ['recommended'] },
+      source: {
+        kind: 'inline',
+        changedFiles: [
+          changed(
+            'docs/failure-modes.md',
+            `Example error output:\n\nconst TEST_TOKEN = "${token}";\n`,
+          ),
+        ],
+      },
+    });
+    expect(result.findings.some((f) => f.ruleId === 'no-hardcoded-secrets')).toBe(false);
+  });
+
+  it('still fires on JSON config files (where real secrets often live)', async () => {
+    const token = 'AKIA' + 'IOSFODNN7EXAMPLE';
+    const result = await verify({
+      scope: scope('code-writer'),
+      config: { extends: ['recommended'] },
+      source: {
+        kind: 'inline',
+        changedFiles: [changed('config/credentials.json', `{ "awsAccessKey": "${token}" }\n`)],
+      },
+    });
+    expect(result.findings.some((f) => f.ruleId === 'no-hardcoded-secrets')).toBe(true);
+  });
+
+  it('still fires on YAML config files (CI workflows, k8s, etc.)', async () => {
+    const token = 'AKIA' + 'IOSFODNN7EXAMPLE';
+    const result = await verify({
+      scope: scope('code-writer'),
+      config: { extends: ['recommended'] },
+      source: {
+        kind: 'inline',
+        changedFiles: [
+          changed('.github/workflows/deploy.yml', `env:\n  AWS_ACCESS_KEY: "${token}"\n`),
+        ],
+      },
+    });
+    expect(result.findings.some((f) => f.ruleId === 'no-hardcoded-secrets')).toBe(true);
+  });
 });

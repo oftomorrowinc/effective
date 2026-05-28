@@ -313,3 +313,69 @@ If a specifically LLM-shaped sub-pattern emerges later (e.g.,
 implementing JSON-handling and forget to remove them"), that's a
 candidate for a new catalogue entry with the rule already in place
 as countermeasure. The plain rule ships first.
+
+---
+
+## Pattern-rule scope: source/config by default
+
+When you ship a pattern rule (`rule.forbidPattern` /
+`rule.requirePattern`), what should its `in` glob default to?
+
+The factory defaults to `**/*` (everything). That's the wrong
+default for almost every rule shipped in the preset, and the lesson
+keeps recurring:
+
+- **rc.3 escape-hatch scanner.** The scanner ran across every file
+  including Markdown, and caught code-fence examples in `README.md`
+  / `USAGE.md` that demonstrate suppression syntax. Fix: scope to
+  TS/JS source.
+- **rc.7 `no-hardcoded-secrets`.** The rule's regex matched AWS's
+  canonical `AKIAIOSFODNN7EXAMPLE` string quoted in
+  `docs/failure-modes.md` to illustrate what the rule catches. The
+  rule fired CRITICAL on its own documentation. Fix: scope to
+  source/config files.
+
+The pattern is consistent: pattern rules with broad globs catch
+their own illustrations. The recurring failure mode is "the rule
+fires on the docs that describe it." The fix is consistent too:
+narrow `in` to the file types where the failure mode actually
+exists (source code, config files), and let adopters override per
+project if they want broader coverage.
+
+```
+Q1: Is your rule looking for a code-level concern (debug output,
+    hardcoded secrets, forbidden imports, etc.)?
+    YES → set `in: '**/*.{ts,tsx,js,jsx,mjs,cjs}'`
+          (add `mts,cts,json,yaml,yml` if secrets-shaped values can
+          appear in config files too).
+    NO  → Q2.
+
+Q2: Is your rule looking for a documentation-level concern (broken
+    links, missing sections, prose patterns)?
+    YES → set `in: '**/*.{md,mdx}'`.
+    NO  → Q3.
+
+Q3: Does your rule need to scan every file regardless of type
+    (e.g., looking for credentials in build outputs, or scanning
+    the full tree for cross-cutting concerns)?
+    YES → leave `in` unset (defaults to `**/*`). Document why in a
+          comment; this is the exceptional case.
+    NO  → narrow to the smallest set of file types where the
+          concern actually applies, and let adopters override.
+```
+
+### Rule of thumb
+
+The default for a new pattern rule is "narrow `in` to the file
+types where the failure mode applies." `**/*` is reserved for the
+exceptional cases where the rule genuinely needs to see every
+file. Detection-before-exception (rules should fire precisely
+before adopters resort to escape hatches) argues for narrow defaults
+— a rule that catches its own documentation trains adopters to
+reach for `disable` or escape hatches reflexively.
+
+The pattern documented here is the convergence reached after
+shipping the same recurring failure mode twice across rc.3 and
+rc.7. New pattern rules in the preset should adopt the narrow
+default; the discussion that was tracked in `docs/open-issues.md`
+under "no-hardcoded-secrets rule scope" closes here.
