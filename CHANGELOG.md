@@ -6,6 +6,23 @@ project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- **Narrowed `no-hardcoded-secrets` `in` glob to source + config
+  files.** The rule previously defaulted to `**/*`, which caught
+  Markdown files quoting illustrative token shapes — most notably
+  `docs/failure-modes.md` quoting AWS's canonical
+  `AKIAIOSFODNN7EXAMPLE` string to demonstrate what the rule
+  catches, then firing CRITICAL on its own documentation. The
+  rule now scopes to
+  `**/*.{ts,tsx,js,jsx,mjs,cjs,mts,cts,json,yaml,yml}` — TypeScript
+  / JavaScript source plus JSON and YAML config (where real secrets
+  actually live: credentials files, CI workflows, k8s manifests).
+  Adopters wanting broader coverage (e.g., scanning Markdown for
+  accidentally-pasted keys) can override `in` per project. Rationale
+  captured in `docs/decisions.md` under "Pattern-rule scope:
+  source/config by default."
+
 ### Changed (BREAKING)
 
 - **`prepare()` now returns `PreparedAgent` (was `string`).** The new

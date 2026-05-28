@@ -1,0 +1,145 @@
+# Known bugs — needing reproduction + fix
+
+Engineering defects we've been told about (or have observed) but
+haven't yet fixed. Captured here so they're visible to anyone using
+effective during release prep without polluting the design-discussion
+doc (`docs/open-issues.md`) or the user-facing changelog
+(`CHANGELOG.md`).
+
+Each entry frames what's broken, where it was reported, the current
+reproduction status, the suspected cause, and the next investigation
+step. Entries leave this file when fixed — the audit trail lives in
+git history and the changelog under the version that shipped the fix.
+
+This file is for **behavior that is wrong**. Two adjacent files cover
+the neighboring cases:
+
+- `docs/open-issues.md` — deferred design questions ("should we add
+  this feature?", "how should this rule be scoped?"). If an entry in
+  this file turns out to be a design decision rather than a defect,
+  move it there.
+- `CHANGELOG.md` — shipped or shipping behavior. Once a bug here is
+  fixed, the resolution lands under `[Unreleased]` (or the next
+  version) and the entry is removed from this file.
+
+## How to add an entry
+
+Each entry follows this template:
+
+- **Short title.** Rule id, command name, or affected surface (e.g.,
+  `` `verify --staged` fails on detached HEAD ``).
+- **The bug.** One paragraph describing the observed behavior.
+- **Reported.** Where + when + by whom (external adopter, internal
+  CI, dogfood repo). Date helps the next person triaging staleness.
+- **Reproduction.** One of: `confirmed in-house`, `needs repro`,
+  `partially reproduced` (with notes on what conditions
+  reproduce vs don't).
+- **Suspected cause.** One or more numbered hypotheses about what's
+  going wrong. If the cause is confirmed, mark it `(confirmed)`;
+  otherwise leave as a hypothesis until the investigation step
+  resolves it.
+- **Next step.** Concrete action — minimal repro, code path to
+  inspect, adopter ask. Should be the thing that someone picking
+  up this entry would do next.
+- **Workaround (if known).** What adopters can do until the fix
+  lands. Optional — many bugs have no clean workaround.
+
+New entries go above the "Future additions" section at the bottom
+of this file.
+
+## How entries leave
+
+When a bug is fixed:
+
+1. The fix lands with a test that pins the resolved behavior.
+2. The entry is removed from this file.
+3. The fix is captured in `CHANGELOG.md` under the version that
+   ships it.
+
+When an entry turns out not to be a bug — the behavior is correct
+but the desired behavior is an open question — move it to
+`docs/open-issues.md` and re-frame as a design question.
+
+When an entry stales past reasonable repro effort (the reporter
+can't or won't help, no in-house repro after a few sessions),
+flag it as `stale` in the title and decide whether to keep
+tracking or to close as `cannot-reproduce` with a final note.
+
+---
+
+## `exceptions.must-cite-justification` severity override not honored
+
+**The bug.** Under a constitution that declares a severity override
+for `exceptions.must-cite-justification` (typically downgrading from
+CRITICAL to HIGH or lower), the rule continues to report at its
+declared default severity rather than the resolved (override-aware)
+one. Other rules in the same config that get overrides apply them
+correctly — the report is specific to
+`exceptions.must-cite-justification`. Observed in `effective audit`
+output; not yet confirmed in `effective verify`.
+
+**Reported.** External adopter pilot (Python+JS mixed repo),
+feedback received during rc.5 → rc.6 prep cycle. Not yet
+reproduced in-house. Originally captured in `docs/open-issues.md`
+under `[Bug]`; moved here when the doc separated design questions
+from engineering defects.
+
+**Reproduction.** Needs repro. Minimal target: a fresh JS
+constitution extending the recommended preset, with
+`override: { 'exceptions.must-cite-justification': { severity:
+'LOW', rationale: '...' } }` declared. A diff containing one
+uncited escape hatch (e.g., `// @ts-expect-error` without an
+`exception-id:` reference) should produce a finding at severity
+LOW — if it reports CRITICAL, the bug reproduces in-house.
+
+**Suspected cause.** Two hypotheses; resolved by the reproduction
+step:
+
+1. **Custom-check path bypasses resolved severity.**
+   `exceptions.must-cite-justification` is implemented as a custom
+   check rather than a pattern rule. The custom-check evaluator
+   may construct findings using the rule's declared severity (read
+   off the immutable rule definition) rather than the resolved
+   severity (the override-aware value produced during constitution
+   resolution). If true, every custom-check rule in the preset
+   would exhibit the same problem and the fix is centralized in
+   the custom-check evaluation path. Most likely.
+2. **Override resolution skips `audit` mode.** Verify may apply
+   overrides correctly while audit reads raw rule severity. Less
+   likely given the shared config-loading layer, but the audit
+   and verify code paths diverged in rc.3 and may share less than
+   they appear to. Worth checking explicitly once the repro lands.
+
+**Next step.** Land a minimal in-house repro as a CI test asserting
+override-resolution behavior for `exceptions.must-cite-justification`
+in both `audit` and `verify`. If the test reproduces the bug,
+proceed to fix along the most-likely hypothesis path. Whatever the
+outcome, generalize the test into a parametrized check that asserts
+override-resolution for every built-in rule's severity at evaluation
+time — this whole class of bug (custom-check evaluator vs.
+pattern-rule evaluator drift on resolved-severity reads) should
+have a regression net.
+
+**Workaround.** Disable
+`exceptions.must-cite-justification` entirely via the constitution's
+`disable` map if the override the adopter wanted was downgrading to
+LOW or below — disabling produces the same observable effect
+(rule silent). Adopters wanting MEDIUM or HIGH have no clean
+workaround beyond patching the rule's severity-resolution path
+locally; flag the override as broken in the meantime and re-enable
+once the fix lands.
+
+## Future additions
+
+This section is a placeholder. New bug reports — surfaced during
+release prep, adopter feedback, or CI flakes worth investigating —
+should be added above this section following the template at the
+top of the file.
+
+Smaller items that don't warrant a full entry yet (one-line
+observations, "I saw this once" notes) can be added inline as a
+running log; promote them to full entries when they recur or when
+investigation is worth scoping.
+
+If an item turns out to be a deferred design decision rather than
+a defect, move it to `docs/open-issues.md` instead.

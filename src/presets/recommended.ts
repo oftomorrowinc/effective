@@ -69,9 +69,17 @@ const FOUNDATION_RULES: readonly Rule[] = [
       defaultSeverity: 'CRITICAL',
       relatedPrinciple: 'mechanical-enforcement-over-instruction',
       appliesToRoles: ['code-writer', 'free-form'],
+      // Scoped to source + config files where secrets actually live
+      // (`.ts/.tsx/.js/.jsx/.mjs/.cjs/.mts/.cts` for code,
+      // `.json/.yaml/.yml` for env / k8s / CI config). The previous
+      // `**/*` default caught documentation files quoting AWS's
+      // canonical example key — the rule firing on its own docs.
+      // Adopters wanting broader coverage (e.g., scanning Markdown
+      // for accidentally-pasted keys) override `in` per project.
+      in: '**/*.{ts,tsx,js,jsx,mjs,cjs,mts,cts,json,yaml,yml}',
       // Secrets are typically committed as string literals; a hardcoded
       // key in a comment is also a real leak (devs commenting out unsafe
-      // code). Match anywhere.
+      // code).
       matchInStrings: true,
       matchInComments: true,
       prompt: {

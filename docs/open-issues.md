@@ -40,11 +40,10 @@ audit trail of when each issue surfaced is preserved.
 
 ### Bugs
 
-- [exceptions.must-cite-justification severity override not honored](#bug-exceptionsmust-cite-justification-severity-override-not-honored) — moves to `docs/known-bugs.md` in a follow-up PR
+_No bug entries currently tracked here — bugs awaiting reproduction live in `docs/known-bugs.md`._
 
 ### Precision
 
-- [no-hardcoded-secrets rule scope](#precision-no-hardcoded-secrets-rule-scope)
 - [new-exports-have-non-test-callers blind to tsx scripts + Next.js page modules](#precision-new-exports-have-non-test-callers-blind-to-tsx-scripts--nextjs-page-modules)
 - [migration-has-exercising-test fires on pure DDL migrations](#precision-migration-has-exercising-test-fires-on-pure-ddl-migrations)
 - [verify mode-banner ergonomics](#precision-verify-mode-banner-ergonomics)
@@ -64,47 +63,6 @@ audit trail of when each issue surfaced is preserved.
 ### Other items observed but not yet pressing
 
 - [Other items observed but not yet pressing](#other-items-observed-but-not-yet-pressing) — smaller observations, deferred polish, nice-to-haves
-
----
-
-## [Precision] `no-hardcoded-secrets` rule scope
-
-**The bug.** The rule's pattern (matching AWS access keys, GitHub
-tokens, JWT, Stripe keys, Google API keys, Anthropic keys) defaults
-to `**/*` as its `in` glob. In `docs/failure-modes.md` we quote AWS's
-canonical "example key" string to demonstrate _what the rule
-catches_ — which the rule itself then catches, firing CRITICAL on
-its own documentation when the file appears in a diff.
-
-Surfaced in rc.4 PR CI when a docs edit touched `failure-modes.md`.
-Same shape as the rc.3 escape-hatch scanner bug: pattern rules with
-broad globs catch their own illustrations.
-
-**Three paths**:
-
-1. **Narrow the rule's `in` glob to source / config files**
-   (`**/*.{ts,tsx,js,jsx,mjs,cjs,mts,cts,json,yaml,yml}`). Matches the
-   pattern already used by `no-stray-debug-output`. Loses coverage of
-   accidentally-leaked keys in `README.md` / docs. Adopters wanting
-   broader scope override per project.
-2. **Redact the doc example** so the demonstration string doesn't
-   match the regex (e.g., introduce a hyphen or lowercase letter
-   that breaks the `[0-9A-Z]` character class). Keeps the rule
-   broad; weakens the doc slightly because the illustration is now
-   obviously fake.
-3. **Register a doc-illustration exception** in
-   `seeds.builtInExceptions`. Categorically the right modeling
-   ("we're demonstrating the pattern, not committing a secret") but
-   creates a precedent that may invite misuse.
-
-**Open question**: what's the right default philosophy — "scan
-everything, narrow when bitten" (current) or "scan source code only,
-broaden when needed" (matches the pattern of every other rule in the
-preset)?
-
-Worth noting: every adopter who writes a README quoting an API-key
-shape will hit this. Detection-before-exception (Todd's stated
-principle) argues for #1.
 
 ---
 
@@ -312,50 +270,6 @@ than diagnostic, and reviewers learn to ignore CRITICALs as "probably
 branch noise." That's worse than reviewers learning the system: once
 "ignore CRITICALs unless they're recent" becomes the norm, the rule's
 weight evaporates.
-
----
-
-## [Bug] `exceptions.must-cite-justification` severity override not honored
-
-**The bug.** Reported by an external adopter (Python+JS pilot
-running mixed-source effective): the
-`exceptions.must-cite-justification` rule continued to report
-CRITICAL in `effective audit` output despite a severity override
-declared in the adopter's seeds config. Same override worked
-correctly on other rules in the same config.
-
-Two failure modes consistent with the symptom:
-
-1. **Custom-check path bypasses resolved severity.**
-   `exceptions.must-cite-justification` may be implemented as a
-   custom check rather than a pattern rule, and the custom-check
-   evaluator may read the rule's declared severity rather than the
-   resolved (override-aware) severity. If true, every custom-check
-   rule should resolve severity via the same path as pattern rules.
-2. **Override resolution skips `audit` mode.** Verify may apply
-   overrides correctly while audit reads raw rule severity. Less
-   likely given the shared config-loading layer; audit and verify
-   diverged in rc.3 and may still share less than they appear to.
-
-**Reproduction needed.** First step is a minimal JS repro that
-overrides `exceptions.must-cite-justification` severity to `LOW`
-and confirms `audit` honors it. If it does, the bug is
-environment-specific (config shape, source-tree layout, or
-rule-resolution order); request a config snapshot from the adopter.
-If it doesn't, the bug is reproducible in-house and the rule's
-evaluator path is the likely culprit.
-
-**Open question**: should severity-override resolution be tested as
-a first-class concern across all built-in rules? Today the override
-mechanism is generic and assumed to work uniformly; this report
-suggests the assumption may not hold for custom-check rules. A
-generic CI test that overrides each built-in rule's severity and
-asserts the resolved value at evaluation time would catch this class
-of bug before adopters do.
-
-Highest-priority item in this batch because it undermines the
-override mechanism itself — every other governance affordance
-assumes overrides work as declared.
 
 ---
 
