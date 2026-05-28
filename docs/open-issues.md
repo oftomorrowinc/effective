@@ -7,12 +7,67 @@ make the decision when we have enough signal, not to force one
 prematurely.
 
 Items that are _already actionable_ (small fix, clear path) belong in
-the changelog under `[Unreleased]` instead. This doc is for the cases
-where the right answer is genuinely unclear.
+the changelog under `[Unreleased]` instead. Bugs awaiting reproduction
+go in `docs/known-bugs.md` — that doc is parallel to this one but
+scoped to things needing engineering rather than design. This doc is
+for the cases where the right answer is genuinely unclear.
+
+## How to add an entry
+
+Use this format:
+
+- Title with status tag: `## [Bug | Precision | Design | Feature] <short title>`
+- Opener: `**The bug.**` or `**The question.**`
+- Context paragraphs explaining what was observed and where
+- Numbered candidate paths (`1. ...`, `2. ...`, `3. ...`)
+- `**Open question**:` line stating the actual decision to make
+- Closing paragraph on the risk of doing nothing
+
+Tag meanings:
+
+- `[Bug]` — rule misfires or evaluator does the wrong thing; needs reproduction + fix
+- `[Precision]` — rule fires correctly but too broadly (e.g., scans documentation it shouldn't)
+- `[Design]` — a real open question about the constitution's shape; needs decision
+- `[Feature]` — a deferred capability with an established adopter need
+
+New entries go above the "Other items observed but not yet pressing"
+section near the bottom.
+
+## Table of contents
+
+Grouped by status tag. Body order below stays chronological so the
+audit trail of when each issue surfaced is preserved.
+
+### Bugs
+
+- [exceptions.must-cite-justification severity override not honored](#bug-exceptionsmust-cite-justification-severity-override-not-honored) — moves to `docs/known-bugs.md` in a follow-up PR
+
+### Precision
+
+- [no-hardcoded-secrets rule scope](#precision-no-hardcoded-secrets-rule-scope)
+- [new-exports-have-non-test-callers blind to tsx scripts + Next.js page modules](#precision-new-exports-have-non-test-callers-blind-to-tsx-scripts--nextjs-page-modules)
+- [migration-has-exercising-test fires on pure DDL migrations](#precision-migration-has-exercising-test-fires-on-pure-ddl-migrations)
+- [verify mode-banner ergonomics](#precision-verify-mode-banner-ergonomics)
+
+### Design
+
+- [Formalizing the agent vs human protected-path workflow](#design-formalizing-the-agent-vs-human-protected-path-workflow)
+- [verify --against main semantics on long-lived integration branches](#design-verify---against-main-semantics-on-long-lived-integration-branches)
+- [Elevated / governance-PR mode for protected-path edits](#design-elevated--governance-pr-mode-for-protected-path-edits)
+- [Block-weakening vs block-every-edit on protected configs](#design-block-weakening-vs-block-every-edit-on-protected-configs)
+
+### Feature
+
+- [Baseline / ratchet for existing-codebase adoption](#feature-baseline--ratchet-for-existing-codebase-adoption)
+- [Modular governance-only preset](#feature-modular-governance-only-preset)
+
+### Other items observed but not yet pressing
+
+- [Other items observed but not yet pressing](#other-items-observed-but-not-yet-pressing) — smaller observations, deferred polish, nice-to-haves
 
 ---
 
-## `no-hardcoded-secrets` rule scope
+## [Precision] `no-hardcoded-secrets` rule scope
 
 **The bug.** The rule's pattern (matching AWS access keys, GitHub
 tokens, JWT, Stripe keys, Google API keys, Anthropic keys) defaults
@@ -25,7 +80,7 @@ Surfaced in rc.4 PR CI when a docs edit touched `failure-modes.md`.
 Same shape as the rc.3 escape-hatch scanner bug: pattern rules with
 broad globs catch their own illustrations.
 
-**Two paths**:
+**Three paths**:
 
 1. **Narrow the rule's `in` glob to source / config files**
    (`**/*.{ts,tsx,js,jsx,mjs,cjs,mts,cts,json,yaml,yml}`). Matches the
@@ -53,7 +108,7 @@ principle) argues for #1.
 
 ---
 
-## Formalizing the agent vs human protected-path workflow
+## [Design] Formalizing the agent vs human protected-path workflow
 
 **The convention today**: protected-path edits (e.g., `package.json`
 version bumps, `tsconfig.json` paths) require `--no-verify` to push
@@ -106,7 +161,7 @@ evolving.
 
 ---
 
-## `new-exports-have-non-test-callers` blind to tsx scripts + Next.js page modules
+## [Precision] `new-exports-have-non-test-callers` blind to tsx scripts + Next.js page modules
 
 **The bug.** The rule walks the import graph to decide whether a new
 exported symbol has a non-test caller. The walk works for code reached
@@ -156,7 +211,7 @@ extend.
 
 ---
 
-## `migration-has-exercising-test` fires on pure DDL migrations
+## [Precision] `migration-has-exercising-test` fires on pure DDL migrations
 
 **The bug.** The rule's stated rationale is "catches defensive no-op
 migrations that never fire against the condition they were nominally
@@ -206,7 +261,7 @@ edited to match observed behavior. Right now they're drifting apart.
 
 ---
 
-## `verify --against main` semantics on long-lived integration branches
+## [Design] `verify --against main` semantics on long-lived integration branches
 
 **The bug.** The current verify-against-main flow reports findings as a
 snapshot of the diff: every protected-file edit, every new export, every
@@ -260,7 +315,7 @@ weight evaporates.
 
 ---
 
-## `exceptions.must-cite-justification` severity override not honored
+## [Bug] `exceptions.must-cite-justification` severity override not honored
 
 **The bug.** Reported by an external adopter (Python+JS pilot
 running mixed-source effective): the
@@ -304,7 +359,7 @@ assumes overrides work as declared.
 
 ---
 
-## Baseline / ratchet for existing-codebase adoption
+## [Feature] Baseline / ratchet for existing-codebase adoption
 
 **The bug.** First-time `effective verify` on a non-trivial existing
 codebase emits hundreds-to-thousands of findings: LOW for formatting
@@ -358,7 +413,7 @@ nothing isn't a slow drift — it's that no team adopts.
 
 ---
 
-## `verify` mode-banner ergonomics
+## [Precision] `verify` mode-banner ergonomics
 
 **The bug.** `effective verify` and `effective verify --staged` do
 materially different things — the first checks the committed diff
@@ -401,7 +456,7 @@ insurance.
 
 ---
 
-## Elevated / governance-PR mode for protected-path edits
+## [Design] Elevated / governance-PR mode for protected-path edits
 
 **The bug.** When a PR is intentionally changing the constitution —
 adding a new rule, adjusting a threshold, registering a new protected
@@ -451,7 +506,7 @@ same diff. A real bug in a non-governance file lands invisibly.
 
 ---
 
-## Block-weakening vs block-every-edit on protected configs
+## [Design] Block-weakening vs block-every-edit on protected configs
 
 **The bug.** Today `protected-paths-respected` treats any edit to a
 protected config file (`tsconfig.json`, `package.json`,
@@ -514,7 +569,7 @@ in the long-lived integration branches entry above.
 
 ---
 
-## Modular governance-only preset
+## [Feature] Modular governance-only preset
 
 **The question.** External-adopter feedback (Python+JS pilot)
 suggested a "polyglot preset" that ships protected-paths + lane
@@ -606,20 +661,10 @@ These are noted, not assigned, not blocking.
 
 ## Future additions
 
-This section is a placeholder for issues surfaced during release prep
-or adopter feedback that don't yet have an entry above. New entries
-should be added before "Other items observed but not yet pressing"
-following the format of the entries in this doc: short title,
-`**The bug.**` / `**The question.**` opener, context paragraphs,
-numbered candidate paths, an `**Open question**:` line, and a closing
-risk-of-doing-nothing paragraph.
-
-Smaller items that don't warrant a full entry — observations,
-nice-to-haves, deferred polish — go in the "Other items observed but
-not yet pressing" section above.
+New entries go above "Other items observed but not yet pressing."
+Format guide at the top under "How to add an entry."
 
 If an item moves from "open issue" to "decided, in flight," remove
 the entry from this file and capture the decision in
-`docs/decisions.md` plus the changelog under `[Unreleased]`. Closed
-issues should disappear from this doc; the audit trail lives in git
-history.
+`docs/decisions.md` plus the changelog under `[Unreleased]`. The
+audit trail lives in git history.
