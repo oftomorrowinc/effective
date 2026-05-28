@@ -33,6 +33,12 @@ Tag meanings:
 New entries go above the "Other items observed but not yet pressing"
 section near the bottom.
 
+**Entry lifecycle.** When an item moves from "open issue" to "decided,
+in flight," remove it from this file and capture the decision in
+`docs/decisions.md` plus the changelog under `[Unreleased]`. Bugs
+awaiting reproduction belong in `docs/known-bugs.md` instead. The
+audit trail of each entry's history lives in git.
+
 ## Table of contents
 
 Grouped by status tag. Body order below stays chronological so the
@@ -54,6 +60,7 @@ _No bug entries currently tracked here — bugs awaiting reproduction live in `d
 - [verify --against main semantics on long-lived integration branches](#design-verify---against-main-semantics-on-long-lived-integration-branches)
 - [Elevated / governance-PR mode for protected-path edits](#design-elevated--governance-pr-mode-for-protected-path-edits)
 - [Block-weakening vs block-every-edit on protected configs](#design-block-weakening-vs-block-every-edit-on-protected-configs)
+- [Should src/presets/\*\* rule definitions be protected paths?](#design-should-srcpresets-rule-definitions-be-protected-paths)
 
 ### Feature
 
@@ -116,6 +123,13 @@ The risk of doing nothing: as more agents adopt effective, the
 convention drifts unless something mechanical preserves it. The risk
 of doing it too early: prematurely formalizing a workflow that's still
 evolving.
+
+**Related governance-thread entries:**
+
+- [verify --against main semantics on long-lived integration branches](#design-verify---against-main-semantics-on-long-lived-integration-branches)
+- [Elevated / governance-PR mode for protected-path edits](#design-elevated--governance-pr-mode-for-protected-path-edits)
+- [Block-weakening vs block-every-edit on protected configs](#design-block-weakening-vs-block-every-edit-on-protected-configs)
+- [Should src/presets/\*\* rule definitions be protected paths?](#design-should-srcpresets-rule-definitions-be-protected-paths)
 
 ---
 
@@ -271,6 +285,13 @@ branch noise." That's worse than reviewers learning the system: once
 "ignore CRITICALs unless they're recent" becomes the norm, the rule's
 weight evaporates.
 
+**Related governance-thread entries:**
+
+- [Formalizing the agent vs human protected-path workflow](#design-formalizing-the-agent-vs-human-protected-path-workflow)
+- [Elevated / governance-PR mode for protected-path edits](#design-elevated--governance-pr-mode-for-protected-path-edits)
+- [Block-weakening vs block-every-edit on protected configs](#design-block-weakening-vs-block-every-edit-on-protected-configs)
+- [Should src/presets/\*\* rule definitions be protected paths?](#design-should-srcpresets-rule-definitions-be-protected-paths)
+
 ---
 
 ## [Feature] Baseline / ratchet for existing-codebase adoption
@@ -324,6 +345,22 @@ new findings landing in the same PR as a cleanup pass.
 Adoption-critical. Without it, "try effective on your repo" is a
 non-starter for anything older than a few months. The risk of doing
 nothing isn't a slow drift — it's that no team adopts.
+
+**Adjacent: coverage non-decreasing as a related ratchet.** The same
+"compare current state to a known-good prior state" pattern shows
+up for coverage. `toolchain.coverage-meets-threshold` was renamed
+in rc.4 to match what the engine actually does (per-metric threshold
+check at 90%), but the original "did coverage drop from main?"
+semantic is a real adopter need that the rename deferred rather than
+solved. The implementation shape is parallel to baseline/ratchet:
+snapshot prior coverage (`.effective-coverage-baseline.yml` or
+similar), fail only on metrics that dropped from the snapshot. Same
+open question about strict-vs-fuzzy matching applies (per-file
+coverage hash vs. per-metric totals). Worth designing alongside the
+findings ratchet — both expose the same "ratchet against a snapshot"
+primitive — even if they ship as separate features. The two could
+share an `.effective-baseline/` directory convention so adopters
+learn one mental model that applies to both.
 
 ---
 
@@ -418,6 +455,13 @@ The risk of doing nothing: governance PRs ship via `--no-verify` or
 rule-disable, both of which silence findings on OTHER files in the
 same diff. A real bug in a non-governance file lands invisibly.
 
+**Related governance-thread entries:**
+
+- [Formalizing the agent vs human protected-path workflow](#design-formalizing-the-agent-vs-human-protected-path-workflow)
+- [verify --against main semantics on long-lived integration branches](#design-verify---against-main-semantics-on-long-lived-integration-branches)
+- [Block-weakening vs block-every-edit on protected configs](#design-block-weakening-vs-block-every-edit-on-protected-configs)
+- [Should src/presets/\*\* rule definitions be protected paths?](#design-should-srcpresets-rule-definitions-be-protected-paths)
+
 ---
 
 ## [Design] Block-weakening vs block-every-edit on protected configs
@@ -481,6 +525,13 @@ weight. Once operators bypass protected-path findings reflexively the
 rule becomes ritual rather than signal — same failure mode flagged
 in the long-lived integration branches entry above.
 
+**Related governance-thread entries:**
+
+- [Formalizing the agent vs human protected-path workflow](#design-formalizing-the-agent-vs-human-protected-path-workflow)
+- [verify --against main semantics on long-lived integration branches](#design-verify---against-main-semantics-on-long-lived-integration-branches)
+- [Elevated / governance-PR mode for protected-path edits](#design-elevated--governance-pr-mode-for-protected-path-edits)
+- [Should src/presets/\*\* rule definitions be protected paths?](#design-should-srcpresets-rule-definitions-be-protected-paths)
+
 ---
 
 ## [Feature] Modular governance-only preset
@@ -529,6 +580,81 @@ the adopter's signal isn't lost; not in scope for the next version.
 
 ---
 
+## [Design] Should `src/presets/**` rule definitions be protected paths?
+
+**The question.** `src/presets/recommended.ts` is the
+constitution-as-code — the source of truth for what rules ship, at
+what severity, scoped to what files. Adopters who extend
+`recommended` trust that scope changes go through the same
+constitutional-change workflow that governs `effective.config.ts`.
+Today they don't: `src/presets/**` is not in the protected-paths
+list (which currently covers `effective.config.ts`,
+`eslint.config.*`, `tsconfig*.json`, `vitest.config.*`, prettier
+configs, `.github/workflows/**`, and `package.json`).
+
+Surfaced in PR 2 of the rc.6 → rc.7 open-issues cleanup: that PR
+narrowed `no-hardcoded-secrets`'s `in` glob without triggering the
+`protected-paths-respected` rule. The change was correct on the
+merits and verified by tests, but the same loophole would let a
+less careful PR silently weaken a critical rule's scope — convert a
+broad CRITICAL rule into a narrow one with no review surface.
+
+The scope of the question isn't just `recommended.ts`. The same
+concern applies to anything in `src/presets/**`:
+`recommendedExceptions.ts`, `recommendedProtectedPaths.ts`, future
+preset modules. They are all "the constitution shipped to adopters."
+
+**Three paths**:
+
+1. **Add `src/presets/**`to the protected-paths list.** Behaves
+like the other constitutional files today: edits trigger CRITICAL
+on push, human path uses`--no-verify` with rationale, agent path
+   defers to human. Simplest move. Friction cost is highest at
+   first — every preset evolution becomes a deliberate process,
+   which the bluntness of the current protected-paths rule amplifies
+   (every edit is the same severity regardless of weakening vs.
+   strengthening, the failure mode flagged in the block-weakening
+   entry).
+2. **Add `src/presets/**`to protected paths AND ship the`--governance-pr`elevation flag as a coordinated landing.**
+Preset edits go through the elevation surface, which keeps the
+audit trail visible to the reviewer pass without forcing every
+edit through the blunt`--no-verify`. Higher upfront engineering
+   cost; substantially cleaner steady state.
+3. **Document the convention and leave the rule unenforced.** A
+   CONTRIBUTING note saying "preset edits go through review with
+   severity/scope rationale" without mechanical enforcement.
+   Cheapest; least durable — same drift risk as every other
+   "convention without enforcement" entry in this thread.
+
+**Open question**: should this land as part of the governance-PR
+elevation rollout (path #2), or ship first as a standalone
+protection (path #1) with elevation as a follow-up? Probably tied
+to the same `effective-reviewer` package readiness that the
+elevation entry depends on — landing path #1 first would create
+immediate friction without the elevation valve, which is exactly
+the failure mode that trains adopters to `--no-verify` reflexively
+(flagged in the block-weakening entry).
+
+The risk of doing nothing: preset evolution silently bypasses the
+constitutional-change workflow that adopters were told governs the
+rules they're being held to. A future PR could narrow a CRITICAL
+rule's `in` glob — converting it to silent precision — without any
+review surface firing. Three adjacent governance threads (`agent vs
+human protected-path workflow`, `elevated governance-PR mode`,
+`block-weakening vs block-every-edit`) already point at elevation
+as the unlock; adding `src/presets/**` to the protected scope is
+the third (now fourth) piece of evidence that the elevation feature
+is the load-bearing capability.
+
+**Related governance-thread entries:**
+
+- [Formalizing the agent vs human protected-path workflow](#design-formalizing-the-agent-vs-human-protected-path-workflow)
+- [verify --against main semantics on long-lived integration branches](#design-verify---against-main-semantics-on-long-lived-integration-branches)
+- [Elevated / governance-PR mode for protected-path edits](#design-elevated--governance-pr-mode-for-protected-path-edits)
+- [Block-weakening vs block-every-edit on protected configs](#design-block-weakening-vs-block-every-edit-on-protected-configs)
+
+---
+
 ## Other items observed but not yet pressing
 
 Quick log of things that surfaced during rc.3 → rc.5 prep but didn't
@@ -541,13 +667,6 @@ publish --tag rc` only updates `rc`. Could be scripted (a
   `release` npm script that runs publish + `npm dist-tag add` in
   sequence). Resolves automatically when 0.1.0 stable ships (the
   unstamped publish moves `latest` naturally).
-
-- **Coverage non-decreasing semantics not yet implemented.** Renamed
-  to `coverage-meets-threshold` in rc.4 to match what the engine
-  actually does. The "did coverage drop from main?" check is still a
-  real adopter need — would require baseline tracking on disk or
-  injected through `verify()`. Worth designing once a real adopter
-  asks for it.
 
 - **`prepareWorktree` install-step error path could be smoother.**
   Currently throws with the last 15 stderr lines if `pnpm install
@@ -575,10 +694,4 @@ These are noted, not assigned, not blocking.
 
 ## Future additions
 
-New entries go above "Other items observed but not yet pressing."
-Format guide at the top under "How to add an entry."
-
-If an item moves from "open issue" to "decided, in flight," remove
-the entry from this file and capture the decision in
-`docs/decisions.md` plus the changelog under `[Unreleased]`. The
-audit trail lives in git history.
+New entries go above "Other items observed but not yet pressing." Format guide and lifecycle (open issue → decided → migrated to `docs/decisions.md` + changelog) are at the top of this file under "How to add an entry."
