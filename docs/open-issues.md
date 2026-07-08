@@ -99,6 +99,17 @@ This is captured in three places informally:
 protected-path edits"`
 - Conversation memory (`feedback_governance_layering.md`)
 
+**Gap found and closed (2026-07-07)**: the pre-push hook verified
+`--against HEAD~1` — the tip commit only — so a protected-path edit
+buried one commit deep sailed through the agent-side gate: any
+subsequent innocuous commit would carry it to the remote unchecked.
+The hook now verifies `--against origin/main` (the full outgoing
+range), matching what CI checks and what the maintainer runs by hand.
+Consequence: on a branch that already contains an elevated
+constitutional commit, every later push re-fires the CRITICAL locally
+until merge — the human `--no-verify` path covers those pushes, and
+the CI gate (with `--governance-pr` + label) remains load-bearing.
+
 **The question**: is informal capture sufficient, or should this be a
 first-class part of effective's surface? Options:
 
@@ -458,6 +469,18 @@ it, elevation is a silent bypass.
 The risk of doing nothing: governance PRs ship via `--no-verify` or
 rule-disable, both of which silence findings on OTHER files in the
 same diff. A real bug in a non-governance file lands invisibly.
+
+**Decision (2026-07-07): path 1 shipped.** `verify --governance-pr`
+moves protected-path findings (identified by wiring to the built-in
+`protectedPathsRespected` check, not by rule id) out of the gating
+set; verdict and exit code recompute from the rest. Elevated findings
+are printed in a dedicated `Governance changes` section (JSON:
+`governanceFindings`) — visible, not silenced. CI passes the flag
+when the PR carries the `governance` label, so elevation is a
+deliberate per-PR human action with a public marker. Remaining open:
+the persisted audit-trail question above (a record the
+effective-reviewer pass can consume later, beyond the run output),
+and whether the label convention should be checkable itself.
 
 **Related governance-thread entries:**
 

@@ -71,5 +71,15 @@ jobs:
           else
             BASE="HEAD^"
           fi
+          # The `governance` PR label is the elevation surface for
+          # intentional constitutional changes: a human applies the label,
+          # verify prints protected-path findings in a non-gating
+          # governance section instead of failing on the very change that
+          # is the PR's purpose. All other findings still gate.
+          FLAGS=""
+          if [ "${{ contains(github.event.pull_request.labels.*.name, 'governance') }}" = "true" ]; then
+            FLAGS="--governance-pr"
+            echo "PR carries the 'governance' label — protected-path findings are elevated, not gating."
+          fi
           echo "Verifying $(git rev-parse --short HEAD) against $BASE"
-          node dist/cli.mjs verify --against "$BASE"
+          node dist/cli.mjs verify --against "$BASE" $FLAGS

@@ -149,3 +149,115 @@ describe('runVerifyCommand — worktree and config flags', () => {
     expect(result.exitCode).toBe(0);
   });
 });
+
+describe('runVerifyCommand — --governance-pr elevation', () => {
+  const repoRef = useEphemeralRepo();
+
+  const PROTECTED_CONFIG = `export default defineConfig({
+  rules: [
+    rule.forbidPattern(/TODO\\b/, { id: 'no-todo', matchInComments: true, matchInStrings: true }),
+    rule.custom({
+      id: 'protected-paths-respected',
+      category: 'governance',
+      defaultSeverity: 'CRITICAL',
+      checkRef: 'protectedPathsRespected',
+      prompt: {
+        summary: 'Constitutional files are off-limits without elevation.',
+        guidance: 'Surface the change via kickBack; a human with elevated scope edits protected files.',
+      },
+    }),
+  ],
+  protected: [{ path: 'infra.yml', rationale: 'The deployment gate.' }],
+});`;
+
+  it('fails on a protected-path edit without the flag', async () => {
+    await setupConfiguredFeature(repoRef.current, PROTECTED_CONFIG, {
+      path: 'infra.yml',
+      content: 'jobs: {}\n',
+    });
+    const result = await runVerifyCommand(
+      parseArgs(['verify', '--work', 'feature', '--baseline', 'main']),
+      repoRef.current,
+    );
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout).toContain('protected-paths-respected');
+    expect(result.stdout).not.toContain('Governance changes');
+  });
+
+  it('elevates the protected-path finding out of the gating set with the flag', async () => {
+    await setupConfiguredFeature(repoRef.current, PROTECTED_CONFIG, {
+      path: 'infra.yml',
+      content: 'jobs: {}\n',
+    });
+    const result = await runVerifyCommand(
+      parseArgs(['verify', '--work', 'feature', '--baseline', 'main', '--governance-pr']),
+      repoRef.current,
+    );
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain('PASS');
+    // Elevated, not silenced: the finding is still printed, with its rationale.
+    expect(result.stdout).toContain('Governance changes');
+    expect(result.stdout).toContain('protected-paths-respected');
+    expect(result.stdout).toContain('The deployment gate.');
+  });
+
+  it('still fails on non-governance findings in the same diff', async () => {
+    const repo = repoRef.current;
+    await setupConfiguredFeature(repo, PROTECTED_CONFIG, {
+      path: 'infra.yml',
+      content: 'jobs: {}\n',
+    });
+    await writeFile(path.join(repo, 'src.ts'), 'const x = 1; // TODO remove\n');
+    await git(repo, 'add src.ts');
+    await git(repo, 'commit -m "sneaky change"');
+    const result = await runVerifyCommand(
+      parseArgs(['verify', '--work', 'feature', '--baseline', 'main', '--governance-pr']),
+      repo,
+    );
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout).toContain('no-todo');
+    expect(result.stdout).toContain('Governance changes');
+  });
+
+  it('carries elevated findings under governanceFindings in the JSON reporter', async () => {
+    await setupConfiguredFeature(repoRef.current, PROTECTED_CONFIG, {
+      path: 'infra.yml',
+      content: 'jobs: {}\n',
+    });
+    const result = await runVerifyCommand(
+      parseArgs([
+        'verify',
+        '--work',
+        'feature',
+        '--baseline',
+        'main',
+        '--reporter=json',
+        '--governance-pr',
+      ]),
+      repoRef.current,
+    );
+    expect(result.exitCode).toBe(0);
+    const parsed = JSON.parse(result.stdout) as {
+      verdict: string;
+      findings: unknown[];
+      governanceFindings: { ruleId: string }[];
+    };
+    expect(parsed.verdict).toBe('pass');
+    expect(parsed.findings).toHaveLength(0);
+    expect(parsed.governanceFindings).toHaveLength(1);
+    expect(parsed.governanceFindings[0]?.ruleId).toBe('protected-paths-respected');
+  });
+
+  it('changes nothing when the flag is passed but no protected path was touched', async () => {
+    await setupConfiguredFeature(repoRef.current, PROTECTED_CONFIG, {
+      path: 'clean.ts',
+      content: 'export const x = 1;\n',
+    });
+    const result = await runVerifyCommand(
+      parseArgs(['verify', '--work', 'feature', '--baseline', 'main', '--governance-pr']),
+      repoRef.current,
+    );
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).not.toContain('Governance changes');
+  });
+});

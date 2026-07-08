@@ -10,6 +10,22 @@ _Nothing yet._
 
 ## [0.1.0-rc.8] — 2026-07-07
 
+### Added
+
+- **`verify --governance-pr` — the elevation surface for intentional
+  constitutional changes.** When a PR's purpose IS the protected-path
+  edit (version bump, rule addition, workflow change), the flag moves
+  protected-path findings out of the gating set: the verdict and exit
+  code are computed from everything else, while the elevated findings
+  are still printed in a dedicated `Governance changes` section (JSON
+  reporter: `governanceFindings`) so the elevation stays auditable.
+  All other findings gate exactly as before — a real bug in the same
+  diff still fails the run. Rules are matched by their wiring to the
+  built-in `protectedPathsRespected` check, not by id, so renamed
+  rules in adopter configs are still covered. This repo's CI passes
+  the flag when a PR carries the `governance` label, replacing the
+  previous convention of merging governance PRs over a red check.
+
 ### Fixed
 
 - **Count-based toolchain gates no longer treat unparseable output as

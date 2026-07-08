@@ -42,7 +42,7 @@ function formatLocation(finding: Finding): string {
   return parts.join('');
 }
 
-function prettyReport(result: VerifyResult): string {
+function prettyReport(result: VerifyResult, governance?: readonly Finding[]): string {
   const out: string[] = [];
   out.push(`Verdict: ${verdictBadge(result.verdict)}`);
   if (result.summary) {
@@ -65,32 +65,49 @@ function prettyReport(result: VerifyResult): string {
   }
   if (result.findings.length === 0) {
     out.push('No findings.');
-    return out.join('\n');
+  } else {
+    out.push('');
+    for (const finding of result.findings) {
+      out.push(
+        `${severityBadge(finding.severity)}  ${finding.ruleId}  @  ${formatLocation(finding)}`,
+        `    ${finding.message}`,
+      );
+      if (finding.evidence.length > 0) {
+        out.push(`    evidence: ${finding.evidence}`);
+      }
+    }
   }
-  out.push('');
-  for (const finding of result.findings) {
+  if (governance !== undefined && governance.length > 0) {
     out.push(
-      `${severityBadge(finding.severity)}  ${finding.ruleId}  @  ${formatLocation(finding)}`,
-      `    ${finding.message}`,
+      '',
+      `Governance changes (${String(governance.length)} protected-path finding(s) elevated by --governance-pr, not gating):`,
     );
-    if (finding.evidence.length > 0) {
-      out.push(`    evidence: ${finding.evidence}`);
+    for (const finding of governance) {
+      out.push(`ⓘ  ${finding.ruleId}  @  ${formatLocation(finding)}`, `    ${finding.message}`);
     }
   }
   return out.join('\n');
 }
 
-function jsonReport(result: VerifyResult): string {
-  return JSON.stringify(result, null, 2);
+function jsonReport(result: VerifyResult, governance?: readonly Finding[]): string {
+  const payload =
+    governance !== undefined && governance.length > 0
+      ? { ...result, governanceFindings: governance }
+      : result;
+  return JSON.stringify(payload, null, 2);
 }
 
-export function renderResult(result: VerifyResult, reporter: ReporterName): string {
+export function renderResult(
+  result: VerifyResult,
+  reporter: ReporterName,
+  governance?: readonly Finding[],
+): string {
   switch (reporter) {
     case 'json': {
-      return jsonReport(result);
+      return jsonReport(result, governance);
     }
     case 'pretty': {
-      return prettyReport(result);
+      return prettyReport(result, governance);
     }
   }
 }
