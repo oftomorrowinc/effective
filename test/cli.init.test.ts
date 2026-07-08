@@ -49,6 +49,19 @@ async function withFixture<T>(opts: FixtureOptions, body: (dir: string) => Promi
   }
 }
 
+/**
+ * Run `init` against a fresh fixture and return the generated config
+ * text — the shape almost every detection test needs. Asserts the run
+ * succeeded so callers only state what the config must contain.
+ */
+async function initConfig(opts: FixtureOptions, file = 'effective.config.ts'): Promise<string> {
+  return await withFixture(opts, async (dir) => {
+    const result = await runInitCommand(parseArgs(['init']), dir);
+    expect(result.exitCode).toBe(0);
+    return await readFile(path.join(dir, file), 'utf8');
+  });
+}
+
 describe('runInitCommand — scaffolding', () => {
   it('creates effective.config.ts and updates .gitignore (single-file shape)', async () => {
     await withFixture({ tsconfig: true }, async (dir) => {
@@ -86,73 +99,49 @@ describe('runInitCommand — scaffolding', () => {
 
 describe('runInitCommand — package-manager detection', () => {
   it('detects pnpm from pnpm-lock.yaml', async () => {
-    await withFixture(
-      {
-        tsconfig: true,
-        lockfile: 'pnpm',
-        packageJson: { scripts: { lint: 'eslint .', test: 'vitest run' } },
-      },
-      async (dir) => {
-        await runInitCommand(parseArgs(['init']), dir);
-        const config = await readFile(path.join(dir, 'effective.config.ts'), 'utf8');
-        expect(config).toContain('pnpm lint');
-        expect(config).toContain('pnpm test');
-      },
-    );
+    const config = await initConfig({
+      tsconfig: true,
+      lockfile: 'pnpm',
+      packageJson: { scripts: { lint: 'eslint .', test: 'vitest run' } },
+    });
+    expect(config).toContain('pnpm lint');
+    expect(config).toContain('pnpm test');
   });
 
   it('detects yarn from yarn.lock', async () => {
-    await withFixture(
-      {
-        tsconfig: true,
-        lockfile: 'yarn',
-        packageJson: { scripts: { lint: 'eslint .' } },
-      },
-      async (dir) => {
-        await runInitCommand(parseArgs(['init']), dir);
-        const config = await readFile(path.join(dir, 'effective.config.ts'), 'utf8');
-        expect(config).toContain('yarn lint');
-      },
-    );
+    const config = await initConfig({
+      tsconfig: true,
+      lockfile: 'yarn',
+      packageJson: { scripts: { lint: 'eslint .' } },
+    });
+    expect(config).toContain('yarn lint');
   });
 
   it('detects npm from package-lock.json and uses `-- ` separator for forwarded flags', async () => {
-    await withFixture(
-      {
-        tsconfig: true,
-        lockfile: 'npm',
-        packageJson: {
-          scripts: { lint: 'eslint .' },
-          devDependencies: { eslint: '^9.0.0' },
-        },
+    const config = await initConfig({
+      tsconfig: true,
+      lockfile: 'npm',
+      packageJson: {
+        scripts: { lint: 'eslint .' },
+        devDependencies: { eslint: '^9.0.0' },
       },
-      async (dir) => {
-        await runInitCommand(parseArgs(['init']), dir);
-        const config = await readFile(path.join(dir, 'effective.config.ts'), 'utf8');
-        // npm needs `--` to forward flags to the underlying script
-        expect(config).toContain('npm run lint -- --format json');
-      },
-    );
+    });
+    // npm needs `--` to forward flags to the underlying script
+    expect(config).toContain('npm run lint -- --format json');
   });
 
   it('falls back to packageManager field when no lockfile is present', async () => {
-    await withFixture(
-      {
-        tsconfig: true,
-        packageJson: { packageManager: 'pnpm@10.0.0', scripts: { lint: 'eslint .' } },
-      },
-      async (dir) => {
-        await runInitCommand(parseArgs(['init']), dir);
-        const config = await readFile(path.join(dir, 'effective.config.ts'), 'utf8');
-        expect(config).toContain('pnpm lint');
-      },
-    );
+    const config = await initConfig({
+      tsconfig: true,
+      packageJson: { packageManager: 'pnpm@10.0.0', scripts: { lint: 'eslint .' } },
+    });
+    expect(config).toContain('pnpm lint');
   });
 });
 
 describe('runInitCommand — toolchain detection', () => {
   it('appends `--reporter json` to vitest test scripts', async () => {
-    const dir = await makeFixture({
+    const config = await initConfig({
       tsconfig: true,
       lockfile: 'pnpm',
       packageJson: {
@@ -160,17 +149,11 @@ describe('runInitCommand — toolchain detection', () => {
         devDependencies: { vitest: '^3.0.0' },
       },
     });
-    try {
-      await runInitCommand(parseArgs(['init']), dir);
-      const config = await readFile(path.join(dir, 'effective.config.ts'), 'utf8');
-      expect(config).toContain('test: "pnpm test --reporter json"');
-    } finally {
-      await rm(dir, { recursive: true, force: true });
-    }
+    expect(config).toContain('test: "pnpm test --reporter json"');
   });
 
   it('appends `--json` to jest test scripts', async () => {
-    const dir = await makeFixture({
+    const config = await initConfig({
       tsconfig: true,
       lockfile: 'pnpm',
       packageJson: {
@@ -178,17 +161,11 @@ describe('runInitCommand — toolchain detection', () => {
         devDependencies: { jest: '^29.0.0' },
       },
     });
-    try {
-      await runInitCommand(parseArgs(['init']), dir);
-      const config = await readFile(path.join(dir, 'effective.config.ts'), 'utf8');
-      expect(config).toContain('test: "pnpm test --json"');
-    } finally {
-      await rm(dir, { recursive: true, force: true });
-    }
+    expect(config).toContain('test: "pnpm test --json"');
   });
 
   it('appends `--format json` to eslint lint scripts', async () => {
-    const dir = await makeFixture({
+    const config = await initConfig({
       tsconfig: true,
       lockfile: 'pnpm',
       packageJson: {
@@ -196,17 +173,11 @@ describe('runInitCommand — toolchain detection', () => {
         devDependencies: { eslint: '^9.0.0' },
       },
     });
-    try {
-      await runInitCommand(parseArgs(['init']), dir);
-      const config = await readFile(path.join(dir, 'effective.config.ts'), 'utf8');
-      expect(config).toContain('lint: "pnpm lint --format json"');
-    } finally {
-      await rm(dir, { recursive: true, force: true });
-    }
+    expect(config).toContain('lint: "pnpm lint --format json"');
   });
 
   it('appends `--reporter json` for biome', async () => {
-    const dir = await makeFixture({
+    const config = await initConfig({
       tsconfig: true,
       lockfile: 'pnpm',
       packageJson: {
@@ -214,17 +185,11 @@ describe('runInitCommand — toolchain detection', () => {
         devDependencies: { '@biomejs/biome': '^1.0.0' },
       },
     });
-    try {
-      await runInitCommand(parseArgs(['init']), dir);
-      const config = await readFile(path.join(dir, 'effective.config.ts'), 'utf8');
-      expect(config).toContain('lint: "pnpm lint --reporter json"');
-    } finally {
-      await rm(dir, { recursive: true, force: true });
-    }
+    expect(config).toContain('lint: "pnpm lint --reporter json"');
   });
 
   it('prefers `:ci` script variants when present', async () => {
-    const dir = await makeFixture({
+    const config = await initConfig({
       tsconfig: true,
       lockfile: 'pnpm',
       packageJson: {
@@ -232,17 +197,11 @@ describe('runInitCommand — toolchain detection', () => {
         devDependencies: { eslint: '^9.0.0' },
       },
     });
-    try {
-      await runInitCommand(parseArgs(['init']), dir);
-      const config = await readFile(path.join(dir, 'effective.config.ts'), 'utf8');
-      expect(config).toContain('lint: "pnpm lint:ci --format json"');
-    } finally {
-      await rm(dir, { recursive: true, force: true });
-    }
+    expect(config).toContain('lint: "pnpm lint:ci --format json"');
   });
 
   it('flags ambiguity when multiple test frameworks are present', async () => {
-    const dir = await makeFixture({
+    const config = await initConfig({
       tsconfig: true,
       lockfile: 'pnpm',
       packageJson: {
@@ -250,347 +209,235 @@ describe('runInitCommand — toolchain detection', () => {
         devDependencies: { vitest: '^3.0.0', jest: '^29.0.0' },
       },
     });
-    try {
-      await runInitCommand(parseArgs(['init']), dir);
-      const config = await readFile(path.join(dir, 'effective.config.ts'), 'utf8');
-      expect(config).toContain('// EDIT: detected multiple test frameworks');
-      expect(config).toContain('vitest, jest');
-    } finally {
-      await rm(dir, { recursive: true, force: true });
-    }
+    expect(config).toContain('// EDIT: detected multiple test frameworks');
+    expect(config).toContain('vitest, jest');
   });
 
   it('detects jest via @types/jest alone', async () => {
-    await withFixture(
-      {
-        tsconfig: true,
-        lockfile: 'pnpm',
-        packageJson: {
-          scripts: { test: 'jest' },
-          devDependencies: { '@types/jest': '^29.0.0' },
-        },
+    const config = await initConfig({
+      tsconfig: true,
+      lockfile: 'pnpm',
+      packageJson: {
+        scripts: { test: 'jest' },
+        devDependencies: { '@types/jest': '^29.0.0' },
       },
-      async (dir) => {
-        await runInitCommand(parseArgs(['init']), dir);
-        const config = await readFile(path.join(dir, 'effective.config.ts'), 'utf8');
-        expect(config).toContain('test: "pnpm test --json"');
-      },
-    );
+    });
+    expect(config).toContain('test: "pnpm test --json"');
   });
 
   it('detects node:test from a `node --test` script and appends its reporter flag', async () => {
-    await withFixture(
-      {
-        tsconfig: true,
-        lockfile: 'pnpm',
-        packageJson: { scripts: { test: 'node --test test/' } },
-      },
-      async (dir) => {
-        await runInitCommand(parseArgs(['init']), dir);
-        const config = await readFile(path.join(dir, 'effective.config.ts'), 'utf8');
-        expect(config).toContain('test: "pnpm test --test-reporter spec"');
-      },
-    );
+    const config = await initConfig({
+      tsconfig: true,
+      lockfile: 'pnpm',
+      packageJson: { scripts: { test: 'node --test test/' } },
+    });
+    expect(config).toContain('test: "pnpm test --test-reporter spec"');
   });
 
   it('appends `--format json` for oxlint', async () => {
-    await withFixture(
-      {
-        tsconfig: true,
-        lockfile: 'pnpm',
-        packageJson: {
-          scripts: { lint: 'oxlint' },
-          devDependencies: { oxlint: '^0.9.0' },
-        },
+    const config = await initConfig({
+      tsconfig: true,
+      lockfile: 'pnpm',
+      packageJson: {
+        scripts: { lint: 'oxlint' },
+        devDependencies: { oxlint: '^0.9.0' },
       },
-      async (dir) => {
-        await runInitCommand(parseArgs(['init']), dir);
-        const config = await readFile(path.join(dir, 'effective.config.ts'), 'utf8');
-        expect(config).toContain('lint: "pnpm lint --format json"');
-      },
-    );
+    });
+    expect(config).toContain('lint: "pnpm lint --format json"');
   });
 
   it('flags ambiguity when multiple lint frameworks are present', async () => {
-    await withFixture(
-      {
-        tsconfig: true,
-        lockfile: 'pnpm',
-        packageJson: {
-          scripts: { lint: 'eslint .' },
-          devDependencies: { eslint: '^9.0.0', '@biomejs/biome': '^1.0.0' },
-        },
+    const config = await initConfig({
+      tsconfig: true,
+      lockfile: 'pnpm',
+      packageJson: {
+        scripts: { lint: 'eslint .' },
+        devDependencies: { eslint: '^9.0.0', '@biomejs/biome': '^1.0.0' },
       },
-      async (dir) => {
-        await runInitCommand(parseArgs(['init']), dir);
-        const config = await readFile(path.join(dir, 'effective.config.ts'), 'utf8');
-        expect(config).toContain('// EDIT: detected multiple lint frameworks');
-        expect(config).toContain('eslint, biome');
-      },
-    );
+    });
+    expect(config).toContain('// EDIT: detected multiple lint frameworks');
+    expect(config).toContain('eslint, biome');
   });
 
   it('emits a coverage command from a test:coverage script', async () => {
-    await withFixture(
-      {
-        tsconfig: true,
-        lockfile: 'pnpm',
-        packageJson: {
-          scripts: { test: 'vitest run', 'test:coverage': 'vitest run --coverage' },
-          devDependencies: { vitest: '^3.0.0' },
-        },
+    const config = await initConfig({
+      tsconfig: true,
+      lockfile: 'pnpm',
+      packageJson: {
+        scripts: { test: 'vitest run', 'test:coverage': 'vitest run --coverage' },
+        devDependencies: { vitest: '^3.0.0' },
       },
-      async (dir) => {
-        await runInitCommand(parseArgs(['init']), dir);
-        const config = await readFile(path.join(dir, 'effective.config.ts'), 'utf8');
-        expect(config).toContain('coverage: "pnpm test:coverage --reporter json"');
-      },
-    );
+    });
+    expect(config).toContain('coverage: "pnpm test:coverage --reporter json"');
   });
 
   it('composes a plain `npm run` command when no reporter flag is forwarded', async () => {
-    await withFixture(
-      {
-        tsconfig: true,
-        lockfile: 'npm',
-        packageJson: { scripts: { typecheck: 'tsc --noEmit' } },
-      },
-      async (dir) => {
-        await runInitCommand(parseArgs(['init']), dir);
-        const config = await readFile(path.join(dir, 'effective.config.ts'), 'utf8');
-        expect(config).toContain('typecheck: "npm run typecheck"');
-      },
-    );
+    const config = await initConfig({
+      tsconfig: true,
+      lockfile: 'npm',
+      packageJson: { scripts: { typecheck: 'tsc --noEmit' } },
+    });
+    expect(config).toContain('typecheck: "npm run typecheck"');
   });
 
   it('emits lint and test commands without flags when no framework is recognized', async () => {
-    await withFixture(
-      {
-        tsconfig: true,
-        lockfile: 'pnpm',
-        packageJson: { scripts: { lint: 'mylinter .', test: 'node scripts/run-tests.js' } },
-      },
-      async (dir) => {
-        await runInitCommand(parseArgs(['init']), dir);
-        const config = await readFile(path.join(dir, 'effective.config.ts'), 'utf8');
-        expect(config).toContain('lint: "pnpm lint",');
-        expect(config).toContain('test: "pnpm test",');
-      },
-    );
+    const config = await initConfig({
+      tsconfig: true,
+      lockfile: 'pnpm',
+      packageJson: { scripts: { lint: 'mylinter .', test: 'node scripts/run-tests.js' } },
+    });
+    expect(config).toContain('lint: "pnpm lint",');
+    expect(config).toContain('test: "pnpm test",');
   });
 });
 
 describe('runInitCommand — meta block', () => {
   it('uses package.json name and version', async () => {
-    const dir = await makeFixture({
+    const config = await initConfig({
       tsconfig: true,
       packageJson: { name: 'my-app', version: '1.2.3' },
     });
-    try {
-      await runInitCommand(parseArgs(['init']), dir);
-      const config = await readFile(path.join(dir, 'effective.config.ts'), 'utf8');
-      expect(config).toContain('name: "my-app"');
-      expect(config).toContain('version: "1.2.3"');
-    } finally {
-      await rm(dir, { recursive: true, force: true });
-    }
+    expect(config).toContain('name: "my-app"');
+    expect(config).toContain('version: "1.2.3"');
   });
 
   it('falls back to a placeholder name when package.json is absent', async () => {
-    const dir = await makeFixture({ tsconfig: true });
-    try {
-      await runInitCommand(parseArgs(['init']), dir);
-      const config = await readFile(path.join(dir, 'effective.config.ts'), 'utf8');
-      expect(config).toContain('name: "my-project"');
-    } finally {
-      await rm(dir, { recursive: true, force: true });
-    }
+    const config = await initConfig({ tsconfig: true });
+    expect(config).toContain('name: "my-project"');
   });
 });
 
 describe('runInitCommand — idempotency', () => {
   it('skips files that already exist (no overwrite without --force)', async () => {
-    const dir = await makeFixture({
-      tsconfig: true,
-      existingFiles: [{ rel: 'effective.config.ts', content: '// existing content' }],
-    });
-    try {
-      const result = await runInitCommand(parseArgs(['init']), dir);
-      expect(result.filesSkipped.some((p) => p.endsWith('effective.config.ts'))).toBe(true);
-      const config = await readFile(path.join(dir, 'effective.config.ts'), 'utf8');
-      expect(config).toBe('// existing content');
-    } finally {
-      await rm(dir, { recursive: true, force: true });
-    }
+    await withFixture(
+      {
+        tsconfig: true,
+        existingFiles: [{ rel: 'effective.config.ts', content: '// existing content' }],
+      },
+      async (dir) => {
+        const result = await runInitCommand(parseArgs(['init']), dir);
+        expect(result.filesSkipped.some((p) => p.endsWith('effective.config.ts'))).toBe(true);
+        const config = await readFile(path.join(dir, 'effective.config.ts'), 'utf8');
+        expect(config).toBe('// existing content');
+      },
+    );
   });
 
   it('overwrites with --force', async () => {
-    const dir = await makeFixture({
-      tsconfig: true,
-      existingFiles: [{ rel: 'effective.config.ts', content: '// existing content' }],
-    });
-    try {
-      await runInitCommand(parseArgs(['init', '--force']), dir);
-      const config = await readFile(path.join(dir, 'effective.config.ts'), 'utf8');
-      expect(config).toContain('defineConfig');
-    } finally {
-      await rm(dir, { recursive: true, force: true });
-    }
+    await withFixture(
+      {
+        tsconfig: true,
+        existingFiles: [{ rel: 'effective.config.ts', content: '// existing content' }],
+      },
+      async (dir) => {
+        await runInitCommand(parseArgs(['init', '--force']), dir);
+        const config = await readFile(path.join(dir, 'effective.config.ts'), 'utf8');
+        expect(config).toContain('defineConfig');
+      },
+    );
   });
 
   it('emits "already initialized" when the config file is already present', async () => {
-    const dir = await makeFixture({
-      tsconfig: true,
-      gitignore: '.effective/\n',
-      existingFiles: [{ rel: 'effective.config.ts', content: '// existing config' }],
-    });
-    try {
-      const result = await runInitCommand(parseArgs(['init']), dir);
-      expect(result.stdout).toContain('already initialized');
-      expect(result.filesWritten).toHaveLength(0);
-    } finally {
-      await rm(dir, { recursive: true, force: true });
-    }
+    await withFixture(
+      {
+        tsconfig: true,
+        gitignore: '.effective/\n',
+        existingFiles: [{ rel: 'effective.config.ts', content: '// existing config' }],
+      },
+      async (dir) => {
+        const result = await runInitCommand(parseArgs(['init']), dir);
+        expect(result.stdout).toContain('already initialized');
+        expect(result.filesWritten).toHaveLength(0);
+      },
+    );
   });
 
   it('preserves existing .gitignore content while adding .effective/', async () => {
-    const dir = await makeFixture({ tsconfig: true, gitignore: 'node_modules/\n' });
-    try {
+    await withFixture({ tsconfig: true, gitignore: 'node_modules/\n' }, async (dir) => {
       await runInitCommand(parseArgs(['init']), dir);
       const gi = await readFile(path.join(dir, '.gitignore'), 'utf8');
       expect(gi).toContain('node_modules/');
       expect(gi).toContain('.effective/');
-    } finally {
-      await rm(dir, { recursive: true, force: true });
-    }
+    });
   });
 
   it('does not duplicate the `.effective/` gitignore entry on re-run', async () => {
-    const dir = await makeFixture({ tsconfig: true, gitignore: '.effective/\n' });
-    try {
+    await withFixture({ tsconfig: true, gitignore: '.effective/\n' }, async (dir) => {
       await runInitCommand(parseArgs(['init']), dir);
       const gi = await readFile(path.join(dir, '.gitignore'), 'utf8');
       const matches = gi.split('\n').filter((line) => line.trim() === '.effective/');
       expect(matches).toHaveLength(1);
-    } finally {
-      await rm(dir, { recursive: true, force: true });
-    }
+    });
   });
 });
 
 describe('runInitCommand — stdout', () => {
   it('includes the first-run slowness note', async () => {
-    const dir = await makeFixture({ tsconfig: true });
-    try {
+    await withFixture({ tsconfig: true }, async (dir) => {
       const result = await runInitCommand(parseArgs(['init']), dir);
       expect(result.stdout).toContain('first verify will be slower');
       expect(result.stdout).toContain('1-5 minutes');
-    } finally {
-      await rm(dir, { recursive: true, force: true });
-    }
+    });
   });
 
   it('suggests the right next-step command per package manager', async () => {
-    const dir = await makeFixture({ tsconfig: true, lockfile: 'pnpm' });
-    try {
+    await withFixture({ tsconfig: true, lockfile: 'pnpm' }, async (dir) => {
       const result = await runInitCommand(parseArgs(['init']), dir);
       expect(result.stdout).toContain('pnpm exec effective verify');
-    } finally {
-      await rm(dir, { recursive: true, force: true });
-    }
+    });
   });
 });
 
 describe('runInitCommand — exceptions inline', () => {
   it('emits seeds.builtInExceptions spread inside the config exceptions field', async () => {
-    const dir = await makeFixture({ tsconfig: true });
-    try {
-      await runInitCommand(parseArgs(['init']), dir);
-      const body = await readFile(path.join(dir, 'effective.config.ts'), 'utf8');
-      expect(body).toContain('exceptions: {');
-      expect(body).toContain('...seeds.builtInExceptions');
-    } finally {
-      await rm(dir, { recursive: true, force: true });
-    }
+    const body = await initConfig({ tsconfig: true });
+    expect(body).toContain('exceptions: {');
+    expect(body).toContain('...seeds.builtInExceptions');
   });
 });
 
 describe('runInitCommand — protected paths', () => {
   it('always emits the effective.config.ts entry', async () => {
-    const dir = await makeFixture({ tsconfig: true });
-    try {
-      await runInitCommand(parseArgs(['init']), dir);
-      const body = await readFile(path.join(dir, 'effective.config.ts'), 'utf8');
-      expect(body).toContain('protected: [');
-      expect(body).toContain('path: "effective.config.ts"');
-      expect(body).toContain('The constitution itself');
-    } finally {
-      await rm(dir, { recursive: true, force: true });
-    }
+    const body = await initConfig({ tsconfig: true });
+    expect(body).toContain('protected: [');
+    expect(body).toContain('path: "effective.config.ts"');
+    expect(body).toContain('The constitution itself');
   });
 
   it('uses the .js fallback for JS-only projects', async () => {
-    const dir = await makeFixture({ tsconfig: false });
-    try {
-      await runInitCommand(parseArgs(['init']), dir);
-      const body = await readFile(path.join(dir, 'effective.config.js'), 'utf8');
-      expect(body).toContain('path: "effective.config.js"');
-      expect(body).not.toContain('path: "effective.config.ts"');
-    } finally {
-      await rm(dir, { recursive: true, force: true });
-    }
+    const body = await initConfig({ tsconfig: false }, 'effective.config.js');
+    expect(body).toContain('path: "effective.config.js"');
+    expect(body).not.toContain('path: "effective.config.ts"');
   });
 
   it('emits eslint configs when eslint is in devDependencies', async () => {
-    const dir = await makeFixture({
+    const body = await initConfig({
       tsconfig: true,
       packageJson: { devDependencies: { eslint: '^9.0.0' } },
     });
-    try {
-      await runInitCommand(parseArgs(['init']), dir);
-      const body = await readFile(path.join(dir, 'effective.config.ts'), 'utf8');
-      expect(body).toContain('path: "eslint.config.*"');
-      expect(body).toContain('ESLint config controls lint behavior');
-    } finally {
-      await rm(dir, { recursive: true, force: true });
-    }
+    expect(body).toContain('path: "eslint.config.*"');
+    expect(body).toContain('ESLint config controls lint behavior');
   });
 
   it('emits tsconfig*.json when tsconfig.json exists', async () => {
-    const dir = await makeFixture({ tsconfig: true });
-    try {
-      await runInitCommand(parseArgs(['init']), dir);
-      const body = await readFile(path.join(dir, 'effective.config.ts'), 'utf8');
-      expect(body).toContain('path: "tsconfig*.json"');
-    } finally {
-      await rm(dir, { recursive: true, force: true });
-    }
+    const body = await initConfig({ tsconfig: true });
+    expect(body).toContain('path: "tsconfig*.json"');
   });
 
   it('emits .github/workflows/** when the directory exists', async () => {
-    const dir = await makeFixture({ tsconfig: true });
-    try {
-      await mkdir(path.join(dir, '.github', 'workflows'), { recursive: true });
-      await runInitCommand(parseArgs(['init']), dir);
-      const body = await readFile(path.join(dir, 'effective.config.ts'), 'utf8');
-      expect(body).toContain('path: ".github/workflows/**"');
-    } finally {
-      await rm(dir, { recursive: true, force: true });
-    }
+    const body = await initConfig({
+      tsconfig: true,
+      existingFiles: [{ rel: path.join('.github', 'workflows', '.gitkeep'), content: '' }],
+    });
+    expect(body).toContain('path: ".github/workflows/**"');
   });
 
   it('does NOT emit eslint configs when eslint is absent', async () => {
-    const dir = await makeFixture({
+    const body = await initConfig({
       tsconfig: true,
       packageJson: { devDependencies: { vitest: '^3.0.0' } },
     });
-    try {
-      await runInitCommand(parseArgs(['init']), dir);
-      const body = await readFile(path.join(dir, 'effective.config.ts'), 'utf8');
-      expect(body).not.toContain("path: 'eslint.config.*'");
-    } finally {
-      await rm(dir, { recursive: true, force: true });
-    }
+    expect(body).not.toContain("path: 'eslint.config.*'");
   });
 });
 
@@ -600,42 +447,30 @@ describe('runInitCommand — hostile package.json values are escaped', () => {
     // single-quoted literal, close the string and inject an
     // executable expression into the (later jiti-executed) config.
     const hostile = "x', leaked: process.env, y: 'z";
-    await withFixture(
-      { packageJson: { name: hostile, version: "1.0.0'+process.exit(1)+'" } },
-      async (dir) => {
-        const result = await runInitCommand(parseArgs(['init']), dir);
-        expect(result.exitCode).toBe(0);
-        const config = await readFile(path.join(dir, 'effective.config.ts'), 'utf8');
-        // The whole hostile value lands INSIDE one escaped string
-        // literal (data)…
-        expect(config).toContain(`name: ${JSON.stringify(hostile)},`);
-        // …and stripping the escaped literals leaves no payload
-        // outside a string — nothing executable escaped the quotes.
-        const outsideLiterals = config
-          .replace(JSON.stringify(hostile), '""')
-          .replace(JSON.stringify("1.0.0'+process.exit(1)+'"), '""');
-        expect(outsideLiterals).not.toContain('process.env');
-        expect(outsideLiterals).not.toContain('process.exit');
-      },
-    );
+    const config = await initConfig({
+      packageJson: { name: hostile, version: "1.0.0'+process.exit(1)+'" },
+    });
+    // The whole hostile value lands INSIDE one escaped string
+    // literal (data)…
+    expect(config).toContain(`name: ${JSON.stringify(hostile)},`);
+    // …and stripping the escaped literals leaves no payload
+    // outside a string — nothing executable escaped the quotes.
+    const outsideLiterals = config
+      .replace(JSON.stringify(hostile), '""')
+      .replace(JSON.stringify("1.0.0'+process.exit(1)+'"), '""');
+    expect(outsideLiterals).not.toContain('process.env');
+    expect(outsideLiterals).not.toContain('process.exit');
   });
 
   it('renders quote-bearing script names safely in toolchain commands', async () => {
-    await withFixture(
-      {
-        packageJson: {
-          scripts: { lint: 'eslint .' },
-          devDependencies: { eslint: '^9.0.0' },
-        },
-        lockfile: 'pnpm',
+    const config = await initConfig({
+      packageJson: {
+        scripts: { lint: 'eslint .' },
+        devDependencies: { eslint: '^9.0.0' },
       },
-      async (dir) => {
-        const result = await runInitCommand(parseArgs(['init']), dir);
-        expect(result.exitCode).toBe(0);
-        const config = await readFile(path.join(dir, 'effective.config.ts'), 'utf8');
-        // Commands are emitted as JSON-escaped double-quoted literals.
-        expect(config).toContain('lint: "pnpm lint --format json",');
-      },
-    );
+      lockfile: 'pnpm',
+    });
+    // Commands are emitted as JSON-escaped double-quoted literals.
+    expect(config).toContain('lint: "pnpm lint --format json",');
   });
 });
