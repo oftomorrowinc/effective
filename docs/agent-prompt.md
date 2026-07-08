@@ -710,7 +710,7 @@ observed failures so the structure can prevent recurrence.
 - **Common-shape example:** `docs/examples/typescript-vitest-eslint.md`
 - **Decision trees:** `docs/decisions.md`
 - **Failure modes:** `docs/failure-modes.md`
-- **Status (real vs. stubbed):** [README § Status](../README.md#status-v010-rc1)
+- **Status (real vs. stubbed):** [README § Status](../README.md#status-v010-rc8)
 - **Full design context:** [DESIGN.md](../DESIGN.md), [USAGE.md](../USAGE.md)
 - **Catalogue of failures the package defends against:**
   `schemas/failures.ts`

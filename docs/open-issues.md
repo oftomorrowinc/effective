@@ -61,11 +61,15 @@ _No bug entries currently tracked here — bugs awaiting reproduction live in `d
 - [Elevated / governance-PR mode for protected-path edits](#design-elevated--governance-pr-mode-for-protected-path-edits)
 - [Block-weakening vs block-every-edit on protected configs](#design-block-weakening-vs-block-every-edit-on-protected-configs)
 - [Should src/presets/\*\* rule definitions be protected paths?](#design-should-srcpresets-rule-definitions-be-protected-paths)
+- [Audit walker built-in skips can hide tracked code](#design-audit-walker-built-in-skips-can-hide-tracked-code-dot-entries-basename-anywhere-ignored-dirs)
+- [Content-scanner hardening: file-size caps, regex budget, region-classifier limits](#design-content-scanner-hardening-file-size-caps-regex-budget-region-classifier-limits)
+- [verify() ignores scope.relatedRules while prepare() honors it](#design-verify-ignores-scoperelatedrules-while-prepare-honors-it)
 
 ### Feature
 
 - [Baseline / ratchet for existing-codebase adoption](#feature-baseline--ratchet-for-existing-codebase-adoption)
 - [Modular governance-only preset](#feature-modular-governance-only-preset)
+- [Configurable coverage threshold](#feature-configurable-coverage-threshold)
 
 ### Other items observed but not yet pressing
 
@@ -655,6 +659,186 @@ is the load-bearing capability.
 
 ---
 
+## [Design] Audit walker built-in skips can hide tracked code (dot-entries, basename-anywhere ignored dirs)
+
+**The question.** The rc.8 gitignore work established an invariant for
+ignore _rules_: a tracked file is always scanned, even when a
+`.gitignore` pattern matches it. The walker's two built-in skip
+mechanisms predate that invariant and don't honor it:
+
+1. **Dot-entries are skipped wholesale** (`src/walk.ts`:
+   `entry.name.startsWith('.')`). A committed `.config.ts`, or source
+   under a committed `.server/` directory, is invisible to `audit`
+   regardless of gitignore state.
+2. **`DEFAULT_IGNORED_DIRS` matches by basename anywhere in the tree.**
+   A tracked file under any directory named `build`, `out`, or
+   `coverage` (e.g. `src/out/render.ts`) is silently unscanned — and a
+   worker optimizing against the gate could park violating code in a
+   directory with a blacklisted basename.
+
+Surfaced by the 2026-07-07 security review as the residual evasion
+channel after the gitignore fix deliberately left built-in skips
+untouched (`.effective/` must stay skipped even under
+`respectGitignore: false`).
+
+**Three paths**:
+
+1. **Extend the tracked-wins invariant to built-in skips.** After the
+   walk, add back any _tracked_ file that a built-in skip excluded
+   (one extra `git ls-files` pass, already computed for the gitignore
+   filter). `.git`/`.effective` stay excluded unconditionally. Most
+   consistent with the rc.8 invariant; slightly widens the audit set
+   for repos that commit build output on purpose.
+2. **Anchor built-in skips to the root.** Only skip `dist`/`build`/
+   `out`/`coverage` at the repo root (where they're conventionally
+   output dirs), not at arbitrary depth. Cheaper; doesn't fix
+   dot-entries; root-relative conventions vary across monorepos.
+3. **Document as a known boundary.** The gitignore fix covers the
+   common case; note in USAGE that tracked code inside dot-dirs or
+   output-named dirs is outside the audit's sight. Weakest — there is
+   currently no opt-in knob to pull such a directory back in.
+
+**Open question**: does "tracked wins" generalize from ignore rules to
+built-in skips (path 1), or are built-in skips a different contract
+("we never scan build output, tracked or not")? Path 1 matches the
+security framing; the counterargument is repos that commit `dist/` for
+GitHub-Pages-style deploys and don't want it audited.
+
+The risk of doing nothing: the gitignore invariant advertises "an
+ignore rule can't hide committed code" while a directory rename
+(`notes/` → `.notes/`) achieves exactly that hiding, silently.
+
+---
+
+## [Design] Content-scanner hardening: file-size caps, regex budget, region-classifier limits
+
+**The question.** The 2026-07-07 security review traced three
+scanner-hardening gaps that share one trust-model root — repo
+_content_ is semi-adversarial (the product premise), yet the scanners
+assume friendly input:
+
+1. **No per-file size cap.** `audit` reads every walked file fully
+   into memory (`src/audit.ts`) and runs every pattern rule and the
+   escape-hatch regexes over it; a very large generated file drives
+   pathological CPU/memory.
+2. **No regex budget.** Constitution-supplied `RegExp` sources run
+   verbatim with no timeout (consistent with "config is trusted," now
+   documented), but even the built-in escape-hatch patterns
+   (`[^*]*` / `[^\n]*` shapes in `src/escape-hatches/scan.ts`) have no
+   engine-side time bound against adversarial content.
+3. **Region classifier is heuristic.** `src/syntax-regions.ts`
+   documents that regex literals classify as `code` and template
+   `${…}` interpolations as `string`; a worker can position forbidden
+   code inside a template interpolation to evade a code-only pattern
+   rule. The toolchain gate (real eslint/tsc) is the authoritative
+   layer, but the pattern rules present as load-bearing.
+
+Related: submodule semantics are undefined — the walker descends into
+submodule working trees whose files are untracked in the superproject,
+so they're scanned (or gitignore-skipped) under superproject rules
+rather than their own constitution's.
+
+**Three paths**:
+
+1. **Cap + degrade loudly.** Per-file byte cap (e.g. 2 MiB) above
+   which pattern scanning skips the file and emits a LOW
+   "file too large to scan" finding; document the regex-trust
+   boundary (done in rc.8 docs) and leave rule regexes unbounded.
+2. **Full sandbox.** RE2 / worker-thread timeouts for all content
+   regexes. Strongest; heavy dependency and semantics drift (RE2
+   lacks lookbehind/backrefs) for a threat the toolchain gate already
+   bounds.
+3. **Status quo + docs.** Trust-model docs note the boundaries;
+   revisit when an adopter hits a real pathological case.
+
+**Open question**: is the scan layer a security boundary or a
+convenience layer in front of the toolchain gate? If convenience
+(current stance), path 1 is proportionate: loud degradation, no new
+dependencies. If boundary, path 2 becomes necessary and the region
+classifier needs the same treatment.
+
+The risk of doing nothing: a single 200 MB generated artifact in a
+walked directory turns `audit` from seconds into minutes-or-OOM, and
+the failure presents as a hang rather than a finding.
+
+---
+
+## [Design] `verify()` ignores `scope.relatedRules` while `prepare()` honors it
+
+**The question.** `selectApplicableRules` (src/rules/selection.ts)
+narrows the rule set by `scope.relatedRules` and is used by
+`prepare()` — the agent's prompt shows only the pinned rules. But
+`verify()` iterates every resolved rule and filters only by role, so
+a scope pinned via `relatedRules` is verified against the full set.
+The direction is safe (verify checks more than it promised), but the
+prompt's "the rules above will be checked" contract is broken:
+findings can cite rules the prompt never showed. Surfaced by the
+2026-07-07 code-quality review; the stale doc comment claiming verify
+uses the selection was corrected in the same session, so what remains
+is the genuine design question.
+
+**Three paths**:
+
+1. **Make verify honor `relatedRules`.** Symmetric with prepare;
+   narrows enforcement, so a mis-authored scope could accidentally
+   exempt work from foundation rules — the gate's strength would
+   depend on prompt-authoring discipline.
+2. **Keep verify-checks-everything; make prepare say so.** One line in
+   the prompt footer ("other constitutional rules still apply") plus
+   docs. Preserves gate strength; the prompt stops over-promising.
+3. **Split the field.** `relatedRules` stays prompt-only emphasis;
+   a separate explicit `scope.onlyRules` (opt-in, loud) narrows
+   verification for the rare caller who truly wants it.
+
+**Open question**: is `relatedRules` emphasis (2) or scoping (1)?
+Current behavior treats it as emphasis; the name suggests emphasis;
+the doc drift suggests the original intent was scoping. Leaning (2) —
+gate strength should not be prompt-authorable.
+
+The risk of doing nothing: agents optimized against the prompt learn
+that unlisted rules still bite, which is the right failure direction —
+but human scope authors keep writing `relatedRules` expecting it to
+scope verification, and their mental model breaks on the first
+surprise finding.
+
+---
+
+## [Feature] Configurable coverage threshold
+
+**The question.** `parseV8` hard-codes `COVERAGE_THRESHOLD = 90`
+(src/toolchain/parsers/v8.ts); `ToolchainConfig` offers no knob, and
+the recommended preset's guidance ("do not lower the threshold")
+assumes 90 for every adopter. A project with a legitimately different
+bar (legacy code ratcheting up from 60, or a 100%-or-nothing library)
+can only fork the parser or supply synthetic `toolchainResults`.
+Surfaced by the 2026-07-07 code-quality review.
+
+**Three paths**:
+
+1. **`toolchain.coverageThreshold: number`** on ToolchainConfig,
+   threaded to the parser at `collectToolchainResults` time. One knob,
+   schema-validated, default 90 — matches how parsers are already
+   resolved per-config. Parser signature grows a config parameter.
+2. **Rule-level param.** Put the threshold on the
+   `coverage-meets-threshold` rule definition (rules already carry
+   per-rule config like `in` globs). More local to the rule that
+   consumes it; but the _parser_ produces the findings today, so the
+   threshold would have to migrate from parser to rule evaluation.
+3. **Leave at 90; document the fork path.** Zero code; pushes every
+   differing adopter to customChecks.
+
+**Open question**: whether the threshold check belongs in the parser
+(where it lives now, producing findings) or in the rule evaluation
+layer (where severity/config normally live). Option 2 is the cleaner
+end-state; option 1 is the pragmatic near-term knob. Ratchet-style
+"coverage non-decreasing vs. baseline" is tracked separately under
+the baseline/ratchet entry above.
+
+The risk of doing nothing: adopters below 90 disable the rule
+entirely, losing the gate instead of tuning it.
+
+---
+
 ## Other items observed but not yet pressing
 
 Quick log of things that surfaced during rc.3 → rc.5 prep but didn't
@@ -679,16 +863,40 @@ publish --tag rc` only updates `rc`. Could be scripted (a
 --skip-install`), but smarter caching would be a nice DX win —
   e.g., hash the lockfile and skip install when the hash matches.
 
-- **`CHANGELOG.md` not in the npm tarball.** The `files` array in
-  `package.json` ships `README.md`, `LICENSE`, `CONTRIBUTING.md`,
-  `CONSTITUTION.md`, and `dist/`. Adopters reading the package on
-  npmjs.com can't see what changed between releases without
-  navigating to GitHub. One-line fix: add `"CHANGELOG.md"` to
-  `files`. Land with any next protected-path PR (since touching
-  `package.json` already requires the admin-bypass dance for the
-  version bump). Cheap, no downsides, just got missed.
+- **`lineFor()` / `locate()` rescan from offset 0 per match.**
+  Both the escape-hatch scanner's and the pattern rule's
+  line-number helpers walk the file from the start for every match,
+  which is quadratic on match-dense large files. Fine at current
+  scale; becomes visible if the per-file size cap discussion (see
+  content-scanner hardening entry) resolves toward scanning bigger
+  files. Precompute a line-offset index per file when it matters.
 
-These are noted, not assigned, not blocking.
+- **zod peer range admits v4 but only v3 is tested.** The peer range
+  is `>=3.22.0 <5`, while devDependencies/CI pin zod 3.x. Either CI
+  should add a zod-4 matrix leg or the range should narrow until
+  someone verifies v4 compatibility (`z.record` signatures and
+  error-shape changes are the likely break points).
+
+- **`no-hardcoded-secrets` is a partial overlay, not the real
+  secrets net.** The rule's `in` glob (narrowed in rc.7) covers
+  source + JSON/YAML, and the audit walker only reads JS/TS
+  extensions anyway — `.env`, `.pem`, Dockerfiles, and shell scripts
+  are out of scope. The layered defense is secretlint (`pnpm
+secrets`, glob `**/*`). Docs should say so wherever the rule is
+  pitched, so adopters don't over-trust it.
+
+- **Config discovery walks above the repo root.** `findConfigFile`
+  walks from cwd to the filesystem root, and the config is
+  jiti-executed — running `effective` inside an untrusted subtree
+  can execute an ancestor directory's `effective.config.ts`. Trust
+  model now documents it; consider stopping the walk at the
+  enclosing git toplevel (first directory containing `.git`) as a
+  cheap containment.
+
+These are noted, not assigned, not blocking. (The former
+"`CHANGELOG.md` not in the npm tarball" item graduated: `files` now
+ships `CHANGELOG.md` and `USAGE.md` as of the 2026-07-07 review
+session.)
 
 ---
 

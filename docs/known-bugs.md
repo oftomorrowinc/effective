@@ -129,6 +129,75 @@ workaround beyond patching the rule's severity-resolution path
 locally; flag the override as broken in the meantime and re-enable
 once the fix lands.
 
+## `init` scaffolds toolchain commands the default parsers can't parse
+
+**The bug.** Three related mismatches between what `init` writes into
+the generated config's `toolchain` block and what the engine's parsers
+can consume, each producing a silently-decorative gate:
+
+1. **node-test projects get `--test-reporter spec`**, but
+   `parseNodeTest` parses TAP (`not ok` lines). Spec-format output
+   yields zero findings, so `count-non-zero` gates see count 0.
+2. **The coverage command is suffixed with the _test_ reporter flag**
+   (e.g. `--reporter json` for vitest), which emits a test-run report
+   rather than `coverage-summary.json`; `parseV8` finds no `total`
+   entry and the coverage gate never fires.
+3. **`init` detects jest / biome / oxlint but never emits a
+   `toolchain.parsers` block**, so the engine applies the default
+   vitest/eslint parsers to output they can't parse.
+
+**Reported.** Full-package code-quality review, 2026-07-07 (three-lens
+review session that also produced the `respectGitignore` feature).
+Static-analysis finding; behaviors verified by reading
+`src/cli/init.ts:156-203` against `src/toolchain/parsers/*`.
+
+**Reproduction.** Confirmed by inspection; runtime repro straightforward
+(init a node-test or jest project, plant a failure, watch the gate pass).
+
+**Suspected cause.** (confirmed) `init`'s command templates and the
+parser registry evolved separately; nothing ties "command emits format
+X" to "parser for X exists."
+
+**Next step.** Make `init` emit a `parsers` block matching what it
+detected, switch node-test scaffolds to TAP output, and generate a
+coverage command that actually produces `coverage-summary.json` (e.g.
+`vitest run --coverage --coverage.reporter=json-summary`). Related
+engine-side hardening (count-based gates falling back to exit code
+when output is unparseable) shipped separately — that turns these
+from silent passes into loud failures, but init should still scaffold
+commands that parse.
+
+**Workaround.** Hand-edit the generated `toolchain` block: use
+supported output formats (eslint `--format json`, vitest
+`--reporter json`, TAP for node-test) and add a `parsers` block
+for jest.
+
+## `runCommand` buffer overflow is invisible to callers
+
+**The bug.** When a child's stdout/stderr exceeds the 50 MiB cap,
+`runCommand` (src/toolchain/run.ts) SIGTERMs the child and resolves
+with truncated buffers, `timedOut: false`, and no overflow flag — the
+exit code surfaces as a generic signal kill. A toolchain gate on
+`non-zero-exit` fails with no hint that output was truncated, and
+`any-output` semantics operate on partial data.
+
+**Reported.** Full-package code-quality review, 2026-07-07. Verified
+by inspection of the `bufferGuard` path.
+
+**Reproduction.** Confirmed by inspection; repro is a command that
+prints > 50 MiB.
+
+**Suspected cause.** (confirmed) `bufferOverflowed` is tracked
+internally but never exposed on `RunResult`.
+
+**Next step.** Add `overflowed: boolean` (or similar) to `RunResult`
+and mention truncation in the toolchain finding's output tail when
+set. Additive API change; land with the next batch of toolchain
+work.
+
+**Workaround.** None needed in practice yet — 50 MiB is far above
+normal toolchain output; hit it only with verbose reporters.
+
 ## Future additions
 
 This section is a placeholder. New bug reports — surfaced during

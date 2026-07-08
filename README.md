@@ -37,12 +37,13 @@ npx effective audit
 npx effective verify --against main
 ```
 
-The four shipped commands:
+The five shipped commands:
 
 - **`npx effective init`** — scaffold `effective.config.ts` at the repo root. Reads `package.json` scripts and detected tools to produce a starter config. Idempotent; `--force` to regenerate.
-- **`npx effective audit`** — read-only full-codebase scan. Use to establish a clean baseline before turning verify on, or for periodic drift checks. Exits zero regardless of findings — audit is a report, not a gate.
+- **`npx effective audit`** — read-only full-codebase scan. Use to establish a clean baseline before turning verify on, or for periodic drift checks. Exits zero regardless of findings — audit is a report, not a gate. Toolchain rules (lint/typecheck/test/coverage) are excluded unless you pass `--include-toolchain`; `--rule <id>` filters to a single rule and `--json` emits machine-readable output.
 - **`npx effective verify --against <ref>`** — the workhorse. Run the constitution's rules against a diff and return a verdict (`pass | fail | needs-review`). Exits non-zero on `fail`. Typical use: `--against main` for PRs, `--against HEAD~1` for the last commit, `--staged` for pre-commit hooks.
 - **`npx effective audit-escapes`** — narrower scan for suppression comments lacking `exception-id:` citations.
+- **`npx effective rules [<id> | --search <id>]`** — browse the resolved constitution; look up a rule's severity, category, and prompt projection by id.
 
 All commands accept `--help`. Wiring `verify` into CI and a pre-push hook is the typical integration; see [USAGE.md](./USAGE.md) for the full setup.
 
@@ -52,7 +53,7 @@ For callers building agent loops, the programmatic API gives finer control:
 
 ```ts
 import { prepare, verify, kickBack } from '@oftomorrow/effective';
-import { config } from './effective.config'; // your constitution
+import config from './effective.config.js'; // your constitution
 import { callModel } from './my-model-client';
 
 const scope = {
@@ -91,10 +92,10 @@ Three pure functions. You own the loop, the credentials, the model client. Effec
 ## Documentation
 
 - **[USAGE.md](./USAGE.md)** — how to wire it up, configure rules, author scopes, maintain the exceptions registry, adopt gradually on an existing codebase.
-- **[DESIGN.md](./DESIGN.md)** — why the package is shaped the way it is, including the alternatives we considered and rejected.
+- **[DESIGN.md](https://github.com/oftomorrowinc/effective/blob/main/DESIGN.md)** — why the package is shaped the way it is, including the alternatives we considered and rejected.
 - **[CONTRIBUTING.md](./CONTRIBUTING.md)** — how to contribute catalogue entries, exception categories, protected-path defaults, and rules; the two-path workflow for constitutional changes.
 - **[CONSTITUTION.md](./CONSTITUTION.md)** — generated reference of every rule shipped with the recommended preset (severity, category, role applicability, prompt projection). Regenerated from rule definitions via `pnpm docs:constitution`; a drift test fails CI if the committed file falls out of sync.
-- **[docs/agent-prompt.md](./docs/agent-prompt.md)** — context for an LLM agent helping a user adopt Effective. Load this when your agent tooling needs to onboard a project.
+- **[docs/agent-prompt.md](https://github.com/oftomorrowinc/effective/blob/main/docs/agent-prompt.md)** — context for an LLM agent helping a user adopt Effective. Load this when your agent tooling needs to onboard a project.
 
 The rest of this README is the 60-second pitch.
 
@@ -203,7 +204,7 @@ Two things this buys:
 
 **Reciprocal contribution.** When you observe a failure pattern in your own work and contribute it back, your post or issue gets cited as the source. Your diagnostic insight is credited. The contributor relationship isn't "submit free labor to a project"; it's "the catalogue gets sharper because of what you saw."
 
-See [`CATALOGUE.md`](./CATALOGUE.md) for the current entries and [`CONTRIBUTING.md`](./CONTRIBUTING.md) for how to add new ones.
+See [`CONSTITUTION.md`](./CONSTITUTION.md) for the rules the current entries drive (the catalogue entries themselves live in [`schemas/failures.ts`](https://github.com/oftomorrowinc/effective/blob/main/schemas/failures.ts)) and [`CONTRIBUTING.md`](./CONTRIBUTING.md) for how to add new ones.
 
 ---
 
@@ -211,9 +212,7 @@ See [`CATALOGUE.md`](./CATALOGUE.md) for the current entries and [`CONTRIBUTING.
 
 The deepest property of Effective: the same rule object produces both the prompt projection (what the worker reads as guidance) and the check projection (what the verifier runs against the diff).
 
-```ts
-rule.noDisabledTestsWithoutException();
-```
+Take `no-disabled-tests-without-exception`, a rule shipped in the recommended preset.
 
 When `prepare` reads this rule, it adds to the augmented prompt:
 
@@ -247,7 +246,7 @@ const prepared = prepare({ scope, config, original: userPrompt });
 
 The worker reads the augmented prompt and knows what _done_ means before starting.
 
-**Two projection modes.** `mode: 'full'` (default) emits every applicable rule's full guidance + examples + checklist (~15–30 KB depending on rule count). `mode: 'concise'` emits one-line summaries only (~3–5 KB) for callers wiring `prepare` into a high-frequency dispatch loop where `verify` + `kickBack` is the safety net — kickBack re-emits a tripped rule's full guidance on retry, so the agent learns specifics on demand without front-loading the catalogue. See [docs/examples/agent-loop-integration.md](./docs/examples/agent-loop-integration.md) for the wiring.
+**Two projection modes.** `mode: 'full'` (default) emits every applicable rule's full guidance + examples + checklist (~15–30 KB depending on rule count). `mode: 'concise'` emits one-line summaries only (~3–5 KB) for callers wiring `prepare` into a high-frequency dispatch loop where `verify` + `kickBack` is the safety net — kickBack re-emits a tripped rule's full guidance on retry, so the agent learns specifics on demand without front-loading the catalogue. See [docs/examples/agent-loop-integration.md](https://github.com/oftomorrowinc/effective/blob/main/docs/examples/agent-loop-integration.md) for the wiring.
 
 **The bundle (`prepared`) is the canonical handoff to verify.** `prepare()` returns `{ prompt, scope, config, mode }`; spreading that into `verify({ ...prepared, source })` ensures the scope and config that flowed into prepare are the same ones verify evaluates against — the type system catches drift that would otherwise be caller-hygiene.
 
@@ -261,7 +260,7 @@ const { verdict, findings } = await verify({ scope, config, source });
 
 Each finding carries:
 
-- A rule ID (`no-disabled-tests-without-exception`, `lane.test-writer.forbidden-app-files`, etc.)
+- A rule ID (`no-disabled-tests-without-exception`, `lane.editable-respected`, etc.)
 - A severity (`CRITICAL | HIGH | MED | LOW`)
 - A location (file:line where possible)
 - An evidence snippet
@@ -276,7 +275,7 @@ Each finding carries:
 - **`keepWorktree: 'on-pass' | 'always' | 'never'`** — controls cleanup of `.effective/work` after a verify run. Default `'on-pass'` (preserved on failure so you can `cd` in and inspect). CLI flag: `--keep-worktree[=mode]`.
 - **`skipInstall: true`** — skip the post-checkout install in the worktree. Combine with `keepWorktree: 'always'` for fast iteration over a pre-populated worktree. CLI flag: `--skip-install`.
 
-Skipped rules appear in `result.skipped` with reason `'category-excluded'` / `'rule-excluded'`. See [docs/examples/agent-loop-integration.md](./docs/examples/agent-loop-integration.md) for the canonical runner wiring.
+Skipped rules appear in `result.skipped` with reason `'category-excluded'` / `'rule-excluded'`. See [docs/examples/agent-loop-integration.md](https://github.com/oftomorrowinc/effective/blob/main/docs/examples/agent-loop-integration.md) for the canonical runner wiring.
 
 ### `kickBack()` — turn findings into the next prompt
 
@@ -339,7 +338,7 @@ This solves a class of problem we used to handle with hand-coded per-step valida
 
 ## Where the work happens — `.effective/work`
 
-When `verify` runs, it doesn't touch your working directory. Instead it manages an isolated worktree under `.effective/work` and runs the toolchain there. `npx effective init` sets this up — adds `.effective/` to your `.gitignore`, prepares the layout, and pre-installs `node_modules` so subsequent runs are fast.
+When `verify` runs, it doesn't touch your working directory. Instead it manages an isolated worktree under `.effective/work` and runs the toolchain there. `npx effective init` sets this up — adds `.effective/` to your `.gitignore` and prepares the layout. The first `verify` performs the dependency install into `.effective/`; subsequent runs reuse it and are fast.
 
 ```
 your-project/
@@ -355,7 +354,7 @@ On each `verify` call: a git worktree is created at `.effective/work` for the br
 
 This isolation means: `verify` never races with your dev server, never contaminates your editor's view of the project, never leaves stale state behind. It's also branch-agnostic — you can verify a branch you don't have checked out, which is the right shape for CI jobs or batch verification across PRs.
 
-If you'd rather skip the isolation (faster, but runs against your working state), pass `isolate: false` in the source. If you manage your own worktrees, pass `kind: 'worktree-direct'` with the path.
+If you'd rather skip the isolation, the shipped escape valves are: `--staged` (verify the index in the working tree — no worktree is created), `--skip-install` (reuse a `node_modules` you've populated some other way), and `--keep-worktree[=on-pass|always|never]` (control cleanup so you can inspect or reuse `.effective/work`). A "point verify at a worktree I manage myself" source is a possible future addition; it doesn't exist today — the supported sources are `inline`, `git`, and `staged`.
 
 ---
 
@@ -373,27 +372,33 @@ It is **not a control tool.** The constitution is a shared agreement, not a leas
 
 ---
 
+## Trust model
+
+Your `effective.config.ts` (and any presets it imports), your toolchain command strings, and CLI arguments are **trusted code** — the config is executed as TypeScript and toolchain commands run through your shell, so a malicious config can do anything your user can. The repository content being verified is what's treated as **semi-adversarial**: that's the product premise, and it's why pattern scanning is region-aware and gitignore handling never lets an ignore rule hide tracked code. Note that config discovery walks upward from the current directory, so don't run `effective` inside a directory tree you don't trust. See [Trust model in DESIGN.md](https://github.com/oftomorrowinc/effective/blob/main/DESIGN.md#trust-model) for the full statement.
+
+---
+
 ## Configuration
 
 Effective reads your project's constitution from `effective.config.ts` at the repo root. The default shape:
 
 ```ts
 // effective.config.ts
-import { defineConfig, presets, rule } from '@oftomorrow/effective';
+import { defineConfig, rule } from '@oftomorrow/effective';
 
-export const config = defineConfig({
+export default defineConfig({
   // Start from the full Effective catalogue
-  extends: [presets.recommended],
+  extends: ['recommended'],
 
   // Disable specific rules entirely, with rationale
   disable: {
-    'spec.assertion-narrowed':
+    'assertions-not-narrowed':
       'We use property-based tests; this rule produces false positives here.',
   },
 
   // Downgrade severity of rules you can't satisfy yet, with rationale
   override: {
-    'exceptions-must-cite-justification': {
+    'exceptions.must-cite-justification': {
       severity: 'HIGH',
       rationale:
         'Existing escape hatches lack refs; downgrade now, retrofit gradually.',
@@ -427,7 +432,7 @@ export const config = defineConfig({
 
 `npx effective init` generates a starter config by reading your `package.json` scripts and `.husky/` hooks. You review and edit.
 
-For deeper configuration patterns — adopting on existing codebases, defining custom rules, registering toolchain parsers — see [USAGE.md](./USAGE.md#configuration).
+For deeper configuration patterns — adopting on existing codebases, defining custom rules, configuring toolchain parsers — see [USAGE.md](./USAGE.md#configuration).
 
 ---
 
@@ -476,11 +481,11 @@ if (require.main === module) {
 const conn = await poolGetConnection();
 ```
 
-The `exceptionsMustCiteJustification` rule (active by default in the recommended preset) checks every escape hatch in the diff, validates its ID resolves to an active exception in the registry, and confirms the inline justification is non-empty. Unknown IDs fail. Empty justifications fail. The whole pattern becomes a built-in capability of `verify`.
+The `exceptions.must-cite-justification` rule (active by default in the recommended preset) checks every escape hatch in the diff, validates its ID resolves to an active exception in the registry, and confirms the inline justification is non-empty. Unknown IDs fail. Empty justifications fail. The whole pattern becomes a built-in capability of `verify`.
 
 ### Gradual adoption
 
-Existing codebases typically have hundreds of escape hatches with no exception refs. You don't need to retrofit all of them to adopt Effective. Every rule supports a severity override in `effective.config.ts`: downgrade `exceptions-must-cite-justification` from `CRITICAL` to `HIGH` (or `MED`) with rationale, ship as usual, and the override gets removed once the codebase catches up. The path from permissive to strict is explicit and tracked, not silent.
+Existing codebases typically have hundreds of escape hatches with no exception refs. You don't need to retrofit all of them to adopt Effective. Every rule supports a severity override in `effective.config.ts`: downgrade `exceptions.must-cite-justification` from `CRITICAL` to `HIGH` (or `MED`) with rationale, ship as usual, and the override gets removed once the codebase catches up. The path from permissive to strict is explicit and tracked, not silent.
 
 This pattern applies to every rule, not just exceptions. See [USAGE.md](./USAGE.md#adopting-on-an-existing-codebase) for the full adoption walkthrough including how to survey existing escape hatches and incrementally promote downgraded overrides back to `CRITICAL`.
 
@@ -498,13 +503,13 @@ pnpm add @oftomorrow/effective
 npx effective init
 ```
 
-Peer dependencies: `zod >= 3.x`. No other runtime dependencies.
+Peer dependency: `zod` (`>=3.22.0 <5`). Runtime dependencies: `jiti` (loads your TypeScript `effective.config.ts` without a build step) and `picomatch` (glob matching).
 
 See [§ What this looks like](#what-this-looks-like) for the CLI commands and [USAGE.md](./USAGE.md) for full setup.
 
 ---
 
-## Status (v0.1.0-rc.1)
+## Status (v0.1.0-rc.8)
 
 `effective` is in pre-release. The engine, schema, CLI, build, and the
 recommended preset's prompt projections are all real and stable enough
@@ -522,8 +527,8 @@ Be aware of the split.
 - Data discipline: `migration-has-exercising-test`
 - Toolchain: `toolchain.lint-clean`, `toolchain.typecheck-clean`,
   `toolchain.tests-pass`, `toolchain.coverage-meets-threshold`
-- Spec: `spec.test-names-land-verbatim`, `spec.assertions-not-narrowed`,
-  `spec.no-extra-tests-claiming-spec`
+- Spec: `specd-test-names-land-verbatim`, `assertions-not-narrowed`,
+  `no-alternative-tests-claiming-spec`
 
 **Prompt-projected, detection stubbed (the rule appears in `prepare()`
 guidance, citing the catalogue entry; `verify()` does not yet flag
@@ -582,7 +587,7 @@ The schemas for `Constitution`, `Rule`, `Finding`, `Scope`, and `Role` are the p
 
 Catalogue entries are versioned within the package. Adding a rule is a minor bump. Changing a rule's severity or detection logic is a minor bump with a changelog entry naming the rule. Removing a rule is a major bump.
 
-The constitution itself is append-only in spirit: entries can be deprecated (pattern no longer occurs in practice) or retired (formal removal after review), but the history of what the catalogue learned is preserved. See the philosophy in `CATALOGUE.md`.
+The constitution itself is append-only in spirit: entries can be deprecated (pattern no longer occurs in practice) or retired (formal removal after review), but the history of what the catalogue learned is preserved. See the philosophy in [DESIGN.md](https://github.com/oftomorrowinc/effective/blob/main/DESIGN.md#append-only-with-deprecation) and the shipped rules in [`CONSTITUTION.md`](./CONSTITUTION.md).
 
 ---
 

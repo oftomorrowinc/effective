@@ -19,7 +19,7 @@ Q1: Is this rule fundamentally inapplicable to your project?
     Examples of YES:
       - `mocks-only-at-external-boundaries` in a project with no mocks
       - `migration-has-exercising-test` in a project with no DB layer
-      - `spec.test-names-land-verbatim` in a project not using spec'd
+      - `specd-test-names-land-verbatim` in a project not using spec'd
         test names
     Examples of NO:
       - "We have suppressions without exception refs" (rule applies;

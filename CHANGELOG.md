@@ -6,6 +6,17 @@ project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **`audit` config block on the Constitution** (`AuditConfig` schema):
+  `respectGitignore?: boolean` (default `true`) and
+  `exclude?: string[]` — picomatch globs carving tracked,
+  non-gitignored paths out of the audit walk for the rare on-disk
+  directories the constitution shouldn't govern.
+- **`runCommand` accepts `stdin`.** Data is written to the child's
+  stdin and the stream closed; used to feed `git check-ignore --stdin
+-z` NUL-separated paths so filenames never touch a shell.
+
 ### Changed
 
 - **`audit` (and `audit-escapes`) now honor `.gitignore` by default.**
@@ -38,16 +49,9 @@ project adheres to [Semantic Versioning](https://semver.org/).
   none exists); a config that exists but fails to load is now an
   error rather than being silently ignored.
 
-### Added
+## [0.1.0-rc.7] — 2026-05-28
 
-- **`audit` config block on the Constitution** (`AuditConfig` schema):
-  `respectGitignore?: boolean` (default `true`) and
-  `exclude?: string[]` — picomatch globs carving tracked,
-  non-gitignored paths out of the audit walk for the rare on-disk
-  directories the constitution shouldn't govern.
-- **`runCommand` accepts `stdin`.** Data is written to the child's
-  stdin and the stream closed; used to feed `git check-ignore --stdin
--z` NUL-separated paths so filenames never touch a shell.
+### Changed
 
 - **Narrowed `no-hardcoded-secrets` `in` glob to source + config
   files.** The rule previously defaulted to `**/*`, which caught
@@ -63,6 +67,8 @@ project adheres to [Semantic Versioning](https://semver.org/).
   accidentally-pasted keys) can override `in` per project. Rationale
   captured in `docs/decisions.md` under "Pattern-rule scope:
   source/config by default."
+
+## [0.1.0-rc.6] — 2026-05-14
 
 ### Changed (BREAKING)
 
@@ -130,6 +136,8 @@ project adheres to [Semantic Versioning](https://semver.org/).
   workaround was synthetic-passing-results, now replaceable with
   `skipCategories: ['toolchain']`).
 
+## [0.1.0-rc.5] — 2026-05-13
+
 ### Fixed
 
 - **JSON-parsing parsers tolerate trailing pnpm/npm noise.** When
@@ -172,45 +180,7 @@ underlying issue.`) and the per-issue findings render normally
   editor-clickable and grep-able from the monorepo root. Plain
   single-package `tsc --noEmit` invocations are unaffected.
 
-### Changed
-
-- **`toolchain.coverage-non-decreasing` renamed to
-  `toolchain.coverage-meets-threshold`; `failOn` corrected from
-  `any-output` to `count-non-zero`.** The previous id promised baseline
-  comparison the engine doesn't implement, and the `any-output` mode
-  fired on every run (coverage tooling always writes a summary,
-  regardless of whether thresholds are met). The new rule fires only
-  when one or more per-metric thresholds (lines / statements /
-  functions / branches < 90%) are actually below floor — surfaced
-  through the per-metric findings the v8/c8/istanbul parser already
-  emits. Breaking for users with `disable: { 'toolchain.coverage-
-non-decreasing': ... }` or override entries — update the key to the
-  new id. The "non-decreasing" semantic remains unimplemented; run
-  your coverage tool's own baseline check alongside this gate if you
-  need it.
-
-- **`runCommand` strips nested-package-manager env pollutants before
-  spawning.** When effective itself is invoked via `pnpm exec
-effective verify` (or `npx effective ...`, etc.), the outer package
-  manager sets `npm_*` / `NPM_*` / `PNPM_*` / `INIT_CWD` vars
-  describing its own workspace context. effective's toolchain step
-  then spawned the project's own `pnpm typecheck` / `pnpm test` / etc.
-  with those vars still attached, and the inner pnpm resolved
-  workspace roots from the wrong base — symptoms ranged from
-  "TS2307: Cannot find module 'effective'" to test runners exiting
-  non-zero with no visible error and coverage producing inconsistent
-  output. The fix scrubs the inherited prefixes; caller-supplied
-  env (via `runCommand({ env })`) is unaffected. Affects any toolchain
-  command effective spawns under any package manager.
-
-- **Package renamed to `@oftomorrow/effective`.** The unscoped `effective`
-  name on npm was taken by an abandoned 2017 package; scoping under
-  `@oftomorrow` aligns with the namespace where future packages
-  (`@oftomorrow/effective-reviewer`, etc.) will live. The CLI command
-  (`npx effective`) and config file (`effective.config.ts`) are
-  unchanged — only the install path and `import` specifier move to the
-  scoped form (`pnpm add @oftomorrow/effective`,
-  `import { ... } from '@oftomorrow/effective'`).
+## [0.1.0-rc.4] — 2026-05-13
 
 ### Added
 
@@ -284,6 +254,41 @@ effective verify` (or `npx effective ...`, etc.), the outer package
   renders it. JSON output exposes both fields as top-level result
   properties.
 
+### Changed
+
+- **`toolchain.coverage-non-decreasing` renamed to
+  `toolchain.coverage-meets-threshold`; `failOn` corrected from
+  `any-output` to `count-non-zero`.** The previous id promised baseline
+  comparison the engine doesn't implement, and the `any-output` mode
+  fired on every run (coverage tooling always writes a summary,
+  regardless of whether thresholds are met). The new rule fires only
+  when one or more per-metric thresholds (lines / statements /
+  functions / branches < 90%) are actually below floor — surfaced
+  through the per-metric findings the v8/c8/istanbul parser already
+  emits. Breaking for users with `disable: { 'toolchain.coverage-
+non-decreasing': ... }` or override entries — update the key to the
+  new id. The "non-decreasing" semantic remains unimplemented; run
+  your coverage tool's own baseline check alongside this gate if you
+  need it.
+
+- **`runCommand` strips nested-package-manager env pollutants before
+  spawning.** When effective itself is invoked via `pnpm exec
+effective verify` (or `npx effective ...`, etc.), the outer package
+  manager sets `npm_*` / `NPM_*` / `PNPM_*` / `INIT_CWD` vars
+  describing its own workspace context. effective's toolchain step
+  then spawned the project's own `pnpm typecheck` / `pnpm test` / etc.
+  with those vars still attached, and the inner pnpm resolved
+  workspace roots from the wrong base — symptoms ranged from
+  "TS2307: Cannot find module 'effective'" to test runners exiting
+  non-zero with no visible error and coverage producing inconsistent
+  output. The fix scrubs the inherited prefixes; caller-supplied
+  env (via `runCommand({ env })`) is unaffected. Affects any toolchain
+  command effective spawns under any package manager.
+
+## [0.1.0-rc.3] — 2026-05-12
+
+### Added
+
 - **`CONSTITUTION.md` — generated reference of the recommended preset.**
   Human-readable projection of every shipped rule (severity, category,
   role applicability, related principle or catalogue entry, prompt
@@ -296,6 +301,22 @@ effective verify` (or `npx effective ...`, etc.), the outer package
   git SHA in the output, so freshness comes from
   `git log CONSTITUTION.md`, not from the file itself. Shipped in the
   npm tarball (added to `package.json` `files`).
+
+### Changed
+
+- **Package renamed to `@oftomorrow/effective`.** The unscoped `effective`
+  name on npm was taken by an abandoned 2017 package; scoping under
+  `@oftomorrow` aligns with the namespace where future packages
+  (`@oftomorrow/effective-reviewer`, etc.) will live. The CLI command
+  (`npx effective`) and config file (`effective.config.ts`) are
+  unchanged — only the install path and `import` specifier move to the
+  scoped form (`pnpm add @oftomorrow/effective`,
+  `import { ... } from '@oftomorrow/effective'`).
+
+## [0.1.0-rc.2] — 2026-05-12
+
+### Added
+
 - **`protected-paths-respected` foundation rule.** New CRITICAL rule
   that flags any diff touching files declared under the new
   `Constitution.protected` field. Distinct from the lane rule: lane
@@ -381,7 +402,7 @@ rationale }` entries; the rationale is required (non-empty) so
 First public pre-release. The engine, schema, CLI, build, and the
 recommended preset's prompt projections are all real and stable enough
 to publish. Detection coverage on the catalogue rules is intentionally
-partial — see [Status in the README](./README.md#status-v010-rc1) for
+partial — see [Status in the README](./README.md#status-v010-rc8) for
 the per-rule split.
 
 ### Added

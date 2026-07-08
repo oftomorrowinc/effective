@@ -6,7 +6,7 @@
 > existing codebases.
 >
 > If you want to know **why** the package is shaped the way it is, see
-> [DESIGN.md](./DESIGN.md). If you want a fast pitch, see [README.md](./README.md).
+> [DESIGN.md](https://github.com/oftomorrowinc/effective/blob/main/DESIGN.md). If you want a fast pitch, see [README.md](./README.md).
 
 ---
 
@@ -74,7 +74,7 @@ pnpm add @oftomorrow/effective
 yarn add @oftomorrow/effective
 ```
 
-Peer dependencies: `zod >= 3.x`. No other runtime dependencies.
+Peer dependency: `zod` (`>=3.22.0 <5`). Runtime dependencies: `jiti` (loads your TypeScript `effective.config.ts` without a build step) and `picomatch` (glob matching).
 
 ### Running init
 
@@ -111,7 +111,7 @@ in it explain each section.
 
 ```ts
 import { verify } from '@oftomorrow/effective';
-import { config } from './effective.config';
+import config from './effective.config.js';
 
 const result = await verify({
   scope: {
@@ -151,20 +151,20 @@ Lives at the repo root. Looks like this:
 
 ```ts
 // effective.config.ts
-import { defineConfig, presets, rule } from '@oftomorrow/effective';
+import { defineConfig, rule } from '@oftomorrow/effective';
 
-export const config = defineConfig({
-  extends: [presets.recommended],
+export default defineConfig({
+  extends: ['recommended'],
 
   // Disable rules that don't fit your project
   disable: {
-    'spec.assertion-narrowed':
+    'assertions-not-narrowed':
       'We use property-based tests; this rule produces false positives here.',
   },
 
   // Downgrade severity for rules you can't satisfy yet
   override: {
-    'exceptions-must-cite-justification': {
+    'exceptions.must-cite-justification': {
       severity: 'HIGH',
       rationale:
         'Existing escape hatches lack refs; warn now, retrofit gradually.',
@@ -175,8 +175,11 @@ export const config = defineConfig({
   rules: [
     rule.forbidPattern(/TODO\(@nobody\)/, {
       in: 'src/**',
-      severity: 'HIGH',
-      message: 'TODO without an owner; assign to a person or remove.',
+      defaultSeverity: 'HIGH',
+      prompt: {
+        summary: 'TODOs must have an owner.',
+        guidance: 'TODO without an owner; assign to a person or remove.',
+      },
     }),
   ],
 
@@ -209,17 +212,21 @@ export const config = defineConfig({
 
 ### Extending presets
 
-Presets are pre-composed constitutions. The recommended preset includes
-the full catalogue:
+Presets are pre-composed constitutions, referenced by name. The
+recommended preset includes the full catalogue:
 
 ```ts
-extends: [presets.recommended],
+extends: ['recommended'],
 ```
 
-You can extend multiple presets; later wins on conflicts:
+`'recommended'` is the only preset that ships today. The resolver
+supports extending multiple presets (later wins on conflicts), so a
+future multi-preset config would look like this — illustrative only,
+`typescript-strict` does not exist yet:
 
 ```ts
-extends: [presets.recommended, presets.typescriptStrict],
+// Illustrative / future — only 'recommended' ships today.
+extends: ['recommended', 'typescript-strict'],
 ```
 
 Project-specific rules in your config win over preset rules.
@@ -232,7 +239,7 @@ rule. Both projections go silent.
 
 ```ts
 disable: {
-  'spec.assertion-narrowed': 'Property-based tests produce different patterns.',
+  'assertions-not-narrowed': 'Property-based tests produce different patterns.',
   'no-disabled-tests-without-exception': 'Vitest plugin we use handles this differently.',
 },
 ```
@@ -249,11 +256,11 @@ _does_ fit but you can't satisfy it yet, use `override` instead.
 
 ```ts
 override: {
-  'exceptions-must-cite-justification': {
+  'exceptions.must-cite-justification': {
     severity: 'HIGH',
     rationale: 'Existing escape hatches lack refs; warn now, retrofit gradually.',
   },
-  'spec.test-names-land-verbatim': {
+  'specd-test-names-land-verbatim': {
     severity: 'MED',
     rationale: 'Tests cite the spec but use renamed Given-When-Then format.',
   },
@@ -283,7 +290,8 @@ toolchain: {
 The commands run against the isolated worktree at `.effective/work`. Each
 command's output is parsed and converted to findings.
 
-If a tool's output format isn't auto-detected, hint via `parsers`:
+If a tool's output format isn't auto-detected, hint via `parsers`
+(keys are the four tool slots: `lint`, `typecheck`, `test`, `coverage`):
 
 ```ts
 toolchain: {
@@ -294,41 +302,36 @@ toolchain: {
 },
 ```
 
-Supported parsers: `eslint`, `biome`, `oxlint`, `tsc`, `vitest`, `jest`,
-`node-test`, `v8`, `istanbul`.
+Working parsers today: `eslint` (lint), `tsc` (typecheck), `vitest`,
+`jest`, `node-test` (test), and `v8` / `istanbul` (coverage — both read
+the same `coverage-summary.json` shape). The schema also _accepts_
+`biome`, `oxlint`, and `custom` as hints, but no parser ships for them
+yet: the command still runs, but its output is not parsed into
+per-issue findings. Count-based rules (`count-non-zero`,
+`count-increased`) never treat unmeasured output as clean — when no
+parsed count exists they fall back to the command's exit code, so an
+unsupported hint degrades to exit-code gating (with a finding message
+telling you the output couldn't be parsed) rather than a permanently
+green gate.
 
-For a tool with non-standard output, use `custom` and provide a callback
-in code:
+For a tool beyond the four standard slots, add it under
+`toolchain.custom` — each entry is a named command that runs alongside
+the toolchain:
 
 ```ts
 toolchain: {
   custom: {
     'my-checker': 'pnpm my-custom-check --json',
   },
-  parsers: {
-    'my-checker': 'custom',
-  },
 },
 ```
 
-Then register the parser function:
-
-```ts
-import { registerParser } from '@oftomorrow/effective';
-
-registerParser('my-checker', async ({ stdout, exitCode }) => {
-  const parsed = JSON.parse(stdout);
-  return parsed.issues.map((issue) => ({
-    ruleId: `my-checker.${issue.code}`,
-    severity: issue.level === 'error' ? 'CRITICAL' : 'MED',
-    category: 'custom',
-    location: { file: issue.file, line: issue.line },
-    evidence: issue.snippet,
-    message: issue.message,
-    source: { kind: 'toolchain', tool: 'custom', nativeRuleId: issue.code },
-  }));
-});
-```
+A rule of `kind: 'toolchain'` with `tool: 'custom'` references the
+entry by name and fails on the command's exit code or output count.
+If you need to turn a tool's output into rich per-issue findings,
+write a custom check instead: define a `rule.custom({ ..., checkRef })`
+rule and supply the check function via `verify({ customChecks })` —
+see [Custom rules](#custom-rules) below.
 
 ### Custom rules
 
@@ -339,20 +342,26 @@ rules: [
   rule.forbidPattern(/console\.log/, {
     in: 'src/**',
     notIn: 'src/**/__tests__/**',
-    severity: 'CRITICAL',
-    message: 'console.log in production code; use the logger instead.',
+    defaultSeverity: 'CRITICAL',
+    prompt: {
+      summary: 'No console.log in production code.',
+      guidance: 'console.log in production code; use the logger instead.',
+    },
   }),
 
   rule.requirePattern(/import .* from 'zod'/, {
     in: 'src/schemas/**',
-    severity: 'HIGH',
-    message: 'Schema files should import zod.',
+    defaultSeverity: 'HIGH',
+    prompt: {
+      summary: 'Schema files import zod.',
+      guidance: 'Schema files should import zod.',
+    },
   }),
 
   rule.custom({
     id: 'no-default-exports-in-services',
     category: 'architecture',
-    severity: 'CRITICAL',
+    defaultSeverity: 'CRITICAL',
     description: 'Service modules should use named exports.',
     checkRef: 'noDefaultExportsInServices',
     prompt: {
@@ -363,9 +372,30 @@ rules: [
 ],
 ```
 
-For `custom` rules, the `checkRef` points to a function you export from
-your config or a sibling file. The function receives the diff context and
-returns `Finding[]`.
+Pattern rules take `defaultSeverity` (the project's `override` map can
+still downgrade it) and a `prompt` projection (`summary`, `guidance`,
+optional `examples`) — the `guidance` text is what workers read and
+what findings cite.
+
+For `custom` rules, `checkRef` names a check function that you supply
+at verify time via `verify({ customChecks })` — check functions are
+not exported from the config file itself:
+
+```ts
+import { verify } from '@oftomorrow/effective';
+
+const result = await verify({
+  scope,
+  config,
+  source,
+  customChecks: {
+    noDefaultExportsInServices: (rule, ctx) => {
+      // inspect ctx.changedFiles, return Finding[]
+      return [];
+    },
+  },
+});
+```
 
 ### Custom roles
 
@@ -587,7 +617,7 @@ for (const task of tasks) {
 
 Format: `-- <exception-id>: <inline justification>`
 
-The `exceptions-must-cite-justification` rule (active in the recommended
+The `exceptions.must-cite-justification` rule (active in the recommended
 preset) checks every escape hatch in the diff and validates:
 
 1. The exception ID resolves to an active entry in the registry.
@@ -622,7 +652,7 @@ ID. Either remove those hatches or migrate them to a different exception.
 
 ```ts
 import { prepare, verify, kickBack } from '@oftomorrow/effective';
-import { config } from './effective.config';
+import config from './effective.config.js';
 import { spawn } from 'child_process';
 
 async function runClaudeCode(prompt: string, worktree: string) {
@@ -683,7 +713,7 @@ The same pattern works with any model client:
 
 ```ts
 import { prepare, verify, kickBack } from '@oftomorrow/effective';
-import { config } from './effective.config';
+import config from './effective.config.js';
 import Anthropic from '@anthropic-ai/sdk';
 import { writeFilesFromDiff } from './my-file-writer';
 
@@ -736,7 +766,7 @@ baseline, prints findings to stderr, and exits non-zero on `fail` verdict.
   run: npx effective verify --against ${{ github.base_ref }}
 ```
 
-The CLI auto-detects PR context from common CI env vars. For non-PR runs:
+For non-PR runs:
 
 ```yaml
 - name: Verify HEAD
@@ -860,7 +890,7 @@ npx effective verify --work HEAD --baseline HEAD~10
 ```
 
 Most existing codebases will see findings — particularly for the
-`exceptions-must-cite-justification` rule (because no escape hatches have
+`exceptions.must-cite-justification` rule (because no escape hatches have
 refs yet) and for any rule that depends on conventions you haven't adopted.
 
 Step 3: triage the findings.
@@ -919,25 +949,28 @@ already in the codebase:
 npx effective audit-escapes
 ```
 
-Output:
+Output is a flat list of every hatch missing an `exception-id:` ref —
+one `file:line [kind]` entry per hatch, followed by a guidance line:
 
 ```
-Found 247 escape hatches without exception refs:
-  src/cli/dispatch.ts:42      /* c8 ignore */
-  src/sdk-wrapper.ts:128      // @ts-expect-error
-  src/api/handler.ts:67       // eslint-disable-next-line no-await-in-loop
+Found 247 escape hatch(es) without an `exception-id:` ref:
+  src/cli/dispatch.ts:42  [c8-ignore]  (no exception-id)
+  src/sdk-wrapper.ts:128  [ts-expect-error]  (no exception-id)
+  src/api/handler.ts:67  [eslint-disable]  (no exception-id)
   ...
 
-Suggested categorization:
-  CLI fatal-exit (likely):           18 sites
-  Sequential-by-design await:        47 sites
-  Type narrowing of impossible:      82 sites
-  Zod internal introspection:         3 sites
-  External library drift defense:    51 sites
-  Uncategorized:                     46 sites
+Each unjustified hatch should either be removed (fix the underlying issue) or cite a tracked `exception-id:` registered under the config's `exceptions` field.
 ```
 
-The audit doesn't auto-add anything. It surfaces the patterns so you can
+Pass `--all` to list every hatch, justified or not (justified ones show
+their `exception-id:` instead of `(no exception-id)`).
+
+The scan walks the same file set as `effective audit`: it honors
+`.gitignore` by default and follows the config's `audit` block
+(`respectGitignore`, `exclude`) — see
+[What the audit walks](#what-the-audit-walks-gitignore-carve-outs).
+
+The scan doesn't auto-add anything. It surfaces the sites so you can
 decide which exceptions to register and which sites should actually have
 the disable removed.
 
@@ -949,11 +982,11 @@ overridden rule:
 ```ts
 // Phase 1: just adopted
 override: {
-  'exceptions-must-cite-justification': {
+  'exceptions.must-cite-justification': {
     severity: 'HIGH',
     rationale: 'Existing escape hatches lack refs; warn now, retrofit gradually.',
   },
-  'spec.test-names-land-verbatim': {
+  'specd-test-names-land-verbatim': {
     severity: 'HIGH',
     rationale: 'Existing tests use Given-When-Then naming.',
   },
@@ -961,8 +994,8 @@ override: {
 
 // Phase 2: catalogued existing escape hatches
 override: {
-  // exceptions-must-cite-justification removed; back to CRITICAL
-  'spec.test-names-land-verbatim': {
+  // exceptions.must-cite-justification removed; back to CRITICAL
+  'specd-test-names-land-verbatim': {
     severity: 'HIGH',
     rationale: 'Existing tests use Given-When-Then naming.',
   },
@@ -1197,10 +1230,10 @@ The `verify` result includes a `summary` for quick counts:
   verdict: 'fail',
   findings: [/* ... */],
   summary: {
-    block: 3,
+    critical: 3,
     high: 7,
-    low: 12,
-    nit: 4,
+    med: 12,
+    low: 4,
     total: 26,
   },
 }
@@ -1311,7 +1344,7 @@ The README's lede shows the basic loop. Real loops typically add:
   to code-writer when the failure is "implementation broken")
 
 The package doesn't ship a runner that handles all this — see
-[DESIGN.md](./DESIGN.md#why-not-a-runner) for why. Your runner is your runner.
+[DESIGN.md](https://github.com/oftomorrowinc/effective/blob/main/DESIGN.md#why-not-a-runner) for why. Your runner is your runner.
 
 ### Pre-commit verification
 
@@ -1322,10 +1355,14 @@ Run `verify` in a pre-commit hook for fast local feedback:
 npx effective verify --staged
 ```
 
-`--staged` mode verifies only the staged changes against `HEAD`, runs only
-the rules that apply to file-level changes (skips coverage, since coverage
-needs a real test run), and exits quickly. Useful for "did I just add a
-console.log" type catches.
+`--staged` mode verifies only the staged changes against `HEAD` and skips
+the worktree isolation — no `.effective/work` checkout, no install step.
+It does **not** skip the toolchain: every configured toolchain command
+(lint, typecheck, test, coverage) runs in your working tree. If your full
+toolchain is too slow for a pre-commit hook, pair `--staged` with a fast
+toolchain config (or `disable` the slow toolchain rules with rationale)
+so the hook stays quick. Useful for "did I just add a console.log" type
+catches.
 
 ---
 
