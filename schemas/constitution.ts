@@ -61,6 +61,35 @@ export const ToolchainConfig = z.object({
 export type ToolchainConfig = z.infer<typeof ToolchainConfig>;
 
 /**
+ * Audit config — knobs for the whole-repo `audit()` walk (and the
+ * escape-hatch scan, which shares the same file set by construction).
+ */
+export const AuditConfig = z.object({
+  /**
+   * Skip files git itself would ignore. Default `true`.
+   *
+   * The predicate is git's own: a file is skipped only when it is BOTH
+   * untracked AND matched by an ignore rule (nested `.gitignore`s,
+   * `.git/info/exclude`, and the global excludes file all apply).
+   * Tracked files are ALWAYS scanned even if an ignore pattern matches
+   * them — adding a `.gitignore` entry after the fact can never hide
+   * committed code from the audit. Set `false` to restore the
+   * walk-everything-on-disk behavior.
+   */
+  respectGitignore: z.boolean().optional(),
+  /**
+   * Glob patterns (picomatch syntax, matched against repo-relative
+   * paths) carved out of the audit walk in ADDITION to gitignore —
+   * for on-disk, non-gitignored directories the constitution should
+   * not govern. Prefer `.gitignore` for anything git shouldn't see;
+   * use this only for tracked carve-outs, and sparingly: every entry
+   * is code the audit stops vouching for.
+   */
+  exclude: z.array(z.string()).optional(),
+});
+export type AuditConfig = z.infer<typeof AuditConfig>;
+
+/**
  * Per-rule override — used in `effective.config.ts` to downgrade a rule's
  * severity for gradual adoption.
  *
@@ -132,6 +161,12 @@ export const Constitution = z
     roles: z.record(z.string(), RoleDefinition).optional(),
 
     toolchain: ToolchainConfig.optional(),
+
+    /**
+     * Audit-walk configuration: gitignore handling and extra path
+     * carve-outs. See `AuditConfig`.
+     */
+    audit: AuditConfig.optional(),
 
     /**
      * Exception registry — built-in templates spread with project-specific

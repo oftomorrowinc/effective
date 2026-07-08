@@ -300,6 +300,8 @@ npx effective audit
 
 It runs every rule that makes sense against the current state of the codebase (skipping diff-only and meta rules, which don't apply to a full scan). Output is grouped by severity; the command exits zero regardless of findings — audit is a report, not a gate.
 
+The walk honors `.gitignore` by default, using git's own semantics: files that are untracked _and_ matched by an ignore rule are skipped, so the audit's verdict is the same on a workstation (with gitignored local tooling on disk) as in CI. Tracked files are always scanned — an ignore rule added after the fact can never hide committed code. Opt out with `audit: { respectGitignore: false }` in the config, or carve out tracked paths with `audit: { exclude: [...] }` globs.
+
 Use audit when:
 
 - Adopting Effective on an existing codebase, to see what the catalogue catches before turning verify on

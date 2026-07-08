@@ -9,6 +9,11 @@ export interface RunInput {
   timeoutMs?: number;
   /** Additional env variables merged over process.env. */
   env?: Readonly<Record<string, string>>;
+  /**
+   * Data written to the child's stdin (then closed). When omitted,
+   * stdin is ignored entirely — the child sees an immediate EOF.
+   */
+  stdin?: string;
 }
 
 export interface RunResult {
@@ -90,7 +95,7 @@ export async function runCommand(input: RunInput): Promise<RunResult> {
       cwd,
       env,
       shell: true,
-      stdio: ['ignore', 'pipe', 'pipe'],
+      stdio: [input.stdin === undefined ? 'ignore' : 'pipe', 'pipe', 'pipe'],
       // Detach so the shell starts a new process group and we can SIGTERM
       // the whole group — otherwise `shell: true` makes `sh` our direct
       // child and the real workload (e.g. `node`, `eslint`) a grandchild,
@@ -153,10 +158,23 @@ export async function runCommand(input: RunInput): Promise<RunResult> {
       }
     }
 
-    child.stdout.on('data', (chunk: Buffer) => {
+    if (input.stdin !== undefined && child.stdin !== null) {
+      child.stdin.on('error', (error: Error) => {
+        // The child exiting before draining stdin (EPIPE) is an expected
+        // outcome, not a crash — the exit code carries the verdict.
+        // Recorded on stderr for diagnosability.
+        bufferGuard('stderr', Buffer.from(`[runCommand stdin error] ${error.message}\n`));
+      });
+      child.stdin.end(input.stdin);
+    }
+
+    // Optional-chained: with a conditional stdin slot TS can no longer
+    // prove the stdio tuple pipes stdout/stderr, but both are always
+    // 'pipe' above so the streams exist at runtime.
+    child.stdout?.on('data', (chunk: Buffer) => {
       bufferGuard('stdout', chunk);
     });
-    child.stderr.on('data', (chunk: Buffer) => {
+    child.stderr?.on('data', (chunk: Buffer) => {
       bufferGuard('stderr', chunk);
     });
 

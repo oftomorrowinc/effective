@@ -329,7 +329,9 @@ export const newExportsHaveNonTestCallers: CustomCheck = async (rule, ctx) => {
   const seenAsNonTestCaller = new Set<string>();
   const newFilePaths = new Set(newSourceFiles.map((f) => f.path));
   const repoRoot = ctx.repo;
-  const sourcePaths = await walkSourceFiles(repoRoot);
+  const sourcePaths = await walkSourceFiles(repoRoot, {
+    respectGitignore: ctx.respectGitignore ?? true,
+  });
   for (const abs of sourcePaths) {
     const rel = path.relative(repoRoot, abs).replaceAll('\\', '/');
     if (newFilePaths.has(rel)) continue;

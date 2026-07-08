@@ -202,6 +202,11 @@ export async function verify(input: VerifyInput): Promise<VerifyResult> {
     if (input.agentReport !== undefined) {
       ctx = { ...ctx, agentReport: input.agentReport };
     }
+    if (input.config.audit?.respectGitignore !== undefined) {
+      // Rules that walk the whole repo (cross-codebase caller searches)
+      // follow the same gitignore policy as the audit walk.
+      ctx = { ...ctx, respectGitignore: input.config.audit.respectGitignore };
+    }
     if (input.commitMetadata !== undefined) {
       // Caller-supplied wins; if the source loader populated commitMetadata
       // from `git log` for a git source, this either keeps that or replaces

@@ -1,5 +1,6 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
+import { filterGitIgnored } from './git-ignore.js';
 
 /**
  * Directories the source-file walker skips by default. Engine workspaces,
@@ -43,6 +44,19 @@ export interface WalkOptions {
    * `DEFAULT_SOURCE_EXTENSIONS`.
    */
   readonly extensions?: ReadonlySet<string>;
+  /**
+   * Honor the repository's gitignore rules. Default `true`.
+   *
+   * The predicate is git's own ("would git itself ignore this path"):
+   * a file is dropped only when it is BOTH untracked AND matched by an
+   * ignore rule — nested `.gitignore` files, `.git/info/exclude`, and
+   * the global excludes file all apply, via `git check-ignore`.
+   * Tracked files are always walked even when an ignore pattern
+   * matches them, so an after-the-fact `.gitignore` entry can never
+   * hide committed code from a scan. Outside a git work tree (or with
+   * git unavailable) the walk is unfiltered, as before.
+   */
+  readonly respectGitignore?: boolean;
 }
 
 /**
@@ -77,5 +91,8 @@ export async function walkSourceFiles(root: string, options: WalkOptions = {}): 
     }
   }
   await go(root);
+  if (options.respectGitignore ?? true) {
+    return filterGitIgnored(root, out);
+  }
   return out;
 }

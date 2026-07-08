@@ -42,6 +42,7 @@
   - [On an existing PR](#on-an-existing-pr)
 - [Adopting on an existing codebase](#adopting-on-an-existing-codebase)
   - [The gradual adoption path](#the-gradual-adoption-path)
+  - [What the audit walks (gitignore, carve-outs)](#what-the-audit-walks-gitignore-carve-outs)
   - [Surveying existing escape hatches](#surveying-existing-escape-hatches)
   - [Promoting overrides back to CRITICAL over time](#promoting-overrides-back-to-critical-over-time)
 - [Understanding `prepare()` output](#understanding-prepare-output)
@@ -878,6 +879,36 @@ Step 5: integrate `verify` into your dev loop — pre-push hook, CI, agent
 loop. New work has to satisfy the rules from this point forward.
 
 Step 6: incrementally retire overrides as the codebase catches up.
+
+### What the audit walks (gitignore, carve-outs)
+
+`effective audit` (and `audit-escapes`, which shares the same file set)
+honors your `.gitignore` by default: files **git itself would ignore** —
+untracked _and_ matched by an ignore rule, including nested
+`.gitignore` files — are skipped. This keeps the audit's verdict
+identical between a workstation (where gitignored local tooling sits on
+disk) and CI (where it never exists).
+
+Tracked files are **always** scanned, even when an ignore pattern
+matches them — adding a `.gitignore` entry after the fact can never
+hide committed code from the audit. Outside a git work tree the walk is
+unfiltered.
+
+Both knobs live under the config's `audit` field:
+
+```ts
+export default defineConfig({
+  extends: ['recommended'],
+  audit: {
+    // Restore the walk-everything-on-disk behavior:
+    respectGitignore: false,
+    // Carve tracked, non-gitignored paths out of the audit walk
+    // (picomatch globs against repo-relative paths). Use sparingly —
+    // every entry is code the audit stops vouching for:
+    exclude: ['vendor/**'],
+  },
+});
+```
 
 ### Surveying existing escape hatches
 

@@ -8,6 +8,47 @@ project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- **`audit` (and `audit-escapes`) now honor `.gitignore` by default.**
+  The whole-repo walk previously scanned every source file on disk,
+  so a gitignored-but-present directory (a local tool, a scratch
+  workspace) produced findings on a workstation that CI — where those
+  files never exist — could not reproduce: the gate could false-block
+  locally and false-pass in CI at the same time. The walk now skips
+  files **git itself would ignore** (untracked _and_ matched by an
+  ignore rule, via `git check-ignore`; nested `.gitignore` files,
+  `.git/info/exclude`, and global excludes all apply). Tracked files
+  are **always** scanned even when an ignore pattern matches them —
+  adding a `.gitignore` entry after the fact can never hide committed
+  code from the audit; the tracked set (`git ls-files`, which includes
+  staged-but-uncommitted files) is checked explicitly rather than
+  trusting `check-ignore`'s index handling alone. Outside a git work
+  tree the walk is unfiltered, as before. Opt out with
+  `audit: { respectGitignore: false }`. `walkSourceFiles` gains a
+  `respectGitignore` option (default `true`), and the
+  `new-exports-have-non-test-callers` repo walk follows the same
+  policy, so a "caller" in a gitignored file no longer counts as
+  wiring.
+- **`audit-escapes` shares the audit's file walker and `audit`
+  config.** It previously had its own near-duplicate walk with a
+  divergent skip list (it scanned `out/` and dot-prefixed source
+  files; audit didn't), so the two commands could disagree about the
+  file set. Both now walk identically and honor
+  `audit.respectGitignore` / `audit.exclude`. It loads the project
+  config when one is discoverable (still runs with defaults when
+  none exists); a config that exists but fails to load is now an
+  error rather than being silently ignored.
+
+### Added
+
+- **`audit` config block on the Constitution** (`AuditConfig` schema):
+  `respectGitignore?: boolean` (default `true`) and
+  `exclude?: string[]` — picomatch globs carving tracked,
+  non-gitignored paths out of the audit walk for the rare on-disk
+  directories the constitution shouldn't govern.
+- **`runCommand` accepts `stdin`.** Data is written to the child's
+  stdin and the stream closed; used to feed `git check-ignore --stdin
+-z` NUL-separated paths so filenames never touch a shell.
+
 - **Narrowed `no-hardcoded-secrets` `in` glob to source + config
   files.** The rule previously defaulted to `**/*`, which caught
   Markdown files quoting illustrative token shapes — most notably
