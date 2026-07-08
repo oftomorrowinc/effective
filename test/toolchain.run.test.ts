@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { runCommand } from '../src/toolchain/run.js';
+import { runCommand, runProcess } from '../src/toolchain/run.js';
 
 describe('runCommand', () => {
   it('returns exit code 0 and captured stdout for a successful command', async () => {
@@ -104,5 +104,24 @@ describe('runCommand', () => {
     const result = await runCommand({ command: `node -e "0"` });
     expect(result.durationMs).toBeGreaterThanOrEqual(0);
     expect(result.durationMs).toBeLessThan(60_000);
+  });
+});
+
+describe('runProcess', () => {
+  it('defaults to an empty args array', async () => {
+    // git with no arguments prints usage and exits non-zero — the point
+    // here is only that the omitted-args path spawns cleanly.
+    const result = await runProcess({ file: 'git' });
+    expect(result.exitCode).not.toBe(0);
+    expect(`${result.stdout}${result.stderr}`).toContain('usage');
+  });
+
+  it('reports exit code 128 when the child dies from a signal', async () => {
+    const result = await runProcess({
+      file: 'node',
+      args: ['-e', "process.kill(process.pid, 'SIGKILL')"],
+    });
+    expect(result.signal).toBe('SIGKILL');
+    expect(result.exitCode).toBe(128);
   });
 });

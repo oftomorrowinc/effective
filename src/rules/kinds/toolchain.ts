@@ -51,10 +51,16 @@ function shouldFail(rule: ToolchainRule, result: ToolchainResult): boolean {
       return result.stdout.trim().length > 0 || result.stderr.trim().length > 0;
     }
     case 'count-non-zero': {
-      return (result.count ?? 0) > 0;
+      // count undefined = the tool's output couldn't be parsed. Never
+      // treat unmeasured as clean — fall back to the exit code so an
+      // unsupported parser hint or garbled output fails loudly instead
+      // of producing a permanently green gate.
+      if (result.count === undefined) return result.exitCode !== 0;
+      return result.count > 0;
     }
     case 'count-increased': {
-      return (result.count ?? 0) > (result.baselineCount ?? 0);
+      if (result.count === undefined) return result.exitCode !== 0;
+      return result.count > (result.baselineCount ?? 0);
     }
   }
 }
@@ -68,10 +74,16 @@ function describeFailure(rule: ToolchainRule, result: ToolchainResult): string {
       return `${resultKey(rule)} produced output.`;
     }
     case 'count-non-zero': {
-      return `${resultKey(rule)} reported ${String(result.count ?? 0)} issue(s).`;
+      if (result.count === undefined) {
+        return `${resultKey(rule)} output could not be parsed (exit ${String(result.exitCode)}); treating the non-zero exit as failure. Check the tool's output format / parser hint.`;
+      }
+      return `${resultKey(rule)} reported ${String(result.count)} issue(s).`;
     }
     case 'count-increased': {
-      return `${resultKey(rule)} issue count rose from ${String(result.baselineCount ?? 0)} to ${String(result.count ?? 0)}.`;
+      if (result.count === undefined) {
+        return `${resultKey(rule)} output could not be parsed (exit ${String(result.exitCode)}); treating the non-zero exit as failure. Check the tool's output format / parser hint.`;
+      }
+      return `${resultKey(rule)} issue count rose from ${String(result.baselineCount ?? 0)} to ${String(result.count)}.`;
     }
   }
 }

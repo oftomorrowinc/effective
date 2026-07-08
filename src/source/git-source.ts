@@ -43,7 +43,9 @@ async function runConfiguredTool(
     stdout: result.stdout,
     stderr: result.stderr,
     findings: parsed.findings,
-    count: parsed.count,
+    // Absent count stays absent: "couldn't measure" must reach the
+    // gate distinct from "measured zero".
+    ...(parsed.count === undefined ? {} : { count: parsed.count }),
   };
 }
 

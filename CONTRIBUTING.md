@@ -226,7 +226,7 @@ hygiene rules (no debug output, no hardcoded secrets) ship as
 principle via `relatedPrinciple` only.
 
 If you're not sure which category fits, see
-[`docs/decisions.md` § Catalogue vs. foundation](./docs/decisions.md#catalogue-entry-vs-foundation-rule).
+[`docs/decisions.md` § Catalogue vs. foundation](https://github.com/oftomorrowinc/effective/blob/main/docs/decisions.md#catalogue-entry-vs-foundation-rule).
 
 ---
 

@@ -6,6 +6,133 @@ project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+_Nothing yet._
+
+## [0.1.0-rc.8] — 2026-07-07
+
+### Added
+
+- **`verify --governance-pr` — the elevation surface for intentional
+  constitutional changes.** When a PR's purpose IS the protected-path
+  edit (version bump, rule addition, workflow change), the flag moves
+  protected-path findings out of the gating set: the verdict and exit
+  code are computed from everything else, while the elevated findings
+  are still printed in a dedicated `Governance changes` section (JSON
+  reporter: `governanceFindings`) so the elevation stays auditable.
+  All other findings gate exactly as before — a real bug in the same
+  diff still fails the run. Rules are matched by their wiring to the
+  built-in `protectedPathsRespected` check, not by id, so renamed
+  rules in adopter configs are still covered. This repo's CI passes
+  the flag when a PR carries the `governance` label, replacing the
+  previous convention of merging governance PRs over a red check.
+
+### Fixed
+
+- **Count-based toolchain gates no longer treat unparseable output as
+  clean.** Parsers now omit `count` (instead of reporting 0) when the
+  output lacks the structure they understand — wrong reporter format,
+  crash before reporting, an accepted-but-unimplemented parser hint
+  (`biome`, `oxlint`, `custom`), or a coverage JSON without a `total`
+  row. `count-non-zero` / `count-increased` rules fall back to the
+  command's exit code when `count` is absent, with a finding message
+  saying the output couldn't be parsed. Previously a lint run with 37
+  real errors under an unsupported hint produced a PASS verdict —
+  "couldn't measure" and "measured zero" are now distinct everywhere.
+- **`verify --staged` reads content from the index, not the working
+  tree.** `loadStagedDiff` now reads via `git show :0:<path>`, so a
+  fix that exists only on disk can't make a pre-commit verify pass and
+  unstaged noise can't fail it. Index reads resolve root-relative,
+  which also fixes running `verify --staged` from a repo subdirectory
+  (previously every staged file silently verified as EMPTY content —
+  the ENOENT was swallowed).
+- **Filenames git would C-quote can no longer dodge verification.**
+  `git diff --name-status` is parsed in `-z` (NUL-delimited) form, so
+  paths with spaces, quotes, or non-ASCII bytes arrive verbatim.
+  Previously the quoted path failed to read and the file was verified
+  as empty — a rule-evasion channel via filename. An unreadable
+  non-deleted file is now a hard error, never empty content; submodule
+  gitlink entries are skipped explicitly.
+- **Spec'd test names containing quotes no longer false-flag.** The
+  `test-names-land-verbatim` extractor now excludes only the opening
+  delimiter from the name, so `it("keeps the user's name")` matches.
+- **Preset `extends` cycles fail with the chain** (`a → b → a`)
+  instead of a raw stack overflow, and a duplicate rule id within one
+  constitution's own `rules` array throws instead of silently
+  last-winning (factory-generated ids can collide; cross-layer
+  last-wins merging is unchanged).
+- **`init` escapes package.json-derived values.** Name, version,
+  script-derived commands, and protected paths are emitted as
+  JSON-escaped literals in the generated config — a crafted
+  `package.json` field can no longer inject executable content into
+  the (jiti-executed) `effective.config.ts`.
+
+### Changed
+
+- **Repository-derived git invocations no longer touch a shell.** New
+  `runProcess` (argv array, `shell: false`) carries diff listing, blob
+  reads, commit metadata, worktree add/remove, and the gitignore
+  filter; the POSIX-only single-quote escaping helpers are gone. This
+  closes a Windows command-injection vector (cmd.exe ignores
+  single-quotes) via crafted filenames or refs. `runCommand`'s shell
+  form remains for config-authored toolchain command strings, which
+  are trusted code — that boundary is now documented in DESIGN.md's
+  trust model.
+
+### Added
+
+- **`runProcess` in the public API** (`ProcessInput` type): the safe
+  argv-based sibling of `runCommand` for callers shelling out with
+  repository-derived values.
+- **Previously-internal load-bearing types are exported:**
+  `CustomCheck`, `VerifyContext`, `ChangedFile`, `ChangedFileStatus`,
+  `ToolchainResult`, `CommitMetadata`, `InlineSource`, plus
+  `resolveConstitution` / `resolveScope` and their
+  `ResolveOptions` / `ResolvedConstitution` / `ResolvedScope` types —
+  a consumer can now write `const check: CustomCheck = ...` without
+  `Parameters<>` gymnastics.
+- **`audit` config block on the Constitution** (`AuditConfig` schema):
+  `respectGitignore?: boolean` (default `true`) and
+  `exclude?: string[]` — picomatch globs carving tracked,
+  non-gitignored paths out of the audit walk for the rare on-disk
+  directories the constitution shouldn't govern.
+- **`runCommand` accepts `stdin`.** Data is written to the child's
+  stdin and the stream closed; used to feed `git check-ignore --stdin
+-z` NUL-separated paths so filenames never touch a shell.
+
+### Changed
+
+- **`audit` (and `audit-escapes`) now honor `.gitignore` by default.**
+  The whole-repo walk previously scanned every source file on disk,
+  so a gitignored-but-present directory (a local tool, a scratch
+  workspace) produced findings on a workstation that CI — where those
+  files never exist — could not reproduce: the gate could false-block
+  locally and false-pass in CI at the same time. The walk now skips
+  files **git itself would ignore** (untracked _and_ matched by an
+  ignore rule, via `git check-ignore`; nested `.gitignore` files,
+  `.git/info/exclude`, and global excludes all apply). Tracked files
+  are **always** scanned even when an ignore pattern matches them —
+  adding a `.gitignore` entry after the fact can never hide committed
+  code from the audit; the tracked set (`git ls-files`, which includes
+  staged-but-uncommitted files) is checked explicitly rather than
+  trusting `check-ignore`'s index handling alone. Outside a git work
+  tree the walk is unfiltered, as before. Opt out with
+  `audit: { respectGitignore: false }`. `walkSourceFiles` gains a
+  `respectGitignore` option (default `true`), and the
+  `new-exports-have-non-test-callers` repo walk follows the same
+  policy, so a "caller" in a gitignored file no longer counts as
+  wiring.
+- **`audit-escapes` shares the audit's file walker and `audit`
+  config.** It previously had its own near-duplicate walk with a
+  divergent skip list (it scanned `out/` and dot-prefixed source
+  files; audit didn't), so the two commands could disagree about the
+  file set. Both now walk identically and honor
+  `audit.respectGitignore` / `audit.exclude`. It loads the project
+  config when one is discoverable (still runs with defaults when
+  none exists); a config that exists but fails to load is now an
+  error rather than being silently ignored.
+
+## [0.1.0-rc.7] — 2026-05-28
+
 ### Changed
 
 - **Narrowed `no-hardcoded-secrets` `in` glob to source + config
@@ -22,6 +149,8 @@ project adheres to [Semantic Versioning](https://semver.org/).
   accidentally-pasted keys) can override `in` per project. Rationale
   captured in `docs/decisions.md` under "Pattern-rule scope:
   source/config by default."
+
+## [0.1.0-rc.6] — 2026-05-14
 
 ### Changed (BREAKING)
 
@@ -89,6 +218,8 @@ project adheres to [Semantic Versioning](https://semver.org/).
   workaround was synthetic-passing-results, now replaceable with
   `skipCategories: ['toolchain']`).
 
+## [0.1.0-rc.5] — 2026-05-13
+
 ### Fixed
 
 - **JSON-parsing parsers tolerate trailing pnpm/npm noise.** When
@@ -131,45 +262,7 @@ underlying issue.`) and the per-issue findings render normally
   editor-clickable and grep-able from the monorepo root. Plain
   single-package `tsc --noEmit` invocations are unaffected.
 
-### Changed
-
-- **`toolchain.coverage-non-decreasing` renamed to
-  `toolchain.coverage-meets-threshold`; `failOn` corrected from
-  `any-output` to `count-non-zero`.** The previous id promised baseline
-  comparison the engine doesn't implement, and the `any-output` mode
-  fired on every run (coverage tooling always writes a summary,
-  regardless of whether thresholds are met). The new rule fires only
-  when one or more per-metric thresholds (lines / statements /
-  functions / branches < 90%) are actually below floor — surfaced
-  through the per-metric findings the v8/c8/istanbul parser already
-  emits. Breaking for users with `disable: { 'toolchain.coverage-
-non-decreasing': ... }` or override entries — update the key to the
-  new id. The "non-decreasing" semantic remains unimplemented; run
-  your coverage tool's own baseline check alongside this gate if you
-  need it.
-
-- **`runCommand` strips nested-package-manager env pollutants before
-  spawning.** When effective itself is invoked via `pnpm exec
-effective verify` (or `npx effective ...`, etc.), the outer package
-  manager sets `npm_*` / `NPM_*` / `PNPM_*` / `INIT_CWD` vars
-  describing its own workspace context. effective's toolchain step
-  then spawned the project's own `pnpm typecheck` / `pnpm test` / etc.
-  with those vars still attached, and the inner pnpm resolved
-  workspace roots from the wrong base — symptoms ranged from
-  "TS2307: Cannot find module 'effective'" to test runners exiting
-  non-zero with no visible error and coverage producing inconsistent
-  output. The fix scrubs the inherited prefixes; caller-supplied
-  env (via `runCommand({ env })`) is unaffected. Affects any toolchain
-  command effective spawns under any package manager.
-
-- **Package renamed to `@oftomorrow/effective`.** The unscoped `effective`
-  name on npm was taken by an abandoned 2017 package; scoping under
-  `@oftomorrow` aligns with the namespace where future packages
-  (`@oftomorrow/effective-reviewer`, etc.) will live. The CLI command
-  (`npx effective`) and config file (`effective.config.ts`) are
-  unchanged — only the install path and `import` specifier move to the
-  scoped form (`pnpm add @oftomorrow/effective`,
-  `import { ... } from '@oftomorrow/effective'`).
+## [0.1.0-rc.4] — 2026-05-13
 
 ### Added
 
@@ -243,6 +336,41 @@ effective verify` (or `npx effective ...`, etc.), the outer package
   renders it. JSON output exposes both fields as top-level result
   properties.
 
+### Changed
+
+- **`toolchain.coverage-non-decreasing` renamed to
+  `toolchain.coverage-meets-threshold`; `failOn` corrected from
+  `any-output` to `count-non-zero`.** The previous id promised baseline
+  comparison the engine doesn't implement, and the `any-output` mode
+  fired on every run (coverage tooling always writes a summary,
+  regardless of whether thresholds are met). The new rule fires only
+  when one or more per-metric thresholds (lines / statements /
+  functions / branches < 90%) are actually below floor — surfaced
+  through the per-metric findings the v8/c8/istanbul parser already
+  emits. Breaking for users with `disable: { 'toolchain.coverage-
+non-decreasing': ... }` or override entries — update the key to the
+  new id. The "non-decreasing" semantic remains unimplemented; run
+  your coverage tool's own baseline check alongside this gate if you
+  need it.
+
+- **`runCommand` strips nested-package-manager env pollutants before
+  spawning.** When effective itself is invoked via `pnpm exec
+effective verify` (or `npx effective ...`, etc.), the outer package
+  manager sets `npm_*` / `NPM_*` / `PNPM_*` / `INIT_CWD` vars
+  describing its own workspace context. effective's toolchain step
+  then spawned the project's own `pnpm typecheck` / `pnpm test` / etc.
+  with those vars still attached, and the inner pnpm resolved
+  workspace roots from the wrong base — symptoms ranged from
+  "TS2307: Cannot find module 'effective'" to test runners exiting
+  non-zero with no visible error and coverage producing inconsistent
+  output. The fix scrubs the inherited prefixes; caller-supplied
+  env (via `runCommand({ env })`) is unaffected. Affects any toolchain
+  command effective spawns under any package manager.
+
+## [0.1.0-rc.3] — 2026-05-12
+
+### Added
+
 - **`CONSTITUTION.md` — generated reference of the recommended preset.**
   Human-readable projection of every shipped rule (severity, category,
   role applicability, related principle or catalogue entry, prompt
@@ -255,6 +383,22 @@ effective verify` (or `npx effective ...`, etc.), the outer package
   git SHA in the output, so freshness comes from
   `git log CONSTITUTION.md`, not from the file itself. Shipped in the
   npm tarball (added to `package.json` `files`).
+
+### Changed
+
+- **Package renamed to `@oftomorrow/effective`.** The unscoped `effective`
+  name on npm was taken by an abandoned 2017 package; scoping under
+  `@oftomorrow` aligns with the namespace where future packages
+  (`@oftomorrow/effective-reviewer`, etc.) will live. The CLI command
+  (`npx effective`) and config file (`effective.config.ts`) are
+  unchanged — only the install path and `import` specifier move to the
+  scoped form (`pnpm add @oftomorrow/effective`,
+  `import { ... } from '@oftomorrow/effective'`).
+
+## [0.1.0-rc.2] — 2026-05-12
+
+### Added
+
 - **`protected-paths-respected` foundation rule.** New CRITICAL rule
   that flags any diff touching files declared under the new
   `Constitution.protected` field. Distinct from the lane rule: lane
@@ -340,7 +484,7 @@ rationale }` entries; the rationale is required (non-empty) so
 First public pre-release. The engine, schema, CLI, build, and the
 recommended preset's prompt projections are all real and stable enough
 to publish. Detection coverage on the catalogue rules is intentionally
-partial — see [Status in the README](./README.md#status-v010-rc1) for
+partial — see [Status in the README](./README.md#status-v010-rc8) for
 the per-rule split.
 
 ### Added

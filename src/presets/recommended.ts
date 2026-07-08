@@ -138,13 +138,13 @@ const FOUNDATION_RULES: readonly Rule[] = [
 /**
  * `effective/recommended` — the full preset shipped with the package.
  *
- * Composition: 6 foundation rules + 21 catalogue-driven rules across
- * four topical clusters (architecture, test-discipline, data-discipline,
- * governance). Catalogue-driven rules carry the prompt projection
- * derived from each failure entry's structural-countermeasure prose;
- * their detection logic is registered via stubs in
- * `presets/rules/stubs.ts` (returning no findings until project-
- * specific implementations land). The prompt projection is the
+ * Composition (37 rules): 9 foundation rules + 21 catalogue-driven
+ * rules across four topical clusters (architecture 5, test-discipline
+ * 8, data-discipline 4, governance 4) + 7 meta-rules. Catalogue-driven
+ * rules carry the prompt projection derived from each failure entry's
+ * structural-countermeasure prose; some detection logic is registered
+ * via stubs in `presets/rules/stubs.ts` (returning no findings until
+ * project-specific implementations land). The prompt projection is the
  * primary user-facing value — workers read the guidance via
  * `prepare()`; detection grows over time.
  *
@@ -152,13 +152,10 @@ const FOUNDATION_RULES: readonly Rule[] = [
  * preset registry is auto-merged by `verify()` and `prepare()`, so
  * no manual registry wiring is required.
  *
- * Meta-rules (self-report checks that need the build-log as input) are
- * NOT included here — those need the MetaRule kind which lands in a
- * follow-up step. Until then, the catalogue entries for transparent-
- * /fabricated-/narrow-verification, sketch-contradiction-self-
- * correction, retry-scope-expansion, and primed-shell-verification
- * are documented in the failure catalogue but don't yet have
- * detection rules in this preset.
+ * Meta-rules (self-report checks) ARE included, but they only produce
+ * findings when the caller supplies `agentReport` — without a
+ * self-report to compare against they skip silently, and `audit`
+ * reports them under `skipped` with reason `meta-no-report`.
  */
 export const recommended: Constitution = {
   rules: [

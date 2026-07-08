@@ -125,3 +125,49 @@ describe('runAuditCommand', () => {
     }
   });
 });
+
+describe('runAuditCommand — severity rendering and config arms', () => {
+  it('renders HIGH, MED, and LOW findings with their own icons and groups', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'effective-audit-cli-'));
+    try {
+      await writeFile(
+        path.join(dir, 'effective.config.ts'),
+        `import { defineConfig, rule } from '${EFFECTIVE_INDEX}';
+export default defineConfig({
+  rules: [
+    rule.requirePattern(/Copyright/, { id: 'needs-copyright', in: '**/*.ts' }),
+    rule.forbidPattern(/FIXME/, { id: 'no-fixme', defaultSeverity: 'MED', matchInComments: true }),
+    rule.forbidPattern(/XXX/, { id: 'no-xxx', defaultSeverity: 'LOW', matchInComments: true }),
+  ],
+});
+`,
+      );
+      await write(dir, 'src/messy.ts', 'export const x = 1; // FIXME later, XXX\n');
+      const result = await runAuditCommand(parseArgs(['audit']), dir);
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain('HIGH findings');
+      expect(result.stdout).toContain('⚠️  HIGH  needs-copyright');
+      expect(result.stdout).toContain('MED findings');
+      expect(result.stdout).toContain('ⓘ  MED  no-fixme');
+      expect(result.stdout).toContain('LOW findings');
+      expect(result.stdout).toContain('·  LOW  no-xxx');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('loads the constitution from an explicit --config path', async () => {
+    const dir = await makeRepo();
+    try {
+      await write(dir, 'src/clean.ts', 'export const x = 1;\n');
+      const result = await runAuditCommand(
+        parseArgs(['audit', '--config', 'effective.config.ts']),
+        dir,
+      );
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain('Audit complete');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});

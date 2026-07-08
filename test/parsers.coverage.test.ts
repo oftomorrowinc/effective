@@ -34,13 +34,13 @@ describe('parseV8 (c8) / parseIstanbul', () => {
     expect(ruleIds).not.toContain('coverage:statements-below-threshold');
   });
 
-  it('returns empty if the summary has no `total` row', () => {
+  it('omits count if the summary has no `total` row — coverage was not measured', () => {
     const stdout = JSON.stringify({ 'src/a.ts': { lines: { pct: 100 } } });
-    expect(parseV8(runResult({ stdout })).count).toBe(0);
+    expect(parseV8(runResult({ stdout })).count).toBeUndefined();
   });
 
-  it('returns empty for malformed JSON', () => {
-    expect(parseV8(runResult({ stdout: '{ broken' })).count).toBe(0);
+  it('omits count for malformed JSON — never reads unparseable output as clean', () => {
+    expect(parseV8(runResult({ stdout: '{ broken' })).count).toBeUndefined();
   });
 
   it('handles missing metric percentages gracefully', () => {

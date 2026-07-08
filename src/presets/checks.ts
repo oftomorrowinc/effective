@@ -329,7 +329,9 @@ export const newExportsHaveNonTestCallers: CustomCheck = async (rule, ctx) => {
   const seenAsNonTestCaller = new Set<string>();
   const newFilePaths = new Set(newSourceFiles.map((f) => f.path));
   const repoRoot = ctx.repo;
-  const sourcePaths = await walkSourceFiles(repoRoot);
+  const sourcePaths = await walkSourceFiles(repoRoot, {
+    respectGitignore: ctx.respectGitignore ?? true,
+  });
   for (const abs of sourcePaths) {
     const rel = path.relative(repoRoot, abs).replaceAll('\\', '/');
     if (newFilePaths.has(rel)) continue;
@@ -398,11 +400,9 @@ export const protectedPathsRespected: CustomCheck = (rule, ctx) => {
     matcher: compilePatterns([entry.path]),
   }));
   const findings: Finding[] = [];
+  // Deleted files are NOT exempted: deleting a protected file is also a
+  // constitutional change and falls through to the same matching below.
   for (const file of ctx.changedFiles) {
-    if (file.status === 'deleted') {
-      // Deleting a protected file is also a constitutional change;
-      // surface it the same way.
-    }
     for (const { entry, matcher } of compiled) {
       if (!matcher(file.path)) continue;
       findings.push({

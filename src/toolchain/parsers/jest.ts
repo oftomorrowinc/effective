@@ -11,7 +11,7 @@ import type { Parser } from './types.js';
 export const parseJest: Parser = (result) => {
   const parsed = parseVitest(result);
   return {
-    count: parsed.count,
+    ...(parsed.count === undefined ? {} : { count: parsed.count }),
     findings: parsed.findings.map((f) => ({
       ...f,
       ruleId: f.ruleId.replace(/^vitest:/, 'jest:'),

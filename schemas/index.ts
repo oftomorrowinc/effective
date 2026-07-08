@@ -9,7 +9,7 @@
  *   - finding.ts       — Finding, Severity, Verdict, VerifyResult
  *   - rule.ts          — Rule (discriminated union), kinds, RuleCategory, PromptProjection
  *   - scope.ts         — Scope, Role, Expectations, built-in role defaults
- *   - constitution.ts  — Constitution, ToolchainConfig, RuleOverride, RoleDefinition
+ *   - constitution.ts  — Constitution, ToolchainConfig, AuditConfig, RuleOverride, RoleDefinition
  *   - exception.ts     — Exception, ExceptionRegistry, EscapeHatch, BuiltInExceptionCategory
  *   - catalogue.ts     — CatalogueEntry, Catalogue, ObservedInstance
  *   - principle.ts     — Principle, Principles

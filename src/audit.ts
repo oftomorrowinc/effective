@@ -117,6 +117,15 @@ function shouldSkip(rule: Rule, includeToolchain: boolean): SkippedRule['reason'
  * adoption time: "what's already in my codebase that the
  * constitution would flag?"
  *
+ * The walk honors gitignore by default (`config.audit.respectGitignore`,
+ * default `true`): files git itself would ignore — untracked AND
+ * matched by an ignore rule — are skipped, so the audit's verdict is
+ * the same on a workstation (with gitignored local tooling on disk)
+ * as in CI (where those files never exist). Tracked files are always
+ * scanned, even when an ignore pattern matches them. Set
+ * `audit: { respectGitignore: false }` to walk everything on disk,
+ * and `audit.exclude` globs for non-gitignored carve-outs.
+ *
  * Audit is informational. It produces findings + a summary but no
  * verdict — there is no PASS / FAIL semantic. Callers triage
  * findings into one of four buckets: fix the code, register an
@@ -141,9 +150,16 @@ export async function audit(input: AuditInput): Promise<AuditResult> {
   };
   const scope = resolveScope(auditScope, resolved);
 
-  const absolutePaths = await walkSourceFiles(input.repo);
+  // Both the source walk and the escape-hatch scan below run over this
+  // one file set, so gitignore handling can never make them disagree.
+  const respectGitignore = input.config.audit?.respectGitignore ?? true;
+  const excludeGlobs = input.config.audit?.exclude ?? [];
+  const excludeMatcher = excludeGlobs.length === 0 ? undefined : compilePatterns(excludeGlobs);
+  const absolutePaths = await walkSourceFiles(input.repo, { respectGitignore });
   const changedFiles: ChangedFile[] = [];
   for (const abs of absolutePaths) {
+    const rel = path.relative(input.repo, abs).replaceAll('\\', '/');
+    if (excludeMatcher?.(rel) === true) continue;
     try {
       changedFiles.push(await readAsChangedFile(abs, input.repo));
     } catch {
@@ -166,6 +182,7 @@ export async function audit(input: AuditInput): Promise<AuditResult> {
     customChecks,
     exceptionRegistry: exceptions,
     repo: input.repo,
+    respectGitignore,
   };
 
   const findings: Finding[] = [];

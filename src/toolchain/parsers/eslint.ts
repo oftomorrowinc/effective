@@ -50,7 +50,12 @@ function toFinding(filePath: string, message: EslintMessage): Finding {
 
 export const parseEslint: Parser = (result: RunResult): ParsedToolchainResult => {
   const parsed = parseTrailingJson(result.stdout);
-  const reports = Array.isArray(parsed) ? (parsed as EslintFileReport[]) : [];
+  // No JSON array in the output means the run wasn't measured (wrong
+  // --format, crash before reporting, not actually eslint). Returning
+  // count: 0 here would read as "measured clean" to count-based gates;
+  // omitting count makes the gate fall back to the exit code.
+  if (!Array.isArray(parsed)) return { findings: [] };
+  const reports = parsed as EslintFileReport[];
   const findings: Finding[] = [];
   for (const report of reports) {
     if (!Array.isArray(report.messages)) continue;

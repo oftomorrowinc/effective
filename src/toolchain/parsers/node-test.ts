@@ -56,7 +56,15 @@ function parseTapBlocks(text: string): TapTest[] {
   return tests.filter((t) => !t.ok);
 }
 
+/** Any line that marks output as TAP: version header, plan, or test point. */
+const TAP_MARKER = /^(?:TAP version \d+|1\.\.\d+|(?:not )?ok\b)/m;
+
 export const parseNodeTest: Parser = (result: RunResult): ParsedToolchainResult => {
+  // Output with no TAP structure at all (e.g. the `spec` reporter, or a
+  // crash before the runner started) wasn't measured — omit count so
+  // the gate falls back to the exit code instead of reading "zero
+  // `not ok` lines" as a clean run.
+  if (!TAP_MARKER.test(result.stdout)) return { findings: [] };
   const tests = parseTapBlocks(result.stdout);
   const findings: Finding[] = tests.map((t) => ({
     ruleId: 'node-test:test-failed',

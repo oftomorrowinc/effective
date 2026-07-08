@@ -66,12 +66,22 @@ function indexByCategory(rules: ReadonlyMap<string, Rule>): Map<RuleCategory, Ru
  *   3. Apply per-rule severity overrides (must reference a known rule id)
  *   4. Apply rule disables (must reference a known rule id)
  *
- * Throws if any override or disable references an unknown rule id, or if
- * `extends` mentions a preset that's not in the registry.
+ * Throws if any override or disable references an unknown rule id, if
+ * `extends` mentions a preset that's not in the registry, if `extends`
+ * forms a cycle, or if a single constitution's own `rules` array
+ * declares the same id twice.
  */
 export function resolveConstitution(
   config: Constitution,
   options: ResolveOptions = {},
+): ResolvedConstitution {
+  return resolveWithStack(config, options, []);
+}
+
+function resolveWithStack(
+  config: Constitution,
+  options: ResolveOptions,
+  presetStack: readonly string[],
 ): ResolvedConstitution {
   const presets = options.presetRegistry ?? {};
 
@@ -97,7 +107,17 @@ export function resolveConstitution(
           `Pass options.presetRegistry with this preset registered, or remove it from extends.`,
       );
     }
-    const presetResolved = resolveConstitution(preset, options);
+    // A preset already on the resolution stack means extends is cyclic —
+    // fail with the chain rather than letting the recursion blow the
+    // call stack. (The same preset appearing twice via a diamond is
+    // fine; only an ancestor re-entering is a cycle.)
+    if (presetStack.includes(presetName)) {
+      throw new Error(
+        `extends cycle detected: ${[...presetStack, presetName].join(' → ')}. ` +
+          `Presets must not extend each other cyclically.`,
+      );
+    }
+    const presetResolved = resolveWithStack(preset, options, [...presetStack, presetName]);
     for (const [id, rule] of presetResolved.rules) rules.set(id, rule);
     for (const [name, def] of presetResolved.customRoles) customRoles.set(name, def);
     toolchain = { ...toolchain, ...presetResolved.toolchain };
@@ -105,7 +125,21 @@ export function resolveConstitution(
     for (const entry of presetResolved.protectedPaths) protectedPathMap.set(entry.path, entry);
   }
 
+  // Last-wins merging is deliberate ACROSS extends layers (a project
+  // rule overrides a preset rule). Within a single constitution's own
+  // rules array, a duplicate id is almost certainly an authoring error
+  // — factory-generated ids (slugged from a truncated regex source) can
+  // collide silently, dropping a rule. Fail loudly instead.
+  const ownIds = new Set<string>();
   for (const rule of config.rules ?? []) {
+    if (ownIds.has(rule.id)) {
+      throw new Error(
+        `duplicate rule id "${rule.id}" within one constitution's rules array. ` +
+          `If both rules are intentional, give one an explicit distinct id ` +
+          `(factory-generated ids derive from the pattern source and can collide).`,
+      );
+    }
+    ownIds.add(rule.id);
     rules.set(rule.id, rule);
   }
   if (config.toolchain) toolchain = { ...toolchain, ...config.toolchain };

@@ -408,3 +408,88 @@ describe('checkSpec — test-names-land-verbatim', () => {
     expect(findings).toEqual([]);
   });
 });
+
+describe('checkToolchain — unmeasured output never passes count gates', () => {
+  const countRule: ToolchainRule = {
+    kind: 'toolchain',
+    id: 'toolchain.lint-clean',
+    category: 'toolchain',
+    defaultSeverity: 'CRITICAL',
+    description: 'lint gate',
+    tool: 'lint',
+    failOn: 'count-non-zero',
+    prompt: { summary: 'Lint must pass.', guidance: 'Fix the underlying issue, do not disable.' },
+  };
+
+  it('falls back to exit code when count is absent (unparseable output) and FAILS on non-zero exit', () => {
+    // Pre-fix behavior: 37 real lint errors with an unsupported parser
+    // hint produced count undefined → (count ?? 0) > 0 → false → PASS.
+    const findings = checkToolchain(
+      countRule,
+      ctx({ toolchainResults: { lint: tcResult({ exitCode: 1, stdout: '37 problems' }) } }),
+    );
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.message).toContain('could not be parsed');
+  });
+
+  it('passes when count is absent but the tool exited 0', () => {
+    const findings = checkToolchain(
+      countRule,
+      ctx({ toolchainResults: { lint: tcResult({ exitCode: 0 }) } }),
+    );
+    expect(findings).toEqual([]);
+  });
+
+  it('still passes on a measured zero (count: 0) even with non-zero exit', () => {
+    const findings = checkToolchain(
+      countRule,
+      ctx({ toolchainResults: { lint: tcResult({ exitCode: 1, count: 0 }) } }),
+    );
+    expect(findings).toEqual([]);
+  });
+
+  it('count-increased also falls back to exit code when count is absent', () => {
+    const increasedRule: ToolchainRule = { ...countRule, failOn: 'count-increased' };
+    const findings = checkToolchain(
+      increasedRule,
+      ctx({ toolchainResults: { lint: tcResult({ exitCode: 2, baselineCount: 5 }) } }),
+    );
+    expect(findings).toHaveLength(1);
+  });
+});
+
+describe('checkSpec — test names containing quotes', () => {
+  const specRule: SpecRule = {
+    kind: 'spec',
+    id: 'specd-test-names-land-verbatim',
+    category: 'spec-discipline',
+    defaultSeverity: 'CRITICAL',
+    description: 'spec names land verbatim',
+    check: 'test-names-land-verbatim',
+    prompt: { summary: 'Spec names land verbatim.', guidance: 'Use the exact spec name.' },
+  };
+
+  it("does not false-flag a spec'd name containing an apostrophe", () => {
+    const specBody = "- `keeps the user's name`\n";
+    const file: ChangedFile = {
+      path: 'test/user.test.ts',
+      status: 'added',
+      content: `it("keeps the user's name", () => {});\n`,
+    };
+    const findings = checkSpec(
+      specRule,
+      ctx({
+        changedFiles: [file],
+        scope: {
+          goal: 'sample',
+          editable: ['**/*'],
+          role: 'test-writer',
+          expectations: {},
+          spec: 'spec.md',
+        },
+        artifacts: { 'spec.md': specBody },
+      }),
+    );
+    expect(findings).toEqual([]);
+  });
+});

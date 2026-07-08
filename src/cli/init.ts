@@ -160,6 +160,18 @@ function testReporterFlag(framework: TestFramework | undefined): string | undefi
   return undefined;
 }
 
+/**
+ * Render a value as a TypeScript/JavaScript string literal for the
+ * generated config. `JSON.stringify` escapes quotes, backslashes, and
+ * control characters — values read from the target project's
+ * `package.json` (name, version, script names) are data, and
+ * interpolating them raw into what will later be a jiti-EXECUTED file
+ * would let a crafted field inject executable config content.
+ */
+function tsString(value: string): string {
+  return JSON.stringify(value);
+}
+
 function composeCommand(pm: PackageManager, scriptName: string, forwardedFlag?: string): string {
   if (forwardedFlag === undefined) {
     if (pm === 'npm') return `npm run ${scriptName}`;
@@ -188,18 +200,18 @@ function buildToolchainBlock(ctx: InitContext): {
 
   if (ctx.scripts.lint !== undefined) {
     const cmd = composeCommand(ctx.pm, ctx.scripts.lint, lintReporterFlag(ctx.lintFramework));
-    lines.push(`    lint: '${cmd}',`);
+    lines.push(`    lint: ${tsString(cmd)},`);
   }
   if (ctx.scripts.typecheck !== undefined) {
-    lines.push(`    typecheck: '${composeCommand(ctx.pm, ctx.scripts.typecheck)}',`);
+    lines.push(`    typecheck: ${tsString(composeCommand(ctx.pm, ctx.scripts.typecheck))},`);
   }
   if (ctx.scripts.test !== undefined) {
     const cmd = composeCommand(ctx.pm, ctx.scripts.test, testReporterFlag(ctx.testFramework));
-    lines.push(`    test: '${cmd}',`);
+    lines.push(`    test: ${tsString(cmd)},`);
   }
   if (ctx.scripts.coverage !== undefined) {
     const cmd = composeCommand(ctx.pm, ctx.scripts.coverage, testReporterFlag(ctx.testFramework));
-    lines.push(`    coverage: '${cmd}',`);
+    lines.push(`    coverage: ${tsString(cmd)},`);
   }
   return { lines, ambiguityComments };
 }
@@ -211,9 +223,9 @@ function renderConfigTemplate(ctx: InitContext): string {
     ? "import { defineConfig, seeds } from '@oftomorrow/effective';"
     : "const { defineConfig, seeds } = require('@oftomorrow/effective');";
   const exportStmt = ctx.typescript ? 'export default' : 'module.exports =';
-  const nameLine = `    name: '${ctx.packageName ?? 'my-project'}',`;
+  const nameLine = `    name: ${tsString(ctx.packageName ?? 'my-project')},`;
   const versionLine =
-    ctx.packageVersion === undefined ? '' : `\n    version: '${ctx.packageVersion}',`;
+    ctx.packageVersion === undefined ? '' : `\n    version: ${tsString(ctx.packageVersion)},`;
   const toolchainBlock =
     lines.length > 0
       ? `${ambiguityComments.length === 0 ? '' : `${ambiguityComments.map((c) => `  ${c}`).join('\n')}\n`}  toolchain: {\n${lines.join('\n')}\n  },`
@@ -299,7 +311,7 @@ function renderProtectedBlock(ctx: InitContext): string {
   }
   const lines: string[] = ['  protected: ['];
   for (const entry of ctx.protectedPaths) {
-    lines.push(`    { path: '${entry.path}', rationale: ${JSON.stringify(entry.rationale)} },`);
+    lines.push(`    { path: ${tsString(entry.path)}, rationale: ${tsString(entry.rationale)} },`);
   }
   lines.push('  ],');
   return lines.join('\n');

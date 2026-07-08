@@ -26,6 +26,15 @@ describe('loadCommitMetadata', () => {
     expect(meta).toBeUndefined();
   });
 
+  it('omits the message key for a commit with an empty message', async () => {
+    const repo = repoRef.current;
+    await git(repo, 'commit --allow-empty --allow-empty-message -m ""');
+    const meta = await loadCommitMetadata(repo, 'HEAD');
+    expect(meta).toBeDefined();
+    expect(meta?.message).toBeUndefined();
+    expect(meta?.sha).toMatch(/^[0-9a-f]{40}$/);
+  });
+
   it('handles a multi-word commit subject', async () => {
     const repo = repoRef.current;
     await writeFile(path.join(repo, 'a.ts'), 'export {};\n');

@@ -9,6 +9,11 @@ export interface RunInput {
   timeoutMs?: number;
   /** Additional env variables merged over process.env. */
   env?: Readonly<Record<string, string>>;
+  /**
+   * Data written to the child's stdin (then closed). When omitted,
+   * stdin is ignored entirely — the child sees an immediate EOF.
+   */
+  stdin?: string;
 }
 
 export interface RunResult {
@@ -80,23 +85,92 @@ function sanitizeInheritedEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
  * buffers. Timeout defaults to 5 minutes.
  */
 export async function runCommand(input: RunInput): Promise<RunResult> {
-  const cwd = input.cwd ?? process.cwd();
-  const timeoutMs = input.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-  const env = { ...sanitizeInheritedEnv(process.env), ...input.env };
-  const startedAt = Date.now();
-
-  return new Promise<RunResult>((resolve) => {
-    const child = spawn(input.command, {
-      cwd,
-      env,
+  return executeChild(input, (options) =>
+    spawn(input.command, {
+      ...options,
       shell: true,
-      stdio: ['ignore', 'pipe', 'pipe'],
       // Detach so the shell starts a new process group and we can SIGTERM
       // the whole group — otherwise `shell: true` makes `sh` our direct
       // child and the real workload (e.g. `node`, `eslint`) a grandchild,
       // and SIGTERM-ing `sh` leaves the grandchild holding our pipes
       // open until it exits on its own.
       detached: process.platform !== 'win32',
+    }),
+  );
+}
+
+export interface ProcessInput {
+  /** Executable to spawn (resolved via PATH). */
+  file: string;
+  /**
+   * Arguments passed verbatim to the executable — no shell, no quoting,
+   * no expansion. Values containing spaces, quotes, or metacharacters
+   * arrive exactly as given.
+   */
+  args?: readonly string[];
+  /** Working directory. Defaults to process.cwd(). */
+  cwd?: string;
+  /** Hard timeout in milliseconds. Defaults to 5 minutes. */
+  timeoutMs?: number;
+  /** Additional env variables merged over process.env. */
+  env?: Readonly<Record<string, string>>;
+  /** Data written to the child's stdin (then closed). */
+  stdin?: string;
+}
+
+/**
+ * Run an executable with an argv array and NO shell.
+ *
+ * Use this — not `runCommand` — whenever any part of the invocation is
+ * derived from repository data (file paths, refs, branch names): with
+ * no shell in the middle there is nothing to quote and nothing to
+ * inject into, on any platform. `runCommand`'s shell form remains the
+ * right call for config-authored command strings (`pnpm lint --format
+ * json`), which are trusted code.
+ *
+ * Same timeout, buffer-cap, and process-group-kill behavior as
+ * `runCommand`.
+ */
+export async function runProcess(input: ProcessInput): Promise<RunResult> {
+  const args = input.args ?? [];
+  const display = [input.file, ...args].join(' ');
+  return executeChild({ ...input, command: display }, (options) =>
+    spawn(input.file, args, {
+      ...options,
+      shell: false,
+      detached: process.platform !== 'win32',
+    }),
+  );
+}
+
+interface ExecInput {
+  command: string;
+  cwd?: string;
+  timeoutMs?: number;
+  env?: Readonly<Record<string, string>>;
+  stdin?: string;
+}
+
+interface SpawnOptionsCommon {
+  cwd: string;
+  env: NodeJS.ProcessEnv;
+  stdio: ['ignore' | 'pipe', 'pipe', 'pipe'];
+}
+
+async function executeChild(
+  input: ExecInput,
+  spawnChild: (options: SpawnOptionsCommon) => ReturnType<typeof spawn>,
+): Promise<RunResult> {
+  const cwd = input.cwd ?? process.cwd();
+  const timeoutMs = input.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const env = { ...sanitizeInheritedEnv(process.env), ...input.env };
+  const startedAt = Date.now();
+
+  return new Promise<RunResult>((resolve) => {
+    const child = spawnChild({
+      cwd,
+      env,
+      stdio: [input.stdin === undefined ? 'ignore' : 'pipe', 'pipe', 'pipe'],
     });
 
     const stdoutChunks: Buffer[] = [];
@@ -153,10 +227,23 @@ export async function runCommand(input: RunInput): Promise<RunResult> {
       }
     }
 
-    child.stdout.on('data', (chunk: Buffer) => {
+    if (input.stdin !== undefined && child.stdin !== null) {
+      child.stdin.on('error', (error: Error) => {
+        // The child exiting before draining stdin (EPIPE) is an expected
+        // outcome, not a crash — the exit code carries the verdict.
+        // Recorded on stderr for diagnosability.
+        bufferGuard('stderr', Buffer.from(`[runCommand stdin error] ${error.message}\n`));
+      });
+      child.stdin.end(input.stdin);
+    }
+
+    // Optional-chained: with a conditional stdin slot TS can no longer
+    // prove the stdio tuple pipes stdout/stderr, but both are always
+    // 'pipe' above so the streams exist at runtime.
+    child.stdout?.on('data', (chunk: Buffer) => {
       bufferGuard('stdout', chunk);
     });
-    child.stderr.on('data', (chunk: Buffer) => {
+    child.stderr?.on('data', (chunk: Buffer) => {
       bufferGuard('stderr', chunk);
     });
 

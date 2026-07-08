@@ -94,4 +94,11 @@ export interface VerifyContext {
    * its presence and skip when absent (e.g., inline source has no repo).
    */
   readonly repo?: string;
+  /**
+   * Whether full-repo file walks performed by rules (e.g. cross-codebase
+   * caller searches) should skip files git itself would ignore. Mirrors
+   * `Constitution.audit.respectGitignore`; when absent, walks default to
+   * honoring gitignore. Tracked files are always walked regardless.
+   */
+  readonly respectGitignore?: boolean;
 }

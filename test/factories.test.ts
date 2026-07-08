@@ -88,3 +88,76 @@ describe('rule factories — full coverage', () => {
     expect(r.id).toBe('forbid.unnamed');
   });
 });
+
+describe('rule factories — option-arm coverage', () => {
+  it('rule.requirePattern with a RegExp defaults severity, glob, and guidance wording', () => {
+    const r = rule.requirePattern(/Copyright/);
+    expect(r.forbidden).toBe(false);
+    expect(r.defaultSeverity).toBe('HIGH');
+    expect(r.description).toBe('Required pattern `Copyright`');
+    expect(r.prompt.guidance).toBe(
+      'Every file matching **/* must contain a match for `Copyright`.',
+    );
+    expect(r.inGlob).toBe('**/*');
+  });
+
+  it('rule.requirePattern with a plain string names the caller-supplied glob in guidance', () => {
+    const r = rule.requirePattern('use strict', { in: 'src/**/*.ts' });
+    expect(r.description).toBe('Required pattern `use strict`');
+    expect(r.prompt.guidance).toBe(
+      'Every file matching src/**/*.ts must contain a match for `use strict`.',
+    );
+    expect(r.inGlob).toBe('src/**/*.ts');
+  });
+
+  it('rule.forbidPattern guidance names the caller-supplied glob', () => {
+    const r = rule.forbidPattern(/debugger/, { in: 'src/**' });
+    expect(r.prompt.guidance).toBe('Do not introduce matches for `debugger` in src/**.');
+  });
+
+  it('rule.lane defaults: id, flagDeletions true, no alwaysAllow key', () => {
+    const r = rule.lane();
+    expect(r.id).toBe('lane.editable-respected');
+    expect(r.flagDeletions).toBe(true);
+    expect('alwaysAllow' in r).toBe(false);
+  });
+
+  it('rule.lane honors flagDeletions: false', () => {
+    const r = rule.lane({ flagDeletions: false });
+    expect(r.flagDeletions).toBe(false);
+  });
+
+  it('rule.spec keeps a caller-supplied id', () => {
+    const r = rule.spec({ check: 'assertions-not-narrowed', id: 'spec.no-weakened-asserts' });
+    expect(r.id).toBe('spec.no-weakened-asserts');
+    expect(r.check).toBe('assertions-not-narrowed');
+  });
+
+  it('rule.toolchain with tool=custom and no name throws', () => {
+    expect(() => rule.toolchain({ tool: 'custom', failOn: 'non-zero-exit' })).toThrow(
+      /require a `name`/,
+    );
+  });
+
+  it('rule.toolchain with tool=custom and a name derives a dotted id and carries the name', () => {
+    const r = rule.toolchain({ tool: 'custom', name: 'coverage-gate', failOn: 'non-zero-exit' });
+    expect(r.id).toBe('toolchain.custom.coverage-gate');
+    expect(r.name).toBe('coverage-gate');
+  });
+
+  it('rule.toolchain keeps a caller-supplied id', () => {
+    const r = rule.toolchain({ tool: 'lint', failOn: 'count-non-zero', id: 'toolchain.strict' });
+    expect(r.id).toBe('toolchain.strict');
+  });
+
+  it('rule.custom falls back to category custom, severity HIGH, and the prompt summary', () => {
+    const r = rule.custom({
+      id: 'bare-check',
+      checkRef: 'bareCheck',
+      prompt: { summary: 'the summary', guidance: 'g' },
+    });
+    expect(r.category).toBe('custom');
+    expect(r.defaultSeverity).toBe('HIGH');
+    expect(r.description).toBe('the summary');
+  });
+});

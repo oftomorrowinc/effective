@@ -23,6 +23,7 @@
   - [One rule, two projections](#one-rule-two-projections)
   - [The role-aware scope](#the-role-aware-scope)
   - [Verify owns the worktree](#verify-owns-the-worktree)
+- [Trust model](#trust-model)
 - [The schema model](#the-schema-model)
   - [Finding as the lingua franca](#finding-as-the-lingua-franca)
   - [Severity as a four-level enum](#severity-as-a-four-level-enum)
@@ -191,9 +192,8 @@ the prompt projection (what the worker reads as guidance) and the check
 projection (what the verifier runs against the diff). They come from the same
 Zod value.
 
-```ts
-rule.noDisabledTestsWithoutException();
-```
+Take `no-disabled-tests-without-exception`, a rule shipped in the
+recommended preset.
 
 When `prepare()` reads this rule, it adds to the augmented prompt:
 
@@ -307,13 +307,20 @@ Three reasons for this:
    subsequent run skips install entirely as long as `pnpm-lock.yaml` hasn't
    changed.
 
-**Escape hatches** for users who want different behavior:
+**Escape valves** for users who want different behavior (`VerifySource`
+is `inline | git | staged` — there is no "skip isolation" flag on the
+git source today):
 
-- `source: { kind: 'git', isolate: false }` — runs against the working tree
-  directly. Faster but races with editor state.
-- `source: { kind: 'worktree-direct', path }` — verify points at a worktree
-  the user manages themselves. For sophisticated users with custom workflow
-  infrastructure.
+- `source: { kind: 'staged' }` (CLI: `--staged`) — verifies the index
+  against `HEAD` with no worktree; toolchain commands run in the working
+  tree. Faster, but races with editor state.
+- `--skip-install` / `skipInstall: true` — keep the worktree but skip its
+  lockfile install when `node_modules` is already populated.
+- `--keep-worktree[=on-pass|always|never]` / `keepWorktree` — control
+  cleanup of `.effective/work` for inspection or fast reuse.
+- A `worktree-direct` source (verify points at a worktree the user
+  manages themselves) has been discussed as a roadmap item; it does not
+  exist yet.
 
 **Rejected alternatives:**
 
@@ -322,6 +329,58 @@ Three reasons for this:
 - _Verify branches without a worktree (via `git show`)_: works for file
   contents but the toolchain (lint, tests) needs a real filesystem with
   resolved `node_modules`. Branch-only verification would be capability-degraded.
+
+---
+
+## Trust model
+
+Effective draws a deliberate line between what it trusts and what it
+verifies. Getting the line wrong in either direction — treating the
+config as adversarial, or treating repo content as trusted — would
+break the design.
+
+**Trusted by design (executes with your privileges):**
+
+- **`effective.config.*`** — loaded via jiti and executed as
+  TypeScript. A config is code; a malicious config can do anything the
+  invoking user can.
+- **Presets the config imports** — same footing as the config itself.
+- **Toolchain command strings** — `toolchain.lint`, `toolchain.test`,
+  `toolchain.custom` entries, etc. run through your shell verbatim.
+  That's intentional: the command string comes from the trusted config,
+  so shell features (`pnpm lint --format json`, pipes, env vars) work
+  without argument-splitting hassle.
+- **CLI arguments** — `--config`, `--against`, and friends are operator
+  input.
+
+**Semi-adversarial (the product premise):**
+
+- **The repository content and filenames being verified.** Workers
+  under optimization pressure edit code to slip past checks — that is
+  exactly what the engine exists to catch. This is why pattern scanning
+  is region-aware (a match in a comment or string literal is classified
+  differently from a match in code), and why the audit's gitignore
+  handling never lets an ignore rule hide tracked code: tracked files
+  are always scanned even when an ignore pattern matches them.
+
+**Consequences worth knowing:**
+
+- **Config discovery walks upward.** When no `--config` is given, the
+  CLI searches from the current directory up to the filesystem root for
+  `effective.config.*`. Running `effective` inside a directory tree you
+  don't trust can discover — and execute — an ancestor directory's
+  config. Don't run it under untrusted trees; pass `--config` explicitly
+  when in doubt.
+- **Rule regexes are code.** Constitution-supplied patterns run
+  unsandboxed against repo content with no timeout. A pathological
+  regex (catastrophic backtracking) can hang a verify run, so review
+  contributed rules' patterns with the same care as contributed code.
+- **The region classifier is a heuristic, not a security boundary.**
+  `syntax-regions.ts` is a tokenizer-level scan with documented
+  limitations (template-literal interpolation, regex literals). It
+  exists to cut false positives, not to make guarantees. The
+  authoritative layer is the toolchain gate — real eslint, real tsc,
+  real test runs — whose parsers consume the tools' own output.
 
 ---
 
@@ -460,15 +519,15 @@ preset:
 
 ```ts
 defineConfig({
-  extends: [presets.recommended],
+  extends: ['recommended'],
 
   disable: {
-    'spec.assertion-narrowed':
+    'assertions-not-narrowed':
       'We use property-based tests; false positives here.',
   },
 
   override: {
-    'exceptions-must-cite-justification': {
+    'exceptions.must-cite-justification': {
       severity: 'HIGH',
       rationale:
         'Existing escape hatches lack refs; downgrade now, retrofit gradually.',
@@ -655,7 +714,7 @@ as they encounter them.
 
 ### Gradual adoption via severity override
 
-The `exceptionsMustCiteJustification` rule is `CRITICAL` severity in the
+The `exceptions.must-cite-justification` rule is `CRITICAL` severity in the
 recommended preset. Existing codebases typically have hundreds of escape
 hatches with no exception refs. We don't ask teams to retrofit all of them
 before adoption.
@@ -664,7 +723,7 @@ The path is:
 
 1. Adopt the package with the recommended preset.
 2. Run `verify()`; see the wave of `CRITICAL` findings.
-3. Add an `override` for `exceptions-must-cite-justification` to `HIGH` or
+3. Add an `override` for `exceptions.must-cite-justification` to `HIGH` or
    `MED`, with rationale: "Existing escape hatches lack refs; downgrade now,
    retrofit gradually."
 4. Continue shipping. Existing escape hatches are visible (as `HIGH`/`MED`

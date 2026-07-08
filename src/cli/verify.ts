@@ -2,10 +2,11 @@ import path from 'node:path';
 import { loadConfig, loadConfigFromPath } from '../config/load.js';
 import { verify } from '../verify.js';
 import type { VerifyInput, VerifySource } from '../verify.js';
+import { computeVerdict, summarizeFindings } from '../verdict.js';
 import { renderResult } from './reporters.js';
 import type { ReporterName } from './reporters.js';
 import type { ParsedArgs } from './args.js';
-import type { Scope } from '../schemas.js';
+import type { Finding, Rule, Scope } from '../schemas.js';
 
 export interface VerifyCliResult {
   readonly stdout: string;
@@ -67,6 +68,20 @@ function keepWorktreeOf(args: ParsedArgs): VerifyInput['keepWorktree'] {
   return undefined; // let verify() apply its default ('on-pass')
 }
 
+/**
+ * Rule ids wired to the built-in protected-paths check. Identified by
+ * `checkRef` rather than the conventional `protected-paths-respected`
+ * id so a renamed (or duplicated) rule in an adopter config still
+ * counts as a governance finding under `--governance-pr`.
+ */
+function protectedPathRuleIds(rules: ReadonlyMap<string, Rule>): ReadonlySet<string> {
+  const ids = new Set<string>();
+  for (const rule of rules.values()) {
+    if (rule.kind === 'custom' && rule.checkRef === 'protectedPathsRespected') ids.add(rule.id);
+  }
+  return ids;
+}
+
 export async function runVerifyCommand(args: ParsedArgs, cwd: string): Promise<VerifyCliResult> {
   const configFlag = args.options.config;
   const loaded =
@@ -77,7 +92,7 @@ export async function runVerifyCommand(args: ParsedArgs, cwd: string): Promise<V
   const source = sourceOf(args, cwd);
   const keepWorktree = keepWorktreeOf(args);
   const skipInstall = args.flags.has('skip-install');
-  const result = await verify({
+  let result = await verify({
     scope: DEFAULT_SCOPE,
     config: loaded.config,
     source,
@@ -85,8 +100,30 @@ export async function runVerifyCommand(args: ParsedArgs, cwd: string): Promise<V
     ...(keepWorktree === undefined ? {} : { keepWorktree }),
     ...(skipInstall ? { skipInstall: true } : {}),
   });
+  // --governance-pr: the elevation surface for INTENTIONAL constitutional
+  // changes (version bumps, rule additions, workflow edits). Protected-path
+  // findings are moved out of the gating set — the verdict and exit code
+  // are recomputed from everything else — but they are NOT silenced: the
+  // reporter prints them in a dedicated governance section (and the JSON
+  // reporter carries them under `governanceFindings`) so the elevation
+  // stays auditable. Every other finding gates exactly as before; a real
+  // bug in the same diff still fails the run.
+  let governance: readonly Finding[] | undefined;
+  if (args.flags.has('governance-pr')) {
+    const ids = protectedPathRuleIds(loaded.resolved.rules);
+    governance = result.findings.filter((f) => ids.has(f.ruleId));
+    if (governance.length > 0) {
+      const gating = result.findings.filter((f) => !ids.has(f.ruleId));
+      result = {
+        ...result,
+        verdict: computeVerdict(gating),
+        findings: gating,
+        summary: summarizeFindings(gating),
+      };
+    }
+  }
   return {
-    stdout: `${renderResult(result, reporter)}\n`,
+    stdout: `${renderResult(result, reporter, governance)}\n`,
     stderr: '',
     exitCode: result.verdict === 'fail' ? 1 : 0,
   };
