@@ -6,6 +6,10 @@ project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+_Nothing yet._
+
+## [0.1.0-rc.8] — 2026-07-07
+
 ### Fixed
 
 - **Count-based toolchain gates no longer treat unparseable output as
