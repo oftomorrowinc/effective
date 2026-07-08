@@ -88,3 +88,70 @@ describe('runRulesCommand', () => {
     }
   });
 });
+
+describe('runRulesCommand — detail and config arms', () => {
+  it('shows catalogue entry, related principle, and examples in detail view', async () => {
+    const dir = await makeDir();
+    try {
+      await writeConfig(
+        dir,
+        `export default defineConfig({
+  rules: [
+    rule.forbidPattern(/it\\.skip/, {
+      id: 'no-skipped-tests',
+      catalogueEntry: 'tests-skipped-under-pressure',
+      relatedPrinciple: 'mechanical-enforcement-over-instruction',
+      prompt: { examples: { bad: 'it.skip("flaky")', good: 'it("fixed")' } },
+    }),
+  ],
+});`,
+      );
+      const result = await runRulesCommand(parseArgs(['rules', 'no-skipped-tests']), dir);
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain('Catalogue entry:    tests-skipped-under-pressure');
+      expect(result.stdout).toContain(
+        'Related principle:  mechanical-enforcement-over-instruction',
+      );
+      expect(result.stdout).toContain('AVOID:');
+      expect(result.stdout).toContain('PREFER:');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('loads the constitution from an explicit --config path', async () => {
+    const dir = await makeDir();
+    try {
+      await writeConfig(
+        dir,
+        `export default defineConfig({ rules: [rule.forbidPattern(/TODO/, { id: 'no-todo' })] });`,
+      );
+      const result = await runRulesCommand(
+        parseArgs(['rules', '--config', 'effective.config.ts']),
+        dir,
+      );
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain('1 rule(s) active');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('reports an empty resolved constitution', async () => {
+    const dir = await makeDir();
+    try {
+      await writeConfig(
+        dir,
+        `export default defineConfig({
+  rules: [rule.forbidPattern(/TODO/, { id: 'no-todo' })],
+  disable: { 'no-todo': 'exercising the empty-resolution path' },
+});`,
+      );
+      const result = await runRulesCommand(parseArgs(['rules']), dir);
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain('No rules in the resolved constitution.');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});

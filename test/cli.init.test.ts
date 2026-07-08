@@ -259,6 +259,125 @@ describe('runInitCommand — toolchain detection', () => {
       await rm(dir, { recursive: true, force: true });
     }
   });
+
+  it('detects jest via @types/jest alone', async () => {
+    await withFixture(
+      {
+        tsconfig: true,
+        lockfile: 'pnpm',
+        packageJson: {
+          scripts: { test: 'jest' },
+          devDependencies: { '@types/jest': '^29.0.0' },
+        },
+      },
+      async (dir) => {
+        await runInitCommand(parseArgs(['init']), dir);
+        const config = await readFile(path.join(dir, 'effective.config.ts'), 'utf8');
+        expect(config).toContain('test: "pnpm test --json"');
+      },
+    );
+  });
+
+  it('detects node:test from a `node --test` script and appends its reporter flag', async () => {
+    await withFixture(
+      {
+        tsconfig: true,
+        lockfile: 'pnpm',
+        packageJson: { scripts: { test: 'node --test test/' } },
+      },
+      async (dir) => {
+        await runInitCommand(parseArgs(['init']), dir);
+        const config = await readFile(path.join(dir, 'effective.config.ts'), 'utf8');
+        expect(config).toContain('test: "pnpm test --test-reporter spec"');
+      },
+    );
+  });
+
+  it('appends `--format json` for oxlint', async () => {
+    await withFixture(
+      {
+        tsconfig: true,
+        lockfile: 'pnpm',
+        packageJson: {
+          scripts: { lint: 'oxlint' },
+          devDependencies: { oxlint: '^0.9.0' },
+        },
+      },
+      async (dir) => {
+        await runInitCommand(parseArgs(['init']), dir);
+        const config = await readFile(path.join(dir, 'effective.config.ts'), 'utf8');
+        expect(config).toContain('lint: "pnpm lint --format json"');
+      },
+    );
+  });
+
+  it('flags ambiguity when multiple lint frameworks are present', async () => {
+    await withFixture(
+      {
+        tsconfig: true,
+        lockfile: 'pnpm',
+        packageJson: {
+          scripts: { lint: 'eslint .' },
+          devDependencies: { eslint: '^9.0.0', '@biomejs/biome': '^1.0.0' },
+        },
+      },
+      async (dir) => {
+        await runInitCommand(parseArgs(['init']), dir);
+        const config = await readFile(path.join(dir, 'effective.config.ts'), 'utf8');
+        expect(config).toContain('// EDIT: detected multiple lint frameworks');
+        expect(config).toContain('eslint, biome');
+      },
+    );
+  });
+
+  it('emits a coverage command from a test:coverage script', async () => {
+    await withFixture(
+      {
+        tsconfig: true,
+        lockfile: 'pnpm',
+        packageJson: {
+          scripts: { test: 'vitest run', 'test:coverage': 'vitest run --coverage' },
+          devDependencies: { vitest: '^3.0.0' },
+        },
+      },
+      async (dir) => {
+        await runInitCommand(parseArgs(['init']), dir);
+        const config = await readFile(path.join(dir, 'effective.config.ts'), 'utf8');
+        expect(config).toContain('coverage: "pnpm test:coverage --reporter json"');
+      },
+    );
+  });
+
+  it('composes a plain `npm run` command when no reporter flag is forwarded', async () => {
+    await withFixture(
+      {
+        tsconfig: true,
+        lockfile: 'npm',
+        packageJson: { scripts: { typecheck: 'tsc --noEmit' } },
+      },
+      async (dir) => {
+        await runInitCommand(parseArgs(['init']), dir);
+        const config = await readFile(path.join(dir, 'effective.config.ts'), 'utf8');
+        expect(config).toContain('typecheck: "npm run typecheck"');
+      },
+    );
+  });
+
+  it('emits lint and test commands without flags when no framework is recognized', async () => {
+    await withFixture(
+      {
+        tsconfig: true,
+        lockfile: 'pnpm',
+        packageJson: { scripts: { lint: 'mylinter .', test: 'node scripts/run-tests.js' } },
+      },
+      async (dir) => {
+        await runInitCommand(parseArgs(['init']), dir);
+        const config = await readFile(path.join(dir, 'effective.config.ts'), 'utf8');
+        expect(config).toContain('lint: "pnpm lint",');
+        expect(config).toContain('test: "pnpm test",');
+      },
+    );
+  });
 });
 
 describe('runInitCommand — meta block', () => {

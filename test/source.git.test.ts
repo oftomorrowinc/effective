@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { writeFile, mkdir } from 'node:fs/promises';
+import { writeFile, mkdir, rm, symlink } from 'node:fs/promises';
 import path from 'node:path';
 import { loadGitDiff, loadStagedDiff } from '../src/source/git.js';
 import { git, useEphemeralRepo } from './_git-helpers.js';
@@ -129,5 +129,40 @@ describe('git diff parsing — hostile filenames', () => {
     // Pre-fix behavior: the C-quoted path failed to read and the file
     // was silently verified as EMPTY content — a rule-evasion channel.
     expect(files[0]?.content).toBe('console.log("hide me");\n');
+  });
+});
+
+describe('git diff parsing — unusual entry types', () => {
+  const repoRef = useEphemeralRepo();
+
+  it('maps a typechange (T) to modified rather than dropping it', async () => {
+    const repo = repoRef.current;
+    await writeFile(path.join(repo, 'target.txt'), 'real content\n');
+    await writeFile(path.join(repo, 'link.txt'), 'plain file\n');
+    await git(repo, 'add target.txt link.txt');
+    await git(repo, 'commit -m "plain files"');
+    // Replace the regular file with a symlink: git reports status T.
+    await rm(path.join(repo, 'link.txt'));
+    await symlink('target.txt', path.join(repo, 'link.txt'));
+    await git(repo, 'add link.txt');
+
+    const files = await loadStagedDiff({ repo });
+    expect(files).toHaveLength(1);
+    expect(files[0]?.status).toBe('modified');
+    // The staged blob of a symlink is its target path.
+    expect(files[0]?.content).toBe('target.txt');
+  });
+
+  it('throws (rather than verifying as empty) when staged content is unreadable', async () => {
+    const repo = repoRef.current;
+    // A gitlink whose commit object is absent from this repo — the shape
+    // of a submodule entry — cannot be read via `git show :0:<path>`.
+    await git(
+      repo,
+      'update-index --add --cacheinfo 160000,1111111111111111111111111111111111111111,vendored',
+    );
+    await expect(loadStagedDiff({ repo })).rejects.toThrow(
+      /refusing to verify unreadable content as empty/,
+    );
   });
 });

@@ -99,3 +99,53 @@ describe('runVerifyCommand', () => {
     ).rejects.toThrowError(/Unknown --reporter/);
   });
 });
+
+describe('runVerifyCommand — worktree and config flags', () => {
+  const repoRef = useEphemeralRepo();
+
+  it('accepts --no-keep-worktree', async () => {
+    await setupConfiguredFeature(repoRef.current, NO_TODO_CONFIG);
+    const result = await runVerifyCommand(
+      parseArgs(['verify', '--staged', '--no-keep-worktree']),
+      repoRef.current,
+    );
+    expect(result.exitCode).toBe(0);
+  });
+
+  it('accepts an explicit --keep-worktree=never', async () => {
+    await setupConfiguredFeature(repoRef.current, NO_TODO_CONFIG);
+    const result = await runVerifyCommand(
+      parseArgs(['verify', '--staged', '--keep-worktree=never']),
+      repoRef.current,
+    );
+    expect(result.exitCode).toBe(0);
+  });
+
+  it('treats a bare --keep-worktree flag as always', async () => {
+    await setupConfiguredFeature(repoRef.current, NO_TODO_CONFIG);
+    const result = await runVerifyCommand(
+      parseArgs(['verify', '--staged', '--keep-worktree']),
+      repoRef.current,
+    );
+    expect(result.exitCode).toBe(0);
+  });
+
+  it('rejects an unknown --keep-worktree value', async () => {
+    await setupConfiguredFeature(repoRef.current, NO_TODO_CONFIG);
+    await expect(
+      runVerifyCommand(
+        parseArgs(['verify', '--staged', '--keep-worktree=sometimes']),
+        repoRef.current,
+      ),
+    ).rejects.toThrowError(/Unknown --keep-worktree value/);
+  });
+
+  it('loads the constitution from an explicit --config path', async () => {
+    await setupConfiguredFeature(repoRef.current, NO_TODO_CONFIG);
+    const result = await runVerifyCommand(
+      parseArgs(['verify', '--staged', '--config', 'effective.config.ts']),
+      repoRef.current,
+    );
+    expect(result.exitCode).toBe(0);
+  });
+});

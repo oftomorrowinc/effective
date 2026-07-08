@@ -68,6 +68,49 @@ describe('parseVitest', () => {
     });
     expect(parseVitest(runResult({ stdout })).findings[0]?.evidence).toMatch(/no failure message/);
   });
+
+  it('tolerates a report with no testResults array', () => {
+    const stdout = JSON.stringify({ numFailedTests: 0 });
+    expect(parseVitest(runResult({ stdout }))).toEqual({ findings: [], count: 0 });
+  });
+
+  it('tolerates a testResult with no name and no assertionResults', () => {
+    const stdout = JSON.stringify({ numFailedTests: 0, testResults: [{ status: 'passed' }] });
+    expect(parseVitest(runResult({ stdout })).findings).toEqual([]);
+  });
+
+  it('labels a failed assertion with no file name and only a title', () => {
+    const stdout = JSON.stringify({
+      numFailedTests: 1,
+      testResults: [{ assertionResults: [{ status: 'failed', title: 'short title' }] }],
+    });
+    const finding = parseVitest(runResult({ stdout })).findings[0];
+    expect(finding?.location?.file).toBe('(unknown file)');
+    expect(finding?.message).toContain('short title');
+  });
+
+  it('labels a failed assertion with neither fullName nor title as unnamed', () => {
+    const stdout = JSON.stringify({
+      numFailedTests: 1,
+      testResults: [{ name: 't.ts', assertionResults: [{ status: 'failed' }] }],
+    });
+    expect(parseVitest(runResult({ stdout })).findings[0]?.message).toContain('(unnamed test)');
+  });
+
+  it('falls back to counting findings when numFailedTests is missing', () => {
+    const stdout = JSON.stringify({
+      testResults: [
+        {
+          name: 't.ts',
+          assertionResults: [
+            { status: 'failed', fullName: 'a' },
+            { status: 'failed', fullName: 'b' },
+          ],
+        },
+      ],
+    });
+    expect(parseVitest(runResult({ stdout })).count).toBe(2);
+  });
 });
 
 describe('parseJest', () => {
@@ -85,6 +128,10 @@ describe('parseJest', () => {
     expect(count).toBe(1);
     expect(findings[0]?.ruleId).toBe('jest:test-failed');
     expect(findings[0]?.message.startsWith('Jest ')).toBe(true);
+  });
+
+  it('omits count when the run produced no JSON report', () => {
+    expect(parseJest(runResult({ stdout: 'no json here' }))).toEqual({ findings: [] });
   });
 });
 
