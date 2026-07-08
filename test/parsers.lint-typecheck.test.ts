@@ -51,12 +51,12 @@ describe('parseEslint', () => {
     expect(findings[1]?.ruleId).toBe('eslint:eslint.parse-error');
   });
 
-  it('returns an empty result for empty stdout', () => {
-    expect(parseEslint(runResult())).toEqual({ findings: [], count: 0 });
+  it('omits count for empty stdout — nothing was measured', () => {
+    expect(parseEslint(runResult())).toEqual({ findings: [] });
   });
 
-  it('returns an empty result for malformed JSON', () => {
-    expect(parseEslint(runResult({ stdout: 'not json' }))).toEqual({ findings: [], count: 0 });
+  it('omits count for malformed JSON — nothing was measured', () => {
+    expect(parseEslint(runResult({ stdout: 'not json' }))).toEqual({ findings: [] });
   });
 
   it('skips reports with no messages array', () => {

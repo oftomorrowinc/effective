@@ -30,7 +30,9 @@ function joinFailures(messages: readonly string[] | undefined): string {
 
 export const parseVitest: Parser = (result: RunResult): ParsedToolchainResult => {
   const report = parseTrailingJson(result.stdout) as VitestReport | undefined;
-  if (!report) return { findings: [], count: 0 };
+  // No JSON report → the run wasn't measured; omit count so count-based
+  // gates fall back to the exit code instead of reading 0 as clean.
+  if (!report) return { findings: [] };
   const findings: Finding[] = [];
   for (const testResult of report.testResults ?? []) {
     const filePath = testResult.name ?? '(unknown file)';

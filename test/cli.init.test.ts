@@ -163,7 +163,7 @@ describe('runInitCommand — toolchain detection', () => {
     try {
       await runInitCommand(parseArgs(['init']), dir);
       const config = await readFile(path.join(dir, 'effective.config.ts'), 'utf8');
-      expect(config).toContain("test: 'pnpm test --reporter json'");
+      expect(config).toContain('test: "pnpm test --reporter json"');
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -181,7 +181,7 @@ describe('runInitCommand — toolchain detection', () => {
     try {
       await runInitCommand(parseArgs(['init']), dir);
       const config = await readFile(path.join(dir, 'effective.config.ts'), 'utf8');
-      expect(config).toContain("test: 'pnpm test --json'");
+      expect(config).toContain('test: "pnpm test --json"');
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -199,7 +199,7 @@ describe('runInitCommand — toolchain detection', () => {
     try {
       await runInitCommand(parseArgs(['init']), dir);
       const config = await readFile(path.join(dir, 'effective.config.ts'), 'utf8');
-      expect(config).toContain("lint: 'pnpm lint --format json'");
+      expect(config).toContain('lint: "pnpm lint --format json"');
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -217,7 +217,7 @@ describe('runInitCommand — toolchain detection', () => {
     try {
       await runInitCommand(parseArgs(['init']), dir);
       const config = await readFile(path.join(dir, 'effective.config.ts'), 'utf8');
-      expect(config).toContain("lint: 'pnpm lint --reporter json'");
+      expect(config).toContain('lint: "pnpm lint --reporter json"');
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -235,7 +235,7 @@ describe('runInitCommand — toolchain detection', () => {
     try {
       await runInitCommand(parseArgs(['init']), dir);
       const config = await readFile(path.join(dir, 'effective.config.ts'), 'utf8');
-      expect(config).toContain("lint: 'pnpm lint:ci --format json'");
+      expect(config).toContain('lint: "pnpm lint:ci --format json"');
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -270,8 +270,8 @@ describe('runInitCommand — meta block', () => {
     try {
       await runInitCommand(parseArgs(['init']), dir);
       const config = await readFile(path.join(dir, 'effective.config.ts'), 'utf8');
-      expect(config).toContain("name: 'my-app'");
-      expect(config).toContain("version: '1.2.3'");
+      expect(config).toContain('name: "my-app"');
+      expect(config).toContain('version: "1.2.3"');
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -282,7 +282,7 @@ describe('runInitCommand — meta block', () => {
     try {
       await runInitCommand(parseArgs(['init']), dir);
       const config = await readFile(path.join(dir, 'effective.config.ts'), 'utf8');
-      expect(config).toContain("name: 'my-project'");
+      expect(config).toContain('name: "my-project"');
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -403,7 +403,7 @@ describe('runInitCommand — protected paths', () => {
       await runInitCommand(parseArgs(['init']), dir);
       const body = await readFile(path.join(dir, 'effective.config.ts'), 'utf8');
       expect(body).toContain('protected: [');
-      expect(body).toContain("path: 'effective.config.ts'");
+      expect(body).toContain('path: "effective.config.ts"');
       expect(body).toContain('The constitution itself');
     } finally {
       await rm(dir, { recursive: true, force: true });
@@ -415,8 +415,8 @@ describe('runInitCommand — protected paths', () => {
     try {
       await runInitCommand(parseArgs(['init']), dir);
       const body = await readFile(path.join(dir, 'effective.config.js'), 'utf8');
-      expect(body).toContain("path: 'effective.config.js'");
-      expect(body).not.toContain("path: 'effective.config.ts'");
+      expect(body).toContain('path: "effective.config.js"');
+      expect(body).not.toContain('path: "effective.config.ts"');
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -430,7 +430,7 @@ describe('runInitCommand — protected paths', () => {
     try {
       await runInitCommand(parseArgs(['init']), dir);
       const body = await readFile(path.join(dir, 'effective.config.ts'), 'utf8');
-      expect(body).toContain("path: 'eslint.config.*'");
+      expect(body).toContain('path: "eslint.config.*"');
       expect(body).toContain('ESLint config controls lint behavior');
     } finally {
       await rm(dir, { recursive: true, force: true });
@@ -442,7 +442,7 @@ describe('runInitCommand — protected paths', () => {
     try {
       await runInitCommand(parseArgs(['init']), dir);
       const body = await readFile(path.join(dir, 'effective.config.ts'), 'utf8');
-      expect(body).toContain("path: 'tsconfig*.json'");
+      expect(body).toContain('path: "tsconfig*.json"');
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -454,7 +454,7 @@ describe('runInitCommand — protected paths', () => {
       await mkdir(path.join(dir, '.github', 'workflows'), { recursive: true });
       await runInitCommand(parseArgs(['init']), dir);
       const body = await readFile(path.join(dir, 'effective.config.ts'), 'utf8');
-      expect(body).toContain("path: '.github/workflows/**'");
+      expect(body).toContain('path: ".github/workflows/**"');
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -472,5 +472,51 @@ describe('runInitCommand — protected paths', () => {
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe('runInitCommand — hostile package.json values are escaped', () => {
+  it('renders a quote-bearing package name as data, not injectable config code', async () => {
+    // A crafted `name` that would, if interpolated raw into a
+    // single-quoted literal, close the string and inject an
+    // executable expression into the (later jiti-executed) config.
+    const hostile = "x', leaked: process.env, y: 'z";
+    await withFixture(
+      { packageJson: { name: hostile, version: "1.0.0'+process.exit(1)+'" } },
+      async (dir) => {
+        const result = await runInitCommand(parseArgs(['init']), dir);
+        expect(result.exitCode).toBe(0);
+        const config = await readFile(path.join(dir, 'effective.config.ts'), 'utf8');
+        // The whole hostile value lands INSIDE one escaped string
+        // literal (data)…
+        expect(config).toContain(`name: ${JSON.stringify(hostile)},`);
+        // …and stripping the escaped literals leaves no payload
+        // outside a string — nothing executable escaped the quotes.
+        const outsideLiterals = config
+          .replace(JSON.stringify(hostile), '""')
+          .replace(JSON.stringify("1.0.0'+process.exit(1)+'"), '""');
+        expect(outsideLiterals).not.toContain('process.env');
+        expect(outsideLiterals).not.toContain('process.exit');
+      },
+    );
+  });
+
+  it('renders quote-bearing script names safely in toolchain commands', async () => {
+    await withFixture(
+      {
+        packageJson: {
+          scripts: { lint: 'eslint .' },
+          devDependencies: { eslint: '^9.0.0' },
+        },
+        lockfile: 'pnpm',
+      },
+      async (dir) => {
+        const result = await runInitCommand(parseArgs(['init']), dir);
+        expect(result.exitCode).toBe(0);
+        const config = await readFile(path.join(dir, 'effective.config.ts'), 'utf8');
+        // Commands are emitted as JSON-escaped double-quoted literals.
+        expect(config).toContain('lint: "pnpm lint --format json",');
+      },
+    );
   });
 });

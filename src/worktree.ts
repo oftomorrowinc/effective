@@ -1,6 +1,6 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
-import { runCommand } from './toolchain/run.js';
+import { runCommand, runProcess } from './toolchain/run.js';
 
 export interface WorktreeOptions {
   /** Absolute path to the source git repo (containing .git). */
@@ -61,16 +61,17 @@ async function exists(p: string): Promise<boolean> {
 
 async function removeWorktree(repo: string, worktreePath: string): Promise<void> {
   if (!(await exists(worktreePath))) return;
-  // `git worktree remove --force` cleans the registered worktree state and the directory.
-  await runCommand({ command: `git worktree remove --force ${quote(worktreePath)}`, cwd: repo });
+  // `git worktree remove --force` cleans the registered worktree state
+  // and the directory. Argv form (no shell) — the path needs no quoting
+  // on any platform.
+  await runProcess({
+    file: 'git',
+    args: ['worktree', 'remove', '--force', worktreePath],
+    cwd: repo,
+  });
   if (await exists(worktreePath)) {
     await fs.rm(worktreePath, { recursive: true, force: true });
   }
-}
-
-function quote(p: string): string {
-  if (/^[A-Za-z0-9_./@:^~-]+$/.test(p)) return p;
-  return `'${p.replaceAll("'", String.raw`'\''`)}'`;
 }
 
 async function symlinkNodeModules(worktreePath: string, sharedPath: string): Promise<void> {
@@ -123,8 +124,11 @@ export async function prepareWorktree(options: WorktreeOptions): Promise<Worktre
   // current HEAD. Without it, `git worktree add` refuses with "branch is
   // already used by worktree at ..." for the most common case where the
   // user is verifying the branch they're currently on.
-  const result = await runCommand({
-    command: `git worktree add --detach ${quote(worktreePath)} ${quote(options.work)}`,
+  // Argv form: `options.work` is caller/repo-derived (a ref name) and
+  // `worktreePath` may contain spaces — neither ever touches a shell.
+  const result = await runProcess({
+    file: 'git',
+    args: ['worktree', 'add', '--detach', worktreePath, options.work],
     cwd: options.repo,
   });
   if (result.exitCode !== 0) {

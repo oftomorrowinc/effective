@@ -2,10 +2,21 @@ export { prepare } from './prepare.js';
 export type { PrepareInput, PreparedAgent } from './prepare.js';
 export { verify } from './verify.js';
 export type { GitSource, StagedSource, VerifyInput, VerifySource } from './verify.js';
+export type { InlineSource } from './source/inline.js';
+export type {
+  ChangedFile,
+  ChangedFileStatus,
+  CommitMetadata,
+  CustomCheck,
+  ToolchainResult,
+  VerifyContext,
+} from './source/types.js';
+export { resolveConstitution, resolveScope } from './resolve.js';
+export type { ResolveOptions, ResolvedConstitution, ResolvedScope } from './resolve.js';
 export type { FindingSummary } from './verdict.js';
 export { computeVerdict, summarizeFindings } from './verdict.js';
-export type { RunInput, RunResult } from './toolchain/run.js';
-export { runCommand } from './toolchain/run.js';
+export type { ProcessInput, RunInput, RunResult } from './toolchain/run.js';
+export { runCommand, runProcess } from './toolchain/run.js';
 export type {
   CoverageParserName,
   LintParserName,

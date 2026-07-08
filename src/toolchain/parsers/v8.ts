@@ -48,7 +48,11 @@ function checkMetric(name: keyof CoverageEntry, entry: CoverageEntry | undefined
  */
 export const parseV8: Parser = (result: RunResult): ParsedToolchainResult => {
   const summary = parseTrailingJson(result.stdout) as CoverageSummary | undefined;
-  if (!summary) return { findings: [], count: 0 };
+  // No JSON, or JSON without a `total` entry (e.g. a test-run report
+  // instead of coverage-summary.json): coverage was NOT measured. Omit
+  // count so the gate falls back to the exit code rather than treating
+  // the absence of a measurement as a passing one.
+  if (summary?.total === undefined) return { findings: [] };
   const total = summary.total;
   const findings: Finding[] = [
     ...checkMetric('lines', total),

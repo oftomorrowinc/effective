@@ -1,7 +1,10 @@
 import type { Finding, SpecRule } from '../../schemas.js';
 import type { ChangedFile, VerifyContext } from '../../source/types.js';
 
-const TEST_NAME = /(?:it|test)\s*\(\s*(['"`])(?<name>[^'"`]+?)\1/g;
+// The name group excludes only the OPENING delimiter (via backreference
+// lookahead), not all three quote kinds — `it("keeps the user's name")`
+// must match. Escaped delimiters inside the name are still unsupported.
+const TEST_NAME = /(?:it|test)\s*\(\s*(['"`])(?<name>(?:(?!\1).)+?)\1/g;
 
 function extractSpecTestNames(spec: string): string[] {
   const names: string[] = [];

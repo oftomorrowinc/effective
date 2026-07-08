@@ -6,8 +6,70 @@ project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **Count-based toolchain gates no longer treat unparseable output as
+  clean.** Parsers now omit `count` (instead of reporting 0) when the
+  output lacks the structure they understand — wrong reporter format,
+  crash before reporting, an accepted-but-unimplemented parser hint
+  (`biome`, `oxlint`, `custom`), or a coverage JSON without a `total`
+  row. `count-non-zero` / `count-increased` rules fall back to the
+  command's exit code when `count` is absent, with a finding message
+  saying the output couldn't be parsed. Previously a lint run with 37
+  real errors under an unsupported hint produced a PASS verdict —
+  "couldn't measure" and "measured zero" are now distinct everywhere.
+- **`verify --staged` reads content from the index, not the working
+  tree.** `loadStagedDiff` now reads via `git show :0:<path>`, so a
+  fix that exists only on disk can't make a pre-commit verify pass and
+  unstaged noise can't fail it. Index reads resolve root-relative,
+  which also fixes running `verify --staged` from a repo subdirectory
+  (previously every staged file silently verified as EMPTY content —
+  the ENOENT was swallowed).
+- **Filenames git would C-quote can no longer dodge verification.**
+  `git diff --name-status` is parsed in `-z` (NUL-delimited) form, so
+  paths with spaces, quotes, or non-ASCII bytes arrive verbatim.
+  Previously the quoted path failed to read and the file was verified
+  as empty — a rule-evasion channel via filename. An unreadable
+  non-deleted file is now a hard error, never empty content; submodule
+  gitlink entries are skipped explicitly.
+- **Spec'd test names containing quotes no longer false-flag.** The
+  `test-names-land-verbatim` extractor now excludes only the opening
+  delimiter from the name, so `it("keeps the user's name")` matches.
+- **Preset `extends` cycles fail with the chain** (`a → b → a`)
+  instead of a raw stack overflow, and a duplicate rule id within one
+  constitution's own `rules` array throws instead of silently
+  last-winning (factory-generated ids can collide; cross-layer
+  last-wins merging is unchanged).
+- **`init` escapes package.json-derived values.** Name, version,
+  script-derived commands, and protected paths are emitted as
+  JSON-escaped literals in the generated config — a crafted
+  `package.json` field can no longer inject executable content into
+  the (jiti-executed) `effective.config.ts`.
+
+### Changed
+
+- **Repository-derived git invocations no longer touch a shell.** New
+  `runProcess` (argv array, `shell: false`) carries diff listing, blob
+  reads, commit metadata, worktree add/remove, and the gitignore
+  filter; the POSIX-only single-quote escaping helpers are gone. This
+  closes a Windows command-injection vector (cmd.exe ignores
+  single-quotes) via crafted filenames or refs. `runCommand`'s shell
+  form remains for config-authored toolchain command strings, which
+  are trusted code — that boundary is now documented in DESIGN.md's
+  trust model.
+
 ### Added
 
+- **`runProcess` in the public API** (`ProcessInput` type): the safe
+  argv-based sibling of `runCommand` for callers shelling out with
+  repository-derived values.
+- **Previously-internal load-bearing types are exported:**
+  `CustomCheck`, `VerifyContext`, `ChangedFile`, `ChangedFileStatus`,
+  `ToolchainResult`, `CommitMetadata`, `InlineSource`, plus
+  `resolveConstitution` / `resolveScope` and their
+  `ResolveOptions` / `ResolvedConstitution` / `ResolvedScope` types —
+  a consumer can now write `const check: CustomCheck = ...` without
+  `Parameters<>` gymnastics.
 - **`audit` config block on the Constitution** (`AuditConfig` schema):
   `respectGitignore?: boolean` (default `true`) and
   `exclude?: string[]` — picomatch globs carving tracked,

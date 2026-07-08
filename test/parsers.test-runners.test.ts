@@ -52,8 +52,8 @@ describe('parseVitest', () => {
     expect(parseVitest(runResult({ stdout, exitCode: 0 })).count).toBe(0);
   });
 
-  it('returns empty on malformed JSON', () => {
-    expect(parseVitest(runResult({ stdout: 'oops' }))).toEqual({ findings: [], count: 0 });
+  it('omits count on malformed JSON — the run was not measured', () => {
+    expect(parseVitest(runResult({ stdout: 'oops' }))).toEqual({ findings: [] });
   });
 
   it('tolerates non-JSON banner before the report', () => {

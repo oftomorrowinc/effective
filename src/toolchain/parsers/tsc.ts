@@ -82,5 +82,11 @@ function parseLines(stdout: string, stderr: string): Finding[] {
 
 export const parseTsc: Parser = (result: RunResult): ParsedToolchainResult => {
   const findings = parseLines(result.stdout, result.stderr);
+  // Non-zero exit with zero parseable error lines means tsc failed in a
+  // way this parser can't measure (config error like TS5083 without a
+  // file(line,col) prefix, wrapper noise, not actually tsc). Omit count
+  // so the gate falls back to the exit code; a clean exit legitimately
+  // means zero errors.
+  if (findings.length === 0 && result.exitCode !== 0) return { findings };
   return { findings, count: findings.length };
 };

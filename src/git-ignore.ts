@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { runCommand } from './toolchain/run.js';
+import { runProcess } from './toolchain/run.js';
 
 /**
  * Filter a list of absolute file paths down to the ones git would NOT
@@ -38,8 +38,9 @@ export async function filterGitIgnored(
 
   // Paths travel over stdin NUL-separated (-z), so filenames with
   // spaces, quotes, or newlines need no shell quoting at all.
-  const checkIgnore = await runCommand({
-    command: 'git check-ignore --stdin -z',
+  const checkIgnore = await runProcess({
+    file: 'git',
+    args: ['check-ignore', '--stdin', '-z'],
     cwd: root,
     stdin: entries.map((e) => e.rel).join('\0'),
   });
@@ -49,7 +50,7 @@ export async function filterGitIgnored(
   const ignored = new Set(checkIgnore.stdout.split('\0').filter((p) => p.length > 0));
   if (ignored.size === 0) return [...absolutePaths];
 
-  const lsFiles = await runCommand({ command: 'git ls-files -z', cwd: root });
+  const lsFiles = await runProcess({ file: 'git', args: ['ls-files', '-z'], cwd: root });
   if (lsFiles.exitCode !== 0) return [...absolutePaths];
   const tracked = new Set(lsFiles.stdout.split('\0').filter((p) => p.length > 0));
 

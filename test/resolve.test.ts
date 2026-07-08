@@ -228,3 +228,39 @@ describe('resolveScope', () => {
     expect(r.relatedRules).toEqual(['no-disabled-tests']);
   });
 });
+
+describe('resolveConstitution — authoring-error guards', () => {
+  it('throws with the chain on a preset extends cycle instead of overflowing the stack', () => {
+    const a: Constitution = { extends: ['b'], rules: [patternRule('rule-a')] };
+    const b: Constitution = { extends: ['a'], rules: [patternRule('rule-b')] };
+    expect(() =>
+      resolveConstitution({ extends: ['a'] }, { presetRegistry: { a, b } }),
+    ).toThrowError(/extends cycle detected: a → b → a/);
+  });
+
+  it('allows the same preset twice via a diamond (not a cycle)', () => {
+    const base: Constitution = { rules: [patternRule('base-rule')] };
+    const left: Constitution = { extends: ['base'], rules: [patternRule('left-rule')] };
+    const right: Constitution = { extends: ['base'], rules: [patternRule('right-rule')] };
+    const resolved = resolveConstitution(
+      { extends: ['left', 'right'] },
+      { presetRegistry: { base, left, right } },
+    );
+    expect([...resolved.rules.keys()].sort()).toEqual(['base-rule', 'left-rule', 'right-rule']);
+  });
+
+  it('throws on a duplicate rule id within one constitution rules array', () => {
+    expect(() =>
+      resolveConstitution({ rules: [patternRule('dup'), patternRule('dup')] }),
+    ).toThrowError(/duplicate rule id "dup"/);
+  });
+
+  it('still allows a project rule to override a preset rule by id (last wins across layers)', () => {
+    const preset: Constitution = { rules: [patternRule('shared', { defaultSeverity: 'LOW' })] };
+    const resolved = resolveConstitution(
+      { extends: ['p'], rules: [patternRule('shared', { defaultSeverity: 'CRITICAL' })] },
+      { presetRegistry: { p: preset } },
+    );
+    expect(resolved.rules.get('shared')?.defaultSeverity).toBe('CRITICAL');
+  });
+});

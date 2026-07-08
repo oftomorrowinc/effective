@@ -12,14 +12,19 @@ export function ruleAppliesToRole(rule: Rule, role: string): boolean {
 }
 
 /**
- * Select the rules that apply to a scope. Used by both `prepare()` (to
- * render only role-relevant rules in the augmented prompt) and `verify()`
- * (to skip rules whose checks don't apply for this role).
+ * Select the rules that apply to a scope. Used by `prepare()` to render
+ * only role-relevant rules in the augmented prompt.
+ *
+ * NOTE: `verify()` does NOT use this selection — it evaluates every
+ * resolved rule, filtering by role applicability only. In particular,
+ * `scope.relatedRules` narrows what the PROMPT emphasizes, not what
+ * verification enforces: a pinned scope is still verified against the
+ * full rule set (the safe direction — verify checks more than the
+ * prompt promised). Whether relatedRules should also scope verification
+ * is an open design question; see docs/open-issues.md.
  *
  * If `scope.relatedRules` is set, that list overrides role-based
- * filtering — explicit pinning wins. The relatedRules path is the
- * intended escape hatch for "this scope needs these rules specifically
- * regardless of role applicability."
+ * filtering here — explicit pinning wins for prompt rendering.
  */
 export function selectApplicableRules(
   scope: ResolvedScope,
