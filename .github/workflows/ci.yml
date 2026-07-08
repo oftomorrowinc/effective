@@ -7,6 +7,9 @@ on:
 
 permissions:
   contents: read
+  # Read-only PR metadata: the verify step's push-event branch looks up
+  # the merged PR's labels to inherit governance elevation (see below).
+  pull-requests: read
 
 jobs:
   verify:
@@ -65,21 +68,31 @@ jobs:
         run: pnpm pack:check
 
       - name: effective verify (self-application)
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          if [ -n "${{ github.event.pull_request.base.ref }}" ]; then
-            BASE="origin/${{ github.event.pull_request.base.ref }}"
-          else
-            BASE="HEAD^"
-          fi
           # The `governance` PR label is the elevation surface for
           # intentional constitutional changes: a human applies the label,
           # verify prints protected-path findings in a non-gating
           # governance section instead of failing on the very change that
           # is the PR's purpose. All other findings still gate.
+          if [ -n "${{ github.event.pull_request.base.ref }}" ]; then
+            BASE="origin/${{ github.event.pull_request.base.ref }}"
+            GOVERNANCE="${{ contains(github.event.pull_request.labels.*.name, 'governance') }}"
+          else
+            BASE="HEAD^"
+            # Push events (merges landing on main) have no PR context, so a
+            # merged governance PR would re-fire on the very diff the PR run
+            # already elevated. Inherit the elevation from the PR that
+            # produced this commit. A direct push with no associated PR gets
+            # no elevation — protected-path edits still turn the run red.
+            GOVERNANCE=$(gh api "repos/${{ github.repository }}/commits/${{ github.sha }}/pulls" \
+              --jq '[.[].labels[].name] | index("governance") != null' 2>/dev/null || echo false)
+          fi
           FLAGS=""
-          if [ "${{ contains(github.event.pull_request.labels.*.name, 'governance') }}" = "true" ]; then
+          if [ "$GOVERNANCE" = "true" ]; then
             FLAGS="--governance-pr"
-            echo "PR carries the 'governance' label — protected-path findings are elevated, not gating."
+            echo "Governance elevation active — protected-path findings are elevated, not gating."
           fi
           echo "Verifying $(git rev-parse --short HEAD) against $BASE"
           node dist/cli.mjs verify --against "$BASE" $FLAGS
