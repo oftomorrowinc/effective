@@ -875,6 +875,27 @@ publish --tag rc` only updates `rc`. Could be scripted (a
   sequence). Resolves automatically when 0.1.0 stable ships (the
   unstamped publish moves `latest` naturally).
 
+- **`git.ts` gitlink dead-defense arms look unreachable.** The
+  `content === undefined` skip arms in `loadGitDiff`/`loadStagedDiff`
+  (`src/source/git.ts`) require `readBlobAt`'s "`git show` failed but
+  `cat-file -t` says commit" path. Empirically (2026-07-08): `git
+show` SUCCEEDS on a gitlink whose commit exists in the repo (prints
+  the commit object), and when the sha is absent BOTH commands fail,
+  which takes the throw path instead. So the undefined-return path may
+  be dead on modern git. Candidate simplification; verify against
+  older git versions before removing — the throw-not-silently-skip
+  property is load-bearing.
+
+- **Override-resolution regression net across all built-in checks.**
+  The `exceptions.must-cite-justification` severity-override bug
+  (fixed 2026-07-08) was one custom check dropping
+  `rule.defaultSeverity` while its siblings threaded it. A
+  parametrized test that runs EVERY built-in rule through a config
+  `override` and asserts the finding severity would catch the next
+  drift of this class mechanically instead of via adopter report.
+  Needs a per-check triggering fixture, which is why it didn't ship
+  with the fix.
+
 - **`prepareWorktree` install-step error path could be smoother.**
   Currently throws with the last 15 stderr lines if `pnpm install
 --frozen-lockfile` (etc.) fails. Hasn't been hit yet, but if a

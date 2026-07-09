@@ -47,9 +47,12 @@ bump trips `protected-paths-respected` — by design. Per
 - **Agent path**: agents never `--no-verify`. An agent preparing a
   release stops at this step and hands the push to a human.
 
-Note the pre-push hook's verify step only diffs `HEAD~1..HEAD` — if
-the version-bump commit isn't the branch tip, the hook may pass on
-its own. That's fine; the CI gate sees the whole PR diff.
+The pre-push hook's verify step diffs against `origin/main`, so
+EVERY push from a branch carrying the version bump re-fires the
+CRITICAL until the branch merges — expected; that's what the human
+`--no-verify` path is for. The PR's `governance` label keeps the CI
+verify gate green (protected-path findings are elevated, not gating;
+everything else still gates).
 
 ### 4. Open the PR and merge
 
@@ -69,6 +72,13 @@ git push origin v0.1.0-rc.N
 
 Tag **after** merge, **on main** — tags on unmerged feature branches
 point at commits that squash-merges may discard.
+
+Tag-only pushes skip the local pre-push gate (`scripts/pre-push.mjs`
+detects them from the refs git feeds the hook): a tag names history
+that already passed the PR gate and CI, so there is nothing new to
+verify. If the push runs the full gate anyway, your hook file is a
+stale snapshot — run `pnpm install` (or `pnpm exec simple-git-hooks`)
+to resync it from `package.json`; see CONTRIBUTING § hooks.
 
 ### 6. Publish to npm
 

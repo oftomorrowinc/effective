@@ -58,12 +58,22 @@ The `install` step also wires up git hooks via `simple-git-hooks`:
 - `pre-commit` runs `lint-staged` (prettier + eslint on staged files
   - secretlint)
 - `commit-msg` runs commitlint (conventional commit format)
-- `pre-push` runs the full validation pipeline plus
-  `effective verify` against the latest commit
+- `pre-push` runs `scripts/pre-push.mjs`: the full validation
+  pipeline plus `effective verify --against origin/main` (the whole
+  outgoing range, matching what CI checks). Pushes consisting only
+  of tags skip the gate — a tag names already-verified history.
 
 If any of these don't run, check that `.git/hooks/` has the
 relevant hook files and that they're executable. `pnpm install`
 re-installs them.
+
+**Hook files are snapshots.** simple-git-hooks copies the commands
+out of `package.json` into `.git/hooks/*` at install time — they do
+NOT track `package.json` afterward. When a change to the
+`simple-git-hooks` block lands on main, every existing clone keeps
+running the OLD commands until it re-runs `pnpm install` (or
+`pnpm exec simple-git-hooks`). If a hook behaves like an older
+version of itself, resync before debugging anything else.
 
 ## Running the audit
 
@@ -83,8 +93,9 @@ worth investigating before adding to the drift.
 
 The project's defense is three-layered:
 
-1. **Local pre-push hook** — fast feedback. Runs verify against the
-   latest commit's diff. Catches issues before push.
+1. **Local pre-push hook** — fast feedback. Runs verify against
+   `origin/main`, i.e. the full outgoing range. Catches issues
+   before push.
 2. **CI verify gate** — load-bearing. Branch protection on main
    requires CI verify to pass before merge. This is what actually
    prevents broken changes from landing.
