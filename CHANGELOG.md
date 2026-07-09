@@ -6,7 +6,22 @@ project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-_Nothing yet._
+### Fixed
+
+- **Severity overrides now reach `exceptions.must-cite-justification`
+  findings.** The built-in escape-hatch check was the only custom
+  check that dropped the resolved rule severity on the floor, so a
+  config `override` on this rule never affected its findings — they
+  reported at hardcoded CRITICAL (missing/unknown/retired/
+  wrong-mechanism citations) and HIGH (deprecated citations)
+  regardless. The check now derives every finding class's severity
+  from the resolved rule: the four hard classes report at the rule's
+  (override-aware) severity, and deprecated citations keep their
+  deliberate one-notch-lower placement relative to it (CRITICAL→HIGH,
+  HIGH→MED, MED→LOW, LOW floors at LOW). With no override declared,
+  behavior is unchanged. Affected both `verify` and `audit`; reported
+  by the external Python+JS pilot during the rc.5→rc.6 cycle and
+  tracked in `docs/known-bugs.md` until now.
 
 ## [0.1.0-rc.8] — 2026-07-07
 
