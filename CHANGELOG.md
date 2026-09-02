@@ -6,6 +6,23 @@ project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Security
+
+- **Transitive devDependency advisories cleared ahead of 1.0.0.** CI's
+  `security audit` step had gone red on `main` as advisories
+  accumulated against pinned transitives: `brace-expansion` (three DoS
+  classes across the 1.x / 2.x / 5.x lines), `fast-uri` (host
+  confusion), `js-yaml` (quadratic `!!omap` resolution), `nanoid`,
+  `postcss` (path traversal + the incomplete follow-up fix),
+  `browserslist`, and `esbuild`. All reached the tree through dev
+  tooling — `tsup`, `eslint`, `@commitlint`, `secretlint`,
+  `@vitest/coverage-v8` — and none through the package's runtime
+  dependencies, which remain `jiti` and `picomatch`. Pinned to patched
+  versions via `pnpm.overrides` rather than bumping devDependency
+  majors on the eve of a stable release: 21 advisories (19 HIGH,
+  1 MODERATE, 1 LOW) to zero, with lint, typecheck, 509 tests, build,
+  jscpd, knip, dependency-cruiser and `pack:check` all still green.
+
 ### Fixed
 
 - **Severity overrides now reach `exceptions.must-cite-justification`
