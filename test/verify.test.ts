@@ -3,7 +3,7 @@ import { verify } from '../src/verify.js';
 import { kickBack } from '../src/kickBack.js';
 import { prepare } from '../src/prepare.js';
 import { changed, laneRule, patternRule, scope, singleRuleConfig } from './_helpers.js';
-import type { Constitution } from '../src/schemas.js';
+import type { Constitution, Rule } from '../src/schemas.js';
 
 describe('verify — end-to-end', () => {
   it("returns 'pass' when no rules flag the diff", async () => {
@@ -216,5 +216,106 @@ describe('full loop: prepare → verify → kickBack → next prompt', () => {
     expect(next).toContain('no-todo');
     expect(next).toContain('lane.editable-respected');
     expect(next).toContain('Build the rate limiter for /api/signals.');
+  });
+});
+
+describe('verify — severity overrides reach escape-hatch findings (known-bug regression)', () => {
+  // The recommended preset's exceptions rule, inlined so the test pins the
+  // exact wiring: a custom rule whose checkRef is the built-in
+  // exceptionsMustCiteJustification check.
+  const exceptionsRule: Rule = {
+    kind: 'custom',
+    id: 'exceptions.must-cite-justification',
+    category: 'exceptions',
+    defaultSeverity: 'CRITICAL',
+    description: 'Every escape hatch must cite a tracked exception id.',
+    checkRef: 'exceptionsMustCiteJustification',
+    prompt: {
+      summary: 'Every escape hatch must cite a tracked exception id.',
+      guidance: 'Cite a tracked exception-id in every suppression comment.',
+    },
+  };
+
+  it('reports an uncited escape hatch at the overridden severity', async () => {
+    const result = await verify({
+      scope: scope('free-form'),
+      config: {
+        rules: [exceptionsRule],
+        override: {
+          'exceptions.must-cite-justification': { severity: 'LOW', rationale: 'phased adoption' },
+        },
+      },
+      source: {
+        kind: 'inline',
+        changedFiles: [changed('src/a.ts', '// @ts-expect-error\nexport const x = 1;\n')],
+      },
+    });
+    expect(result.findings.length).toBe(1);
+    expect(result.findings[0]?.severity).toBe('LOW');
+    expect(result.verdict).toBe('pass');
+  });
+
+  it('scales a deprecated citation one notch below the overridden severity', async () => {
+    const result = await verify({
+      scope: scope('free-form'),
+      config: {
+        rules: [exceptionsRule],
+        override: {
+          'exceptions.must-cite-justification': { severity: 'MED', rationale: 'phased adoption' },
+        },
+      },
+      exceptions: {
+        'soft-deprecated': {
+          id: 'soft-deprecated',
+          category: 'legacy',
+          mechanism: 'ts-expect-error',
+          context: 'legacy suppression being phased out',
+          retirementCondition: 'remove with the legacy module',
+          addedDate: '2026-05-11',
+          status: 'deprecated',
+        },
+      },
+      source: {
+        kind: 'inline',
+        changedFiles: [
+          changed(
+            'src/a.ts',
+            '// @ts-expect-error -- exception-id: soft-deprecated\nexport const x = 1;\n',
+          ),
+        ],
+      },
+    });
+    expect(result.findings.length).toBe(1);
+    expect(result.findings[0]?.severity).toBe('LOW');
+  });
+
+  it('keeps the default CRITICAL/HIGH split when no override is declared', async () => {
+    const result = await verify({
+      scope: scope('free-form'),
+      config: { rules: [exceptionsRule] },
+      exceptions: {
+        'soft-deprecated': {
+          id: 'soft-deprecated',
+          category: 'legacy',
+          mechanism: 'ts-expect-error',
+          context: 'legacy suppression being phased out',
+          retirementCondition: 'remove with the legacy module',
+          addedDate: '2026-05-11',
+          status: 'deprecated',
+        },
+      },
+      source: {
+        kind: 'inline',
+        changedFiles: [
+          changed('src/uncited.ts', '// @ts-expect-error\nexport const x = 1;\n'),
+          changed(
+            'src/deprecated.ts',
+            '// @ts-expect-error -- exception-id: soft-deprecated\nexport const y = 1;\n',
+          ),
+        ],
+      },
+    });
+    const bySeverity = result.findings.map((f) => f.severity).sort();
+    expect(bySeverity).toEqual(['CRITICAL', 'HIGH']);
   });
 });

@@ -6,8 +6,30 @@ import { compilePatterns } from '../glob.js';
 import { classifyRegions } from '../syntax-regions.js';
 import { walkSourceFiles } from '../walk.js';
 import { catalogueStubChecks } from './rules/stubs.js';
-import type { Finding } from '../schemas.js';
+import type { Finding, Severity } from '../schemas.js';
 import type { ChangedFile, CustomCheck } from '../source/types.js';
+
+/**
+ * One severity step down, flooring at LOW. The escape-hatch validator
+ * deliberately reports deprecated citations one notch below the hard
+ * classes (missing/unknown/retired/wrong-mechanism); deriving the notch
+ * from the rule's RESOLVED severity keeps that relative ordering intact
+ * when a config override moves the whole rule up or down.
+ */
+function notchBelow(severity: Severity): Severity {
+  switch (severity) {
+    case 'CRITICAL': {
+      return 'HIGH';
+    }
+    case 'HIGH': {
+      return 'MED';
+    }
+    case 'MED':
+    case 'LOW': {
+      return 'LOW';
+    }
+  }
+}
 
 /**
  * Built-in custom check used by the `exceptions.must-cite-justification`
@@ -16,14 +38,24 @@ import type { ChangedFile, CustomCheck } from '../source/types.js';
  *
  * The check scans every changed file for suppression comments and
  * cross-references each one against the project's exception registry.
+ *
+ * Severities are passed explicitly from the RESOLVED rule (never left to
+ * the validator's hardcoded fallbacks) so config `override` entries reach
+ * the emitted findings.
  */
 export const exceptionsMustCiteJustification: CustomCheck = (rule, ctx) => {
   const hatches = scanFilesForEscapeHatches(ctx.changedFiles);
+  const severity = rule.defaultSeverity;
   return validateEscapeHatches({
     escapeHatches: hatches,
     registry: ctx.exceptionRegistry,
     ruleId: rule.id,
     category: rule.category,
+    missingRefSeverity: severity,
+    unknownRefSeverity: severity,
+    retiredRefSeverity: severity,
+    wrongMechanismSeverity: severity,
+    deprecatedRefSeverity: notchBelow(severity),
   });
 };
 

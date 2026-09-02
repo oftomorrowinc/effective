@@ -269,3 +269,31 @@ describe('audit() — exception registry', () => {
     }
   });
 });
+
+describe('audit() — severity overrides reach escape-hatch findings (known-bug regression)', () => {
+  it('reports an uncited escape hatch at the overridden severity under the recommended preset', async () => {
+    const repo = await makeRepo();
+    try {
+      await write(repo, 'src/legacy.ts', '// @ts-expect-error\nexport const x = 1;\n');
+      const result = await audit({
+        config: {
+          ...BASE_CONFIG,
+          override: {
+            'exceptions.must-cite-justification': {
+              severity: 'LOW',
+              rationale: 'phased adoption of the exception registry',
+            },
+          },
+        },
+        repo,
+      });
+      const finding = result.findings.find(
+        (f) => f.ruleId === 'exceptions.must-cite-justification',
+      );
+      expect(finding).toBeDefined();
+      expect(finding?.severity).toBe('LOW');
+    } finally {
+      await rm(repo, { recursive: true, force: true });
+    }
+  });
+});
