@@ -425,7 +425,8 @@ export default defineConfig({
     lint: 'pnpm lint:ci --format json',
     typecheck: 'pnpm typecheck',
     test: 'pnpm test --reporter json',
-    coverage: 'pnpm test:coverage --reporter json',
+    coverage:
+      'pnpm test:coverage --coverage.reporter=json-summary && cat coverage/coverage-summary.json',
   },
 });
 ```

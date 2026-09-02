@@ -25,6 +25,27 @@ project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **`init` now scaffolds toolchain commands the parsers can actually
+  read.** Three mismatches between what `init` wrote into the generated
+  `toolchain` block and what the engine can consume, each producing a
+  gate that looked enforced and enforced nothing. (1) `node:test`
+  projects were scaffolded with `--test-reporter spec`, but
+  `parseNodeTest` reads TAP — every failure parsed to zero findings;
+  they now get `--test-reporter tap`. (2) The coverage command was
+  suffixed with the _test_ reporter flag, emitting a test-run report
+  where `parseV8` expects `coverage-summary.json`; the generated
+  command now asks for the json-summary reporter and cats the file it
+  writes, because the parser reads stdout. Frameworks with no
+  json-summary reporter (`node:test`) get a bare command that degrades
+  to exit-code gating rather than a decorative one. (3) `init` detected
+  jest / biome / oxlint but never emitted a `toolchain.parsers` block,
+  so the engine applied the default vitest/eslint parsers to output
+  they cannot parse; the block is now emitted whenever the detected
+  tool differs from the engine default. The same buggy coverage command
+  appeared in the README and USAGE examples and is corrected there too.
+  Found by the 2026-07-07 full-package review; tracked in
+  `docs/known-bugs.md` until now.
+
 - **Severity overrides now reach `exceptions.must-cite-justification`
   findings.** The built-in escape-hatch check was the only custom
   check that dropped the resolved rule severity on the floor, so a

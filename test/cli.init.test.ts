@@ -231,7 +231,7 @@ describe('runInitCommand — toolchain detection', () => {
       lockfile: 'pnpm',
       packageJson: { scripts: { test: 'node --test test/' } },
     });
-    expect(config).toContain('test: "pnpm test --test-reporter spec"');
+    expect(config).toContain('test: "pnpm test --test-reporter tap"');
   });
 
   it('appends `--format json` for oxlint', async () => {
@@ -268,7 +268,76 @@ describe('runInitCommand — toolchain detection', () => {
         devDependencies: { vitest: '^3.0.0' },
       },
     });
-    expect(config).toContain('coverage: "pnpm test:coverage --reporter json"');
+    expect(config).toContain(
+      'coverage: "pnpm test:coverage --coverage.reporter=json-summary && cat coverage/coverage-summary.json"',
+    );
+  });
+
+  it('emits a jest coverage command that produces coverage-summary.json', async () => {
+    const config = await initConfig({
+      tsconfig: true,
+      lockfile: 'pnpm',
+      packageJson: {
+        scripts: { test: 'jest', 'test:coverage': 'jest --coverage' },
+        devDependencies: { jest: '^29.0.0' },
+      },
+    });
+    expect(config).toContain(
+      'coverage: "pnpm test:coverage --coverageReporters=json-summary && cat coverage/coverage-summary.json"',
+    );
+  });
+
+  it('leaves the coverage command bare for frameworks with no json-summary reporter', async () => {
+    const config = await initConfig({
+      tsconfig: true,
+      lockfile: 'pnpm',
+      packageJson: {
+        scripts: {
+          test: 'node --test test/',
+          'test:coverage': 'node --test --experimental-test-coverage',
+        },
+      },
+    });
+    expect(config).toContain('coverage: "pnpm test:coverage",');
+    expect(config).not.toContain('coverage-summary.json"');
+  });
+
+  it('emits a parsers block naming the detected test framework when it is not the default', async () => {
+    const config = await initConfig({
+      tsconfig: true,
+      lockfile: 'pnpm',
+      packageJson: {
+        scripts: { test: 'jest' },
+        devDependencies: { jest: '^29.0.0' },
+      },
+    });
+    expect(config).toContain('parsers: {');
+    expect(config).toContain('test: "jest",');
+  });
+
+  it('emits a parsers block naming the detected lint framework when it is not the default', async () => {
+    const config = await initConfig({
+      tsconfig: true,
+      lockfile: 'pnpm',
+      packageJson: {
+        scripts: { lint: 'biome check' },
+        devDependencies: { '@biomejs/biome': '^1.0.0' },
+      },
+    });
+    expect(config).toContain('parsers: {');
+    expect(config).toContain('lint: "biome",');
+  });
+
+  it('omits the parsers block when every detected tool is the engine default', async () => {
+    const config = await initConfig({
+      tsconfig: true,
+      lockfile: 'pnpm',
+      packageJson: {
+        scripts: { lint: 'eslint .', test: 'vitest run' },
+        devDependencies: { eslint: '^9.0.0', vitest: '^3.0.0' },
+      },
+    });
+    expect(config).not.toContain('parsers: {');
   });
 
   it('composes a plain `npm run` command when no reporter flag is forwarded', async () => {

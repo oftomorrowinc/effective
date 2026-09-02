@@ -200,7 +200,8 @@ export default defineConfig({
     lint: 'pnpm lint:ci --format json',
     typecheck: 'pnpm typecheck',
     test: 'pnpm test --reporter json',
-    coverage: 'pnpm test:coverage --reporter json',
+    coverage:
+      'pnpm test:coverage --coverage.reporter=json-summary && cat coverage/coverage-summary.json',
   },
 
   meta: {
@@ -283,12 +284,17 @@ toolchain: {
   lint: 'pnpm lint:ci --format json',
   typecheck: 'pnpm typecheck',
   test: 'pnpm test --reporter json',
-  coverage: 'pnpm test:coverage --reporter json',
+  coverage: 'pnpm test:coverage --coverage.reporter=json-summary && cat coverage/coverage-summary.json',
 },
 ```
 
 The commands run against the isolated worktree at `.effective/work`. Each
-command's output is parsed and converted to findings.
+command's output is parsed and converted to findings — from **stdout**,
+which is why the coverage command cats `coverage-summary.json`: the
+json-summary reporters write that file rather than printing it. A
+coverage command that emits a test-run report instead (e.g. a bare
+`--reporter json`) parses to no `total` entry, and the gate falls back
+to the command's exit code.
 
 If a tool's output format isn't auto-detected, hint via `parsers`
 (keys are the four tool slots: `lint`, `typecheck`, `test`, `coverage`):
