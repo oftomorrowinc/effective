@@ -302,31 +302,29 @@ describe('runInitCommand — toolchain detection', () => {
     expect(config).not.toContain('coverage-summary.json"');
   });
 
-  it('emits a parsers block naming the detected test framework when it is not the default', async () => {
-    const config = await initConfig({
-      tsconfig: true,
-      lockfile: 'pnpm',
-      packageJson: {
-        scripts: { test: 'jest' },
-        devDependencies: { jest: '^29.0.0' },
-      },
-    });
-    expect(config).toContain('parsers: {');
-    expect(config).toContain('test: "jest",');
-  });
-
-  it('emits a parsers block naming the detected lint framework when it is not the default', async () => {
-    const config = await initConfig({
-      tsconfig: true,
-      lockfile: 'pnpm',
-      packageJson: {
-        scripts: { lint: 'biome check' },
-        devDependencies: { '@biomejs/biome': '^1.0.0' },
-      },
-    });
-    expect(config).toContain('parsers: {');
-    expect(config).toContain('lint: "biome",');
-  });
+  // A detected tool that is NOT the engine default has to be named in a
+  // `parsers` block, or the engine parses its output with the default
+  // parser and reads no failures.
+  it.each([
+    { slot: 'test', scripts: { test: 'jest' }, deps: { jest: '^29.0.0' }, hint: 'jest' },
+    {
+      slot: 'lint',
+      scripts: { lint: 'biome check' },
+      deps: { '@biomejs/biome': '^1.0.0' },
+      hint: 'biome',
+    },
+  ])(
+    'names a non-default $slot parser in the parsers block',
+    async ({ slot, scripts, deps, hint }) => {
+      const config = await initConfig({
+        tsconfig: true,
+        lockfile: 'pnpm',
+        packageJson: { scripts, devDependencies: deps },
+      });
+      expect(config).toContain('parsers: {');
+      expect(config).toContain(`${slot}: "${hint}",`);
+    },
+  );
 
   it('omits the parsers block when every detected tool is the engine default', async () => {
     const config = await initConfig({
