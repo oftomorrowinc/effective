@@ -25,6 +25,21 @@ project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **Output-buffer overflow is no longer invisible to callers.** When a
+  toolchain command's stdout/stderr exceeded the 50 MiB capture cap,
+  `runCommand` SIGTERM'd the child and resolved with truncated buffers,
+  `timedOut: false`, and no signal that anything had been cut — the
+  exit code surfaced as a generic signal kill, so a gate could report a
+  count parsed from partial output as if it were a complete
+  measurement. `RunResult` now carries `overflowed: boolean` (threaded
+  onto `ToolchainResult` as an optional flag), and the toolchain
+  finding says the output was truncated and the report may be
+  incomplete — including when the parser produced findings, since
+  findings drawn from a truncated stream are incomplete too. `timedOut`
+  stays distinct: the cap and the clock are different failures. Found
+  by the 2026-07-07 full-package review; tracked in
+  `docs/known-bugs.md` until now.
+
 - **`init` now scaffolds toolchain commands the parsers can actually
   read.** Three mismatches between what `init` wrote into the generated
   `toolchain` block and what the engine can consume, each producing a

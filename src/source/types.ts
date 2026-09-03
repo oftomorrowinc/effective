@@ -21,6 +21,12 @@ export interface ToolchainResult {
   readonly count?: number;
   /** Baseline count for `count-increased` comparisons. */
   readonly baselineCount?: number;
+  /**
+   * True when the command's output blew past the capture cap and was
+   * truncated. Any parsed `findings`/`count` are then drawn from partial
+   * output and must not be read as a complete measurement.
+   */
+  readonly overflowed?: boolean;
 }
 
 /**

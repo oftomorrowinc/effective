@@ -34,6 +34,7 @@ async function runConfiguredTool(
       exitCode: result.exitCode,
       stdout: result.stdout,
       stderr: result.stderr,
+      ...(result.overflowed ? { overflowed: true } : {}),
     };
   }
   const parsed = parser(result);
@@ -42,6 +43,7 @@ async function runConfiguredTool(
     exitCode: result.exitCode,
     stdout: result.stdout,
     stderr: result.stderr,
+    ...(result.overflowed ? { overflowed: true } : {}),
     findings: parsed.findings,
     // Absent count stays absent: "couldn't measure" must reach the
     // gate distinct from "measured zero".

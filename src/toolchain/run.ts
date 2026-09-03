@@ -24,6 +24,14 @@ export interface RunResult {
   readonly stdout: string;
   readonly stderr: string;
   readonly timedOut: boolean;
+  /**
+   * True when the child was killed for exceeding the 50 MiB output cap.
+   * `stdout`/`stderr` then hold only what was captured before the kill,
+   * and `exitCode` reads as a generic signal kill — so callers that
+   * gate on parsed output MUST treat the result as incomplete rather
+   * than as a measurement.
+   */
+  readonly overflowed: boolean;
   readonly durationMs: number;
 }
 
@@ -81,8 +89,9 @@ function sanitizeInheritedEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
  * expansion adds nothing to that risk surface.
  *
  * Output buffers are capped at 50 MiB. Exceeding the cap kills the child
- * and returns a result marked `timedOut: false` but with the partial
- * buffers. Timeout defaults to 5 minutes.
+ * and returns a result marked `overflowed: true` (and `timedOut: false`
+ * — it was the cap, not the clock) carrying the partial buffers.
+ * Timeout defaults to 5 minutes.
  */
 export async function runCommand(input: RunInput): Promise<RunResult> {
   return executeChild(input, (options) =>
@@ -257,6 +266,7 @@ async function executeChild(
         stdout: Buffer.concat(stdoutChunks).toString('utf8'),
         stderr: `${Buffer.concat(stderrChunks).toString('utf8')}\n[runCommand error] ${err.message}`,
         timedOut,
+        overflowed: bufferOverflowed,
         durationMs: Date.now() - startedAt,
       });
     });
@@ -271,6 +281,7 @@ async function executeChild(
         stdout: Buffer.concat(stdoutChunks).toString('utf8'),
         stderr: Buffer.concat(stderrChunks).toString('utf8'),
         timedOut,
+        overflowed: bufferOverflowed,
         durationMs: Date.now() - startedAt,
       });
     });

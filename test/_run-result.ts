@@ -14,6 +14,7 @@ export function runResult(over: Partial<RunResult> = {}): RunResult {
     stdout: '',
     stderr: '',
     timedOut: false,
+    overflowed: false,
     durationMs: 1,
     ...over,
   };
