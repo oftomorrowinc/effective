@@ -1,12 +1,25 @@
-> **⚠️ Active Development — last reviewed 2026-07-07**
+> **Stable — v1.0.0, released 2026-09-03**
 >
-> Effective is in active development and pre-1.0. The API, schema, and
-> rule behavior may change between versions. We're using `v0.1.0-rc.*`
-> tags in git while validating against real adoptions; npm publish is
-> intentionally delayed until validation is complete. See
-> [CHANGELOG.md](./CHANGELOG.md) for what's stable enough to depend on.
+> The public API follows [semantic versioning](https://semver.org/):
+> the exported functions (`prepare`, `verify`, `audit`, `kickBack`),
+> the exported schemas and types, the five CLI commands and their
+> flags, and the config shape `defineConfig` accepts. Breaking changes
+> wait for 2.0.0. New rules and new capability arrive in 1.x with a
+> changelog entry naming them — note that **adding a rule to a preset
+> can fail a build that previously passed**, so minor upgrades are
+> worth reading the changelog for.
+>
+> **A stable API is not the same as complete detection.** Part of the
+> catalogue ships prompt-projected with detection stubbed; see
+> [Status](#status-v100) for exactly which rules emit findings today.
+>
+> Contributions are open — [CONTRIBUTING.md](./CONTRIBUTING.md)
+> describes the governance labels and protected-path refusals you will
+> actually meet, and what is deliberately deferred past 1.0.0 (with
+> the reason) is stamped in
+> [docs/open-issues.md](./docs/open-issues.md).
 
-[![npm](https://img.shields.io/npm/v/@oftomorrow/effective/rc.svg)](https://www.npmjs.com/package/@oftomorrow/effective)
+[![npm](https://img.shields.io/npm/v/@oftomorrow/effective.svg)](https://www.npmjs.com/package/@oftomorrow/effective)
 [![CI](https://github.com/oftomorrowinc/effective/actions/workflows/ci.yml/badge.svg)](https://github.com/oftomorrowinc/effective/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 [![TypeScript](https://img.shields.io/badge/TypeScript-Ready-blue.svg)](https://www.typescriptlang.org/)
@@ -510,12 +523,19 @@ See [§ What this looks like](#what-this-looks-like) for the CLI commands and [U
 
 ---
 
-## Status (v0.1.0-rc.8)
+## Status (v1.0.0)
 
-`effective` is in pre-release. The engine, schema, CLI, build, and the
-recommended preset's prompt projections are all real and stable enough
-to ship — but **detection coverage on the catalogue rules is partial**.
-Be aware of the split.
+The engine, schema, CLI, build, and the recommended preset's prompt
+projections are stable and under semver as of 1.0.0. **Detection
+coverage on the catalogue rules is partial**, and saying so plainly is
+part of what 1.0.0 means here: the API you build against is settled,
+while the catalogue's detection grows through the 1.x line. Know the
+split before you rely on a particular rule.
+
+A stubbed rule is not invisible — it appears in `prepare()` guidance
+and `kickBack()` cites it by id — but `verify()` will not fail your
+build on it. If you need one enforced today, pass an implementation
+via `verify({ customChecks })`.
 
 **Real detection (rules emit findings against your diff):**
 
@@ -562,7 +582,9 @@ lines / statements / functions / branches; per-metric findings name
 the specific dimension that's short. Comparison against a recorded
 baseline ("coverage did not decrease from main") isn't implemented
 yet — if you want non-decreasing semantics, run your coverage tool's
-own baseline check alongside this gate.
+own baseline check alongside this gate. The ratchet's shape is decided
+and post-1.0; see `docs/decisions.md` § "Adopting effective on an
+existing codebase".
 
 ---
 
@@ -586,7 +608,7 @@ See [`CONTRIBUTING.md`](./CONTRIBUTING.md) for the full flow.
 
 The schemas for `Constitution`, `Rule`, `Finding`, `Scope`, and `Role` are the public contract. They follow semver strictly — breaking changes to those shapes are major version bumps.
 
-Catalogue entries are versioned within the package. Adding a rule is a minor bump. Changing a rule's severity or detection logic is a minor bump with a changelog entry naming the rule. Removing a rule is a major bump.
+Catalogue entries are versioned within the package. Adding a rule is a minor bump, as is raising a rule's severity or widening its scope — all three can fail a build that previously passed, which is why they get a changelog entry naming the rule. Narrowing a rule to fix a false positive is a patch. Removing a rule from a preset is a major bump: an adopter's constitution would silently stop enforcing something it used to. The full tree is in [docs/RELEASING.md](./docs/RELEASING.md#what-version-to-cut).
 
 The constitution itself is append-only in spirit: entries can be deprecated (pattern no longer occurs in practice) or retired (formal removal after review), but the history of what the catalogue learned is preserved. See the philosophy in [DESIGN.md](https://github.com/oftomorrowinc/effective/blob/main/DESIGN.md#append-only-with-deprecation) and the shipped rules in [`CONSTITUTION.md`](./CONSTITUTION.md).
 

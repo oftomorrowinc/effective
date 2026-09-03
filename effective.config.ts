@@ -72,10 +72,15 @@ export default defineConfig({
       rationale:
         'Scripts and dependency declarations are constitutional; editing them changes what tools run.',
     },
+    {
+      path: 'src/presets/**',
+      rationale:
+        "The shipped constitution itself — which rules exist, at what severity, over which files. A preset edit changes what every downstream adopter is held to, so it meets the same surface as editing this file. See docs/decisions.md § 'Are the shipped presets protected paths?'.",
+    },
   ],
 
   meta: {
     name: 'effective',
-    version: '0.1.0-rc.1',
+    version: '1.0.0',
   },
 });
