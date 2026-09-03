@@ -133,7 +133,7 @@
   "simple-git-hooks": {
     "pre-commit": "pnpm exec lint-staged",
     "commit-msg": "pnpm exec commitlint --edit \"$1\"",
-    "pre-push": "node scripts/pre-push.mjs"
+    "pre-push": "pnpm exec tsx scripts/pre-push.ts"
   },
   "lint-staged": {
     "*.{ts,tsx,js,mjs,cjs}": [

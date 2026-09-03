@@ -39,6 +39,37 @@ project adheres to [Semantic Versioning](https://semver.org/).
   its own configuration from the thing it is judging is not a rule.
   Found by the pre-publish five-agent review (H1).
 
+- **The pre-push fast path no longer trusts ref names.** The gate
+  skipped whenever every REMOTE ref in a push was under `refs/tags/`.
+  That reads the destination, which the pusher chooses:
+  `git push origin my-branch:refs/tags/v9.9.9` printed "tag-only push —
+  skipping the gate" and uploaded never-verified commits. Since tag
+  pushes also triggered no CI, that was a complete zero-check path from
+  a working copy to the remote. The predicate is now about content, not
+  naming: a push skips only when every commit in it is already on the
+  remote, which a genuine tag push satisfies and a spoofed one does
+  not. Anything unprovable — a git failure, unreadable stdin, a
+  malformed ref line — runs the full gate. Ten tests pin the truth
+  table, including one that asserts the sha is passed as a rev rather
+  than after a `--`, where git reads it as a pathspec and the guard
+  silently becomes a rubber stamp (a bug this fix hit in development).
+- **Tag pushes now run CI** (`tags: ['v*']`). A release is cut from a
+  tag and published from a tag, so "the commits were gated when they
+  landed" is now verified rather than assumed.
+- **Applying the `governance` label re-runs CI.** CONTRIBUTING told
+  contributors the label would trigger a re-run with `--governance-pr`;
+  the workflow had no `labeled` trigger, so the only working path was
+  an extra push. Added `labeled` — and `unlabeled`, so removing the
+  label re-gates the PR rather than leaving elevation in place after
+  the marker that justified it is gone.
+
+### Changed
+
+- The pre-push hook is `scripts/pre-push.ts`, run through `tsx`
+  (matching the other two hooks, which already go through `pnpm exec`).
+  The predicate it guards is security-relevant and now has real types
+  and real tests; a `.mjs` file could carry neither.
+
 ## [1.0.0] — 2026-09-03
 
 **effective leaves beta.** The version number is the whole message: the

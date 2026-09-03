@@ -3,7 +3,18 @@ name: CI
 on:
   push:
     branches: [main]
+    # Tags get CI too. A tag is what a release is cut from and what
+    # `npm publish` is run against, so "the commits were gated when they
+    # landed on main" has to be verified, not assumed — a tag can be
+    # placed on any commit, including one that never saw a PR.
+    tags: ['v*']
   pull_request:
+    # `labeled` so applying the `governance` label re-runs verify with
+    # --governance-pr. Without it the label changes nothing until someone
+    # pushes again, which CONTRIBUTING promised and the workflow did not
+    # deliver. `unlabeled` so REMOVING the label re-gates the PR — the
+    # elevation must not outlive the marker that justified it.
+    types: [opened, synchronize, reopened, labeled, unlabeled]
 
 permissions:
   contents: read
