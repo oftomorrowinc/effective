@@ -6,7 +6,81 @@ project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.0.0] — 2026-09-03
+
+**effective leaves beta.** The version number is the whole message: the
+API is stable, and the project is inviting contributors who need that
+promise before they build against it.
+
+What 1.0.0 asserts is narrow and worth stating exactly. The exported
+functions (`prepare`, `verify`, `audit`, `kickBack`), the exported
+schemas and types, the five CLI commands and their flags, and the
+config shape `defineConfig` accepts will not break inside the 1.x
+line. What it does **not** assert is that the catalogue is finished —
+part of it still ships prompt-projected with detection stubbed, and
+the README's Status section names every rule on each side of that
+line. A stable interface around a growing catalogue is the honest
+description, and it is the one the docs now give.
+
+Getting here meant closing the repo's own exit criteria rather than
+declaring them closed:
+
+- **`docs/known-bugs.md` ships empty**, by fixing rather than
+  reclassifying. The severity-override bug, the `init` scaffolding
+  that produced silently-decorative gates, and the invisible
+  output-buffer overflow all landed with repro-first tests.
+- **Every entry in `docs/open-issues.md` carries a stamp**, and six of
+  them were decided outright and written up in `docs/decisions.md`.
+  The file can now distinguish deferred-by-decision from
+  deferred-by-drift, which is the distinction a 1.0 stands on.
+- **The docs were re-read against what a stranger actually meets** —
+  which turned up a documented setup command that did not work and a
+  governance workflow an outside contributor could not physically
+  follow.
+- **Every change in this release went through effective's own
+  governance machinery**, protected-path refusals and `governance`
+  labels included. Where a bypass was authorized, the PR body says so.
+  A project that enforces a constitution should be visible obeying it.
+
+### Added
+
+- **`--governance-pr` is the supported elevation path** for PRs whose
+  purpose IS a protected-path edit (shipped in rc.8, now the documented
+  answer rather than an experiment). Protected-path findings move out
+  of the gating set and into a printed `Governance changes` section;
+  everything else in the diff still gates. CI applies it when the PR
+  carries the `governance` label, so elevation is a deliberate human
+  act with a public marker.
+- **`src/presets/**` is now a protected path.\*\* The config that selects
+  the rules was governed while the rules themselves were not — a PR
+  could narrow a CRITICAL rule's glob with no review surface. Closing
+  that asymmetry was gated on an elevation valve existing; it does now.
+- **A pinned checklist says the rest of the constitution still
+  applies**, so `prepare()` stops promising a narrower gate than the
+  one `verify()` runs.
+- **`RunResult.overflowed`** — see Fixed.
+
+- **A pinned checklist says the rest of the constitution still
+  applies.** `prepare()` narrows the Pre-Success Checklist to
+  `scope.relatedRules` when a scope pins them, but `verify()` has
+  always checked every resolved rule — so a finding could cite a rule
+  the prompt never showed, against a prompt that said the rules above
+  would be checked. The checklist now carries a one-line footer on
+  pinned scopes. The gate is unchanged; the prompt stops describing a
+  narrower one.
+
 ### Changed
+
+- **`docs/RELEASING.md` rewritten for stable semver**, including the
+  rule that catches people: a rule change is an API change. The manual
+  `npm dist-tag add` step is retired — a stable publish moves `latest`
+  by itself.
+- **`docs/open-issues.md` gained a stamp vocabulary** and a rule that
+  an unstamped entry is a bug in the file.
+- **`docs/decisions.md` gained six sections** recording the 1.0.0
+  policy decisions with their reasoning.
+- **CONTRIBUTING corrected** on four counts a first-time contributor
+  would have hit.
 
 - **`docs/RELEASING.md` rewritten for stable semver.** The runbook was
   written for the rc series and still described the dist-tag dance its
@@ -47,25 +121,6 @@ effective audit` fails with `Command "effective" not found` inside
     branch, and jscpd counting duplication across tests.
   - "Running the audit" was missing from the table of contents.
 
-### Security
-
-- **Transitive devDependency advisories cleared ahead of 1.0.0.** CI's
-  `security audit` step had gone red on `main` as advisories
-  accumulated against pinned transitives: `brace-expansion` (three DoS
-  classes across the 1.x / 2.x / 5.x lines), `fast-uri` (host
-  confusion), `js-yaml` (quadratic `!!omap` resolution), `nanoid`,
-  `postcss` (path traversal + the incomplete follow-up fix),
-  `browserslist`, and `esbuild`. All reached the tree through dev
-  tooling — `tsup`, `eslint`, `@commitlint`, `secretlint`,
-  `@vitest/coverage-v8` — and none through the package's runtime
-  dependencies, which remain `jiti` and `picomatch`. Pinned to patched
-  versions via `pnpm.overrides` rather than bumping devDependency
-  majors on the eve of a stable release: 21 advisories (19 HIGH,
-  1 MODERATE, 1 LOW) to zero, with lint, typecheck, 509 tests, build,
-  jscpd, knip, dependency-cruiser and `pack:check` all still green.
-
-### Changed
-
 - **Every open-issues entry is now stamped, and six of them are
   decided.** `docs/open-issues.md` had accumulated fifteen entries with
   no disposition — the file could not distinguish deferred-by-decision
@@ -105,17 +160,6 @@ effective audit` fails with `Command "effective" not found` inside
     entry had deferred pending an elevation valve; rc.8 provided it.
   - **Elevated / governance-PR mode** — closed as shipped in rc.8; its
     residual persisted-audit-trail question stays open and stamped.
-
-### Added
-
-- **A pinned checklist says the rest of the constitution still
-  applies.** `prepare()` narrows the Pre-Success Checklist to
-  `scope.relatedRules` when a scope pins them, but `verify()` has
-  always checked every resolved rule — so a finding could cite a rule
-  the prompt never showed, against a prompt that said the rules above
-  would be checked. The checklist now carries a one-line footer on
-  pinned scopes. The gate is unchanged; the prompt stops describing a
-  narrower one.
 
 ### Fixed
 
@@ -169,6 +213,23 @@ effective audit` fails with `Command "effective" not found` inside
   behavior is unchanged. Affected both `verify` and `audit`; reported
   by the external Python+JS pilot during the rc.5→rc.6 cycle and
   tracked in `docs/known-bugs.md` until now.
+
+### Security
+
+- **Transitive devDependency advisories cleared ahead of 1.0.0.** CI's
+  `security audit` step had gone red on `main` as advisories
+  accumulated against pinned transitives: `brace-expansion` (three DoS
+  classes across the 1.x / 2.x / 5.x lines), `fast-uri` (host
+  confusion), `js-yaml` (quadratic `!!omap` resolution), `nanoid`,
+  `postcss` (path traversal + the incomplete follow-up fix),
+  `browserslist`, and `esbuild`. All reached the tree through dev
+  tooling — `tsup`, `eslint`, `@commitlint`, `secretlint`,
+  `@vitest/coverage-v8` — and none through the package's runtime
+  dependencies, which remain `jiti` and `picomatch`. Pinned to patched
+  versions via `pnpm.overrides` rather than bumping devDependency
+  majors on the eve of a stable release: 21 advisories (19 HIGH,
+  1 MODERATE, 1 LOW) to zero, with lint, typecheck, 509 tests, build,
+  jscpd, knip, dependency-cruiser and `pack:check` all still green.
 
 ## [0.1.0-rc.8] — 2026-07-07
 
