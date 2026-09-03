@@ -59,10 +59,15 @@ The `install` step also wires up git hooks via `simple-git-hooks`:
 - `pre-commit` runs `lint-staged` (prettier + eslint on staged files
   - secretlint)
 - `commit-msg` runs commitlint (conventional commit format)
-- `pre-push` runs `scripts/pre-push.mjs`: the full validation
-  pipeline plus `effective verify --against origin/main` (the whole
-  outgoing range, matching what CI checks). Pushes consisting only
-  of tags skip the gate — a tag names already-verified history.
+- `pre-push` runs `scripts/pre-push.ts` (via `tsx`): the full
+  validation pipeline plus `effective verify --against origin/main`
+  (the whole outgoing range, matching what CI checks). A push skips
+  the gate only when every commit in it is ALREADY on the remote —
+  which is what makes a tag push cheap to skip, since its commits were
+  gated when they landed. The predicate deliberately does not look at
+  ref NAMES: `git push origin my-branch:refs/tags/v9.9.9` spells a tag
+  while uploading unverified commits, and that push runs the full
+  gate.
 
 If any of these don't run, check that `.git/hooks/` has the
 relevant hook files and that they're executable. `pnpm install`
@@ -87,7 +92,7 @@ pnpm build && node dist/cli.mjs audit
 Note the invocation. Inside this repo, `pnpm exec effective` does
 NOT resolve — a package's own `bin` is not linked into its own
 `node_modules/.bin`, so you get `Command "effective" not found`.
-Run the built CLI directly, as `scripts/pre-push.mjs` and CI both do.
+Run the built CLI directly, as `scripts/pre-push.ts` and CI both do.
 (`pnpm exec effective` is the right command in a project that has
 installed effective as a dependency; it is wrong only here.)
 

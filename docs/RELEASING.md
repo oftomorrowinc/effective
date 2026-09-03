@@ -144,12 +144,18 @@ git push origin vX.Y.Z
 Tag **after** merge, **on main** — tags on unmerged feature branches
 point at commits that squash-merges may discard.
 
-Tag-only pushes skip the local pre-push gate (`scripts/pre-push.mjs`
-detects them from the refs git feeds the hook): a tag names history
-that already passed the PR gate and CI, so there is nothing new to
-verify. If the push runs the full gate anyway, your hook file is a
-stale snapshot — run `pnpm install` (or `pnpm exec simple-git-hooks`)
-to resync it from `package.json`; see CONTRIBUTING § hooks.
+A tag push normally skips the local pre-push gate, because
+`scripts/pre-push.ts` checks whether every commit being pushed is
+already on the remote — a tag on a merged commit adds no new history,
+so there is nothing new to verify. If the gate runs anyway, either you
+are tagging a commit that was never pushed (in which case the gate is
+right) or your hook file is a stale snapshot — run `pnpm install` (or
+`pnpm exec simple-git-hooks`) to resync it from `package.json`; see
+CONTRIBUTING § hooks.
+
+The tag itself also runs CI (`tags: ['v*']`), so the commit you publish
+from is verified under its release name, not only under the branch name
+it merged as.
 
 ### 6. Publish to npm
 
