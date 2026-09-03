@@ -1,3 +1,4 @@
+import { compilePatterns } from '../glob.js';
 import type { EscapeHatch, ExceptionRegistry, Finding, Severity } from '../schemas.js';
 
 export interface ValidateInput {
@@ -17,6 +18,20 @@ export interface ValidateInput {
    * from an `eslint-disable` comment).
    */
   readonly wrongMechanismSeverity?: Severity;
+  /**
+   * Severity to emit when the cited exception declares `appliesTo` or
+   * `rules` and this suppression falls outside that binding.
+   */
+  readonly outOfScopeSeverity?: Severity;
+  /**
+   * Severity to emit when a suppression cites an exception that binds
+   * NEITHER paths nor rules — a citation that would be accepted
+   * anywhere, for anything. Defaults to MED: loud enough to see in the
+   * report and act on, not so loud that adopters carrying pre-1.0
+   * registries are blocked from upgrading. Raise it once your registry
+   * is scoped.
+   */
+  readonly unscopedExceptionSeverity?: Severity;
   /** Rule id to put on each emitted finding. */
   readonly ruleId?: string;
   /** Category to put on each emitted finding. */
@@ -125,6 +140,61 @@ export function validateEscapeHatches(input: ValidateInput): Finding[] {
           `exception-id "${hatch.exceptionId}" is deprecated`,
           `${describeKind(hatch)} cites \`exception-id: ${hatch.exceptionId}\` which is ` +
             '`status: "deprecated"`. Migrate to the replacement exception or remove the suppression.',
+        ),
+      );
+    }
+    const appliesTo = exception.appliesTo;
+    if (appliesTo !== undefined && !compilePatterns(appliesTo)(hatch.location.file)) {
+      findings.push(
+        asFinding(
+          hatch,
+          input,
+          input.outOfScopeSeverity ?? 'CRITICAL',
+          `exception-id "${hatch.exceptionId}" does not cover ${hatch.location.file}`,
+          `${describeKind(hatch)} cites \`exception-id: ${hatch.exceptionId}\`, but that ` +
+            `exception is scoped to ${appliesTo.map((p) => `\`${p}\``).join(', ')} and this ` +
+            'suppression is somewhere else. Cite an exception that covers this path, widen the ' +
+            "exception's `appliesTo` deliberately, or fix the underlying issue.",
+        ),
+      );
+      continue;
+    }
+    const allowedRules = exception.rules;
+    if (allowedRules !== undefined && hatch.rules !== undefined) {
+      const disallowed = hatch.rules.filter((r) => !allowedRules.includes(r));
+      if (disallowed.length > 0) {
+        findings.push(
+          asFinding(
+            hatch,
+            input,
+            input.outOfScopeSeverity ?? 'CRITICAL',
+            `exception-id "${hatch.exceptionId}" does not cover ${disallowed.join(', ')}`,
+            `${describeKind(hatch)} cites \`exception-id: ${hatch.exceptionId}\`, which is ` +
+              `registered for ${allowedRules.map((r) => `\`${r}\``).join(', ')} — but this ` +
+              `suppression silences ${disallowed.map((r) => `\`${r}\``).join(', ')}. An ` +
+              'exception is a carve-out for a specific condition, not a pass for whatever ' +
+              'else happens to be on the line.',
+          ),
+        );
+        continue;
+      }
+    }
+    if (appliesTo === undefined && allowedRules === undefined) {
+      // Not a violation — a disclosure. A citation accepted anywhere,
+      // for anything, is the registry's weakest possible promise, and
+      // the report should say which ones those are rather than letting
+      // the count imply they were all scrutinized.
+      findings.push(
+        asFinding(
+          hatch,
+          input,
+          input.unscopedExceptionSeverity ?? 'MED',
+          `exception-id "${hatch.exceptionId}" binds no path or rule`,
+          `${describeKind(hatch)} cites \`exception-id: ${hatch.exceptionId}\`, which ` +
+            'declares neither `appliesTo` (paths) nor `rules` — so citing it is accepted ' +
+            'anywhere in the repo, against any rule. Add `appliesTo` and/or `rules` to the ' +
+            'exception so it carves out the condition it was written for, rather than acting ' +
+            'as a skeleton key.',
         ),
       );
     }

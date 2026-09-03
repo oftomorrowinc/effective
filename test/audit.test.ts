@@ -248,6 +248,7 @@ describe('audit() — exception registry', () => {
             mechanism: 'eslint-disable',
             context: 'legacy SDK quirk',
             retirementCondition: 'when sdk@3 ships',
+            appliesTo: ['**/*'],
             addedDate: '2026-05-12',
             status: 'active',
           },

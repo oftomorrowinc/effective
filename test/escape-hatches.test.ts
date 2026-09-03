@@ -17,6 +17,10 @@ function exception(over: Partial<Exception> = {}): Exception {
     retirementCondition: 'never',
     addedDate: '2026-05-11',
     status: 'active',
+    // Scoped by default: an unbound exception is a skeleton key, and
+    // the validator says so. Tests about OTHER behaviors shouldn't have
+    // to absorb that finding — the ones that are about it opt out.
+    appliesTo: ['src/**'],
     ...over,
   };
 }
@@ -111,6 +115,85 @@ describe('validateEscapeHatches', () => {
       registry,
     });
     expect(findings).toEqual([]);
+  });
+
+  it('CRITICALs a citation whose exception does not cover this path', () => {
+    const findings = validateEscapeHatches({
+      escapeHatches: [
+        hatch({ exceptionId: 'scoped', location: { file: 'api/handler.ts', line: 3 } }),
+      ],
+      registry: { scoped: exception({ id: 'scoped', appliesTo: ['src/cli/**'] }) },
+    });
+    expect(findings.length).toBe(1);
+    expect(findings[0]?.severity).toBe('CRITICAL');
+    expect(findings[0]?.evidence).toMatch(/does not cover api\/handler\.ts/);
+  });
+
+  it('accepts a citation inside the exception’s declared paths', () => {
+    const findings = validateEscapeHatches({
+      escapeHatches: [
+        hatch({ exceptionId: 'scoped', location: { file: 'src/cli/run.ts', line: 3 } }),
+      ],
+      registry: { scoped: exception({ id: 'scoped', appliesTo: ['src/cli/**'] }) },
+    });
+    expect(findings).toEqual([]);
+  });
+
+  it('CRITICALs a citation that silences a rule the exception does not cover', () => {
+    // The skeleton-key case: a coverage carve-out waving through a
+    // security suppression because the id happened to resolve.
+    const findings = validateEscapeHatches({
+      escapeHatches: [
+        hatch({
+          exceptionId: 'narrow',
+          kind: 'eslint-disable',
+          rules: ['security/detect-eval-with-expression'],
+        }),
+      ],
+      registry: {
+        narrow: exception({
+          id: 'narrow',
+          mechanism: 'eslint-disable',
+          rules: ['no-continue'],
+        }),
+      },
+    });
+    expect(findings.length).toBe(1);
+    expect(findings[0]?.severity).toBe('CRITICAL');
+    expect(findings[0]?.evidence).toMatch(/detect-eval-with-expression/);
+  });
+
+  it('accepts a citation that silences only rules the exception covers', () => {
+    const findings = validateEscapeHatches({
+      escapeHatches: [
+        hatch({ exceptionId: 'narrow', kind: 'eslint-disable', rules: ['no-continue'] }),
+      ],
+      registry: {
+        narrow: exception({ id: 'narrow', mechanism: 'eslint-disable', rules: ['no-continue'] }),
+      },
+    });
+    expect(findings).toEqual([]);
+  });
+
+  it('discloses a citation to an exception that binds neither path nor rule', () => {
+    const findings = validateEscapeHatches({
+      escapeHatches: [hatch({ exceptionId: 'skeleton' })],
+      registry: {
+        skeleton: exception({ id: 'skeleton', appliesTo: undefined, rules: undefined }),
+      },
+    });
+    expect(findings.length).toBe(1);
+    expect(findings[0]?.severity).toBe('MED');
+    expect(findings[0]?.evidence).toMatch(/binds no path or rule/);
+  });
+
+  it('lets the unscoped-citation severity be raised once a registry is bound', () => {
+    const findings = validateEscapeHatches({
+      escapeHatches: [hatch({ exceptionId: 'skeleton' })],
+      registry: { skeleton: exception({ id: 'skeleton', appliesTo: undefined }) },
+      unscopedExceptionSeverity: 'CRITICAL',
+    });
+    expect(findings[0]?.severity).toBe('CRITICAL');
   });
 
   it('CRITICALs a hatch with no exception-id', () => {
