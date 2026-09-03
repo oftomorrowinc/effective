@@ -6,6 +6,47 @@ project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- **`docs/RELEASING.md` rewritten for stable semver.** The runbook was
+  written for the rc series and still described the dist-tag dance its
+  own text said would "stop mattering at 0.1.0 stable". It now opens
+  with a decision tree for choosing the version, including the case
+  that catches people: **a rule change is an API change** — adding a
+  rule to a preset or raising its severity makes a build fail that
+  previously passed, which is indistinguishable from a break for the
+  adopter on the other end. Removing a rule from a preset is MAJOR.
+  The manual `npm dist-tag add` step is retired (a stable publish
+  moves `latest` on its own) and replaced with the prerelease rule
+  that should have applied all along: publish prereleases under
+  `--tag next` and never move `latest` onto one. `pnpm audit:ci` was
+  promoted into the preconditions, since advisory drift against pinned
+  transitives is what blocked this very release.
+
+- **CONTRIBUTING re-read against what a stranger actually meets.**
+  Four corrections, each one something a first-time contributor would
+  have hit:
+  - The audit command it gave contributors did not work. `pnpm exec
+effective audit` fails with `Command "effective" not found` inside
+    this repo — a package's own `bin` is not linked into its own
+    `node_modules/.bin`. Corrected to the built-CLI invocation that
+    `scripts/pre-push.mjs` and CI actually use, with a note on why the
+    difference exists.
+  - **An outside contributor cannot apply the `governance` label.**
+    GitHub restricts labelling to triage permission, so the documented
+    protected-path workflow was unfollowable by exactly the audience
+    this release invites. CONTRIBUTING now says to open the PR, ask
+    for the label in a comment, and expect a red check until a
+    maintainer applies it — and adds a maintainer-side note on what
+    applying the label is actually attesting to.
+  - The CI pipeline list was wrong in order and content, and described
+    step 10 as "Audit (zero CRITICAL required)" when it is `audit-ci`
+    reading dependency advisories. It now matches
+    `.github/workflows/ci.yml` step for step, and calls out the two
+    failures that confuse people: advisory drift on an untouched
+    branch, and jscpd counting duplication across tests.
+  - "Running the audit" was missing from the table of contents.
+
 ### Security
 
 - **Transitive devDependency advisories cleared ahead of 1.0.0.** CI's
