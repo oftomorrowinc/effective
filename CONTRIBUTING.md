@@ -18,6 +18,7 @@ development pressure.
 
 - [Before you start](#before-you-start)
 - [Setup](#setup)
+- [Running the audit](#running-the-audit)
 - [How changes flow through the project](#how-changes-flow-through-the-project)
 - [The two-path constitutional-change workflow](#the-two-path-constitutional-change-workflow)
 - [Adding catalogue entries](#adding-catalogue-entries)
@@ -80,8 +81,15 @@ version of itself, resync before debugging anything else.
 Before contributing, run audit against the current state:
 
 ```bash
-pnpm exec effective audit
+pnpm build && node dist/cli.mjs audit
 ```
+
+Note the invocation. Inside this repo, `pnpm exec effective` does
+NOT resolve — a package's own `bin` is not linked into its own
+`node_modules/.bin`, so you get `Command "effective" not found`.
+Run the built CLI directly, as `scripts/pre-push.mjs` and CI both do.
+(`pnpm exec effective` is the right command in a project that has
+installed effective as a dependency; it is wrong only here.)
 
 Audit should report zero CRITICAL findings on a clean main branch.
 If it doesn't, something has drifted since the last green CI run —
@@ -157,6 +165,17 @@ The PR description should:
 - Note any downstream implications (does this require adopter
   config changes? Catalogue updates? Documentation?)
 
+**If you can't apply the `governance` label, say so and stop.**
+GitHub only lets people with triage permission label a pull request,
+which means an outside contributor's first constitutional PR cannot
+carry its own label. That is not you doing it wrong. Open the PR
+with the rationale above, add a comment saying it needs the
+`governance` label, and a maintainer will apply it — CI re-runs with
+`--governance-pr` once the label lands, and the protected-path
+finding moves from gating to elevated. Until then CI will fail on
+that finding, and it is _supposed_ to; a red check here is the
+machinery working, not a rejection of your change.
+
 ### LLM agent path
 
 If you're an LLM agent working on Effective: **never bypass.** Hit
@@ -171,6 +190,25 @@ the rationale text looks reasonable.
 
 If you're not sure whether you're in a context that authorizes
 constitutional changes, you aren't. Surface and wait.
+
+The one exception is an explicit, per-branch authorization from a
+maintainer — and when that happens the PR body says so in plain
+words. A disclosed bypass is reviewable; a silent one is exactly
+what this rule exists to prevent. effective does not try to verify
+who typed a commit, because actor identity is self-declared and
+therefore not a trust boundary; see `docs/decisions.md` § "Who may
+elevate a protected-path edit" for why the enforcement sits on the
+checkable question instead.
+
+### For maintainers: reviewing a labelled PR
+
+Applying `governance` is not a formality — it is the act that moves
+a CRITICAL out of the gating set. Before applying it, check that the
+protected-path edit IS the PR's purpose rather than incidental to it,
+that the rationale names what changes for adopters, and that the
+diff doesn't carry unrelated protected-path edits along for the ride.
+Everything else in the diff still gates normally, so labelling never
+means "merge it anyway.
 
 ---
 
@@ -409,16 +447,33 @@ trailing.
 
 CI runs on Node 20 and Node 22. Both must pass for merge.
 
-The pipeline:
+The pipeline, in the order it runs (`.github/workflows/ci.yml`):
 
-1. Install
-2. Lint
-3. Typecheck
-4. Test
-5. Coverage
-6. `effective verify` against the PR base
-7. Pack check (`publint`, `attw`)
-8. Audit (zero CRITICAL required)
+1. Install (`pnpm install --frozen-lockfile`)
+2. `pnpm typecheck`
+3. `pnpm lint`
+4. `pnpm format:check` — prettier; run `pnpm format` to fix
+5. `pnpm test:coverage` — tests plus per-metric coverage thresholds
+6. `pnpm dup` — jscpd, fails above 0.5% duplication
+7. `pnpm unused` — knip, unused exports and dependencies
+8. `pnpm deps:check` — dependency-cruiser
+9. `pnpm secrets` — secretlint across `**/*`
+10. `pnpm audit:ci` — **dependency advisories**, moderate and above
+11. `pnpm build`
+12. `pnpm pack:check` — publint + attw
+13. `effective verify` (self-application) against the PR base
+
+Two of these surprise people:
+
+- **Step 10 is not the `effective audit` command.** It is `audit-ci`
+  reading npm advisories against the dependency tree, and it can go
+  red on a branch that changed nothing — advisories get published
+  against pinned transitives on their own schedule. If it fails and
+  your diff has no dependency change, it is drift, not you; the fix
+  is a `pnpm.overrides` pass on main, not anything in your PR.
+- **Step 6 counts duplication across tests too.** Near-identical test
+  cases are the usual trigger. Fold them into one table-driven test
+  (`it.each`) rather than raising the threshold.
 
 Branch protection on main requires the verify job specifically to
 pass; other checks are required-passing too, but verify is the
