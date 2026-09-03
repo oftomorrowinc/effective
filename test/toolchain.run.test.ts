@@ -93,6 +93,24 @@ describe('runCommand', () => {
     expect(result.exitCode).not.toBe(0);
   }, 15_000);
 
+  it('marks overflowed=true and truncates when output exceeds the capture cap', async () => {
+    // 64 MiB on stdout, past the 50 MiB cap. Written in 1 MiB chunks so
+    // the guard sees many chunks rather than one giant allocation.
+    const result = await runCommand({
+      command: `node -e "const c='x'.repeat(1024*1024); for(let i=0;i<64;i++) process.stdout.write(c); setTimeout(()=>{},5000)"`,
+    });
+    expect(result.overflowed).toBe(true);
+    // It was the cap, not the clock — the two must stay distinguishable.
+    expect(result.timedOut).toBe(false);
+    // Buffers hold only what was captured before the kill.
+    expect(result.stdout.length).toBeLessThanOrEqual(50 * 1024 * 1024);
+  }, 60_000);
+
+  it('marks overflowed=false on an ordinary run', async () => {
+    const result = await runCommand({ command: `node -e "console.log('small')"` });
+    expect(result.overflowed).toBe(false);
+  });
+
   it('reports nonzero exit when the spawned program is missing', async () => {
     const result = await runCommand({
       command: `node -e "process.exit(127)"`,

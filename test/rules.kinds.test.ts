@@ -103,6 +103,51 @@ describe('checkToolchain', () => {
     expect(findings[0]?.evidence).toMatch(/exited with code 1/);
   });
 
+  it('reports truncation in the message when the run overflowed the capture cap', () => {
+    const findings = checkToolchain(
+      baseRule,
+      ctx({ toolchainResults: { lint: tcResult({ exitCode: 128, overflowed: true }) } }),
+    );
+    expect(findings[0]?.message).toMatch(/truncated/);
+    expect(findings[0]?.message).toMatch(/may be incomplete/);
+  });
+
+  it('reports truncation even when the parser produced findings from partial output', () => {
+    const rule: ToolchainRule = { ...baseRule, failOn: 'count-non-zero' };
+    const findings = checkToolchain(
+      rule,
+      ctx({
+        toolchainResults: {
+          lint: tcResult({
+            exitCode: 128,
+            overflowed: true,
+            count: 2,
+            findings: [
+              {
+                ruleId: 'lint:x',
+                severity: 'HIGH',
+                category: 'toolchain',
+                evidence: 'e',
+                message: 'm',
+                source: { kind: 'toolchain', tool: 'lint' },
+              },
+            ],
+          }),
+        },
+      }),
+    );
+    const aggregate = findings.find((f) => f.ruleId === baseRule.id);
+    expect(aggregate?.message).toMatch(/truncated/);
+  });
+
+  it('says nothing about truncation on an ordinary failure', () => {
+    const findings = checkToolchain(
+      baseRule,
+      ctx({ toolchainResults: { lint: tcResult({ exitCode: 1 }) } }),
+    );
+    expect(findings[0]?.message).not.toMatch(/truncated/);
+  });
+
   it('fails when failOn=any-output and stdout has content', () => {
     const rule: ToolchainRule = { ...baseRule, failOn: 'any-output' };
     const findings = checkToolchain(

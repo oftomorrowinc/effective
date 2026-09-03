@@ -67,32 +67,6 @@ tracking or to close as `cannot-reproduce` with a final note.
 
 ---
 
-## `runCommand` buffer overflow is invisible to callers
-
-**The bug.** When a child's stdout/stderr exceeds the 50 MiB cap,
-`runCommand` (src/toolchain/run.ts) SIGTERMs the child and resolves
-with truncated buffers, `timedOut: false`, and no overflow flag — the
-exit code surfaces as a generic signal kill. A toolchain gate on
-`non-zero-exit` fails with no hint that output was truncated, and
-`any-output` semantics operate on partial data.
-
-**Reported.** Full-package code-quality review, 2026-07-07. Verified
-by inspection of the `bufferGuard` path.
-
-**Reproduction.** Confirmed by inspection; repro is a command that
-prints > 50 MiB.
-
-**Suspected cause.** (confirmed) `bufferOverflowed` is tracked
-internally but never exposed on `RunResult`.
-
-**Next step.** Add `overflowed: boolean` (or similar) to `RunResult`
-and mention truncation in the toolchain finding's output tail when
-set. Additive API change; land with the next batch of toolchain
-work.
-
-**Workaround.** None needed in practice yet — 50 MiB is far above
-normal toolchain output; hit it only with verbose reporters.
-
 ## Future additions
 
 This section is a placeholder. New bug reports — surfaced during

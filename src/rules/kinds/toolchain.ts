@@ -29,6 +29,14 @@ function truncateLine(line: string): string {
  * per-line character cap; the worktree still holds the full output if
  * the adopter needs more.
  */
+/**
+ * Shown whenever the command's output blew past the capture cap. The
+ * exit code in that case is a generic signal kill, so without this line
+ * a truncated run is indistinguishable from an ordinary failure.
+ */
+const OVERFLOW_NOTICE =
+  'NOTE: the command produced more output than can be captured; it was terminated and the output below is truncated. This report may be incomplete.';
+
 function outputTail(result: ToolchainResult): string {
   const raw = result.stderr.trim().length > 0 ? result.stderr : result.stdout;
   const trimmed = raw.trim();
@@ -116,10 +124,16 @@ export function checkToolchain(rule: ToolchainRule, ctx: VerifyContext): Finding
   const hasParsedFindings = (result.findings?.length ?? 0) > 0;
   const tail = hasParsedFindings ? '' : outputTail(result);
   const failureLine = describeFailure(rule, result);
+  // Truncation is reported whether or not the tail is shown: parsed
+  // findings drawn from a truncated stream are incomplete too, and a
+  // report that hides that reads as a full measurement.
+  const extra: string[] = [];
+  if (result.overflowed === true) extra.push(OVERFLOW_NOTICE);
+  if (tail.length > 0) extra.push(tail);
   const message =
-    tail.length === 0
+    extra.length === 0
       ? `${failureLine} ${rule.prompt.guidance}`
-      : `${failureLine}\n${tail}\n\n${rule.prompt.guidance}`;
+      : `${failureLine}\n${extra.join('\n')}\n\n${rule.prompt.guidance}`;
   const aggregateFinding: Finding = {
     ruleId: rule.id,
     severity: rule.defaultSeverity,
