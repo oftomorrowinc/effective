@@ -20,8 +20,10 @@ export function ruleAppliesToRole(rule: Rule, role: string): boolean {
  * `scope.relatedRules` narrows what the PROMPT emphasizes, not what
  * verification enforces: a pinned scope is still verified against the
  * full rule set (the safe direction — verify checks more than the
- * prompt promised). Whether relatedRules should also scope verification
- * is an open design question; see docs/open-issues.md.
+ * prompt promised). This is settled, not open: gate strength must not
+ * be prompt-authorable, so `relatedRules` stays emphasis and the
+ * checklist says the other rules still apply. See docs/decisions.md
+ * § "`scope.relatedRules`: emphasis, not scoping".
  *
  * If `scope.relatedRules` is set, that list overrides role-based
  * filtering here — explicit pinning wins for prompt rendering.

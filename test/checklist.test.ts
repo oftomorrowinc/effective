@@ -84,6 +84,21 @@ describe('renderChecklist', () => {
     expect(out).not.toContain('defensive fallback');
     expect(out).not.toContain('other-1');
     expect(out).toContain('- summary for pinned');
+    // A narrowed checklist must not read as a narrowed gate: verify()
+    // checks the full constitution regardless of the pin.
+    expect(out).toContain('other rules still apply');
+  });
+
+  it('does not claim a narrowing when the scope is not pinned', () => {
+    const rules: Rule[] = [
+      makeRule({ id: 'a' }),
+      makeRule({ id: 'b' }),
+      makeRule({ id: 'c' }),
+      makeRule({ id: 'd' }),
+      makeRule({ id: 'e' }),
+    ];
+    const out = renderChecklist({ scope: baseScope, applicableRules: rules, allRules: rules });
+    expect(out).not.toContain('other rules still apply');
   });
 
   it('emits a clear empty-constitution message when no rules apply', () => {
