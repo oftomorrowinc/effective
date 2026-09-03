@@ -416,8 +416,9 @@ edit is invisible:
 
 ```
 Q1: Did the diff touch a protected path?
-    YES → `protected-paths-respected` fires. Always. There is no
-          actor, flag, or environment that suppresses it.
+    YES → `protected-paths-respected` fires. Always. No actor, flag,
+          environment — or edit to the constitution inside the same
+          diff — suppresses it. See "what 'always' had to earn" below.
     NO  → nothing to elevate.
 
 Q2: Is the protected-path edit the PR's actual purpose?
@@ -429,6 +430,39 @@ Q2: Is the protected-path edit the PR's actual purpose?
     NO  → the finding gates. Fix the diff — the protected-path edit
           does not belong in this PR.
 ```
+
+### What "always" had to earn
+
+That word was false when it was first written here, and the correction
+is worth keeping rather than quietly editing away.
+
+`verify` resolved its constitution from the working tree — the WORK
+side of the comparison. So one commit could set `protected: []` and
+edit a protected file, and the run passed with zero findings: the diff
+deleted the rule that would have caught it. The pre-publish review
+proved it against the 1.0.0 tag, in local verify and in CI's own
+self-application step. A guarantee with a one-commit bypass is not a
+guarantee, and the sentence above was advertising one.
+
+Two changes make it true:
+
+1. **The protections are the baseline's.** A git-source run resolves
+   the config as of the baseline ref as well, and holds the diff to the
+   UNION of what was protected before and what the diff protects now.
+   Adding protection takes effect immediately; removing it takes effect
+   on the next diff, after a reviewer has seen the removal. If the
+   baseline config exists but cannot be resolved, the run fails closed
+   with a CRITICAL rather than falling back to the work side — that
+   fallback is the same bypass wearing a different hat.
+2. **The constitution protects itself, structurally.** The entry for
+   the config file does not come from the `protected` list, so emptying
+   that list cannot remove it. The attempt to disarm is itself always a
+   finding.
+
+The general principle, which is worth more than the specific fix: **a
+rule that reads its own configuration from the thing it is judging is
+not a rule.** Anywhere else that pattern appears, the same bypass is
+available.
 
 ### Rule of thumb
 

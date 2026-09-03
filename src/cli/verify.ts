@@ -95,6 +95,9 @@ export async function runVerifyCommand(args: ParsedArgs, cwd: string): Promise<V
   let result = await verify({
     scope: DEFAULT_SCOPE,
     config: loaded.config,
+    // Lets verify ratchet protections against this same file as of the
+    // baseline ref, so a diff cannot delete the rule that catches it.
+    configPath: loaded.configPath,
     source,
     ...(loaded.config.exceptions === undefined ? {} : { exceptions: loaded.config.exceptions }),
     ...(keepWorktree === undefined ? {} : { keepWorktree }),
