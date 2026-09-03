@@ -1,5 +1,8 @@
 import { resolveConstitution, resolveScope } from './resolve.js';
-import type { ResolveOptions } from './resolve.js';
+import type { ResolveOptions, ResolvedConstitution, ProtectedPath } from './resolve.js';
+import path from 'node:path';
+
+import { resolveBaselineConstitution, unionProtectedPaths } from './config/baseline.js';
 import { checkRule } from './rules/check.js';
 import { ruleAppliesToRole } from './rules/selection.js';
 import { loadInlineSource } from './source/inline.js';
@@ -59,6 +62,15 @@ export interface VerifyInput {
   config: Constitution;
   source: VerifySource;
   resolveOptions?: ResolveOptions;
+  /**
+   * Absolute path of the config file `input.config` was loaded from.
+   * When present alongside a git source, the protections this diff is
+   * held to are ratcheted against the SAME file as of the baseline ref,
+   * so a diff cannot delete the rule that would have caught it. The CLI
+   * always supplies it; programmatic callers that build a config in
+   * memory have no baseline revision to compare against and omit it.
+   */
+  configPath?: string;
   /** Custom check functions referenced by CustomRule.checkRef and MetaRule.checkRef. */
   customChecks?: Readonly<Record<string, CustomCheck>>;
   /** Project's exception registry (defineExceptions() output). */
@@ -148,11 +160,102 @@ export function dedupeBySignature(findings: readonly Finding[]): Finding[] {
   return out;
 }
 
+/**
+ * The always-on protected entry for the constitution file itself,
+ * expressed relative to the repo so it matches the diff's paths.
+ */
+function selfProtectionEntry(repo: string, configPath: string): ProtectedPath {
+  const rel = path.relative(repo, configPath);
+  const inRepo = rel.length > 0 && !rel.startsWith('..') && !path.isAbsolute(rel);
+  return {
+    path: inRepo ? rel.split(path.sep).join('/') : configPath,
+    rationale:
+      'The constitution itself. This protection is structural — it does not come from the ' +
+      '`protected` list, so emptying that list cannot remove it. A diff is judged by the rules ' +
+      'that existed before it, and changing those rules is itself the change under review.',
+  };
+}
+
+/**
+ * Hold the diff to the union of the protections that existed at the
+ * baseline and the protections the work side declares. Adding
+ * protection takes effect immediately; REMOVING it does not take effect
+ * on the very diff that removes it.
+ *
+ * Returns the constitution to judge with, plus any finding raised by
+ * the ratchet itself.
+ */
+async function ratchetProtections(input: {
+  readonly source: VerifySource;
+  readonly configPath: string | undefined;
+  readonly resolveOptions: ResolveOptions;
+  readonly workResolved: ResolvedConstitution;
+}): Promise<{ resolved: ResolvedConstitution; findings: Finding[] }> {
+  const { source, configPath, workResolved } = input;
+  if (configPath === undefined) return { resolved: workResolved, findings: [] };
+  const repo = source.kind === 'inline' ? undefined : source.repo;
+  // The constitution protects itself, structurally. This entry does not
+  // come from the `protected` list, so emptying that list cannot remove
+  // it: an attempt to disarm the constitution is itself always a
+  // finding. Without this, the disarming commit is the one commit the
+  // rule never sees.
+  const selfProtection = repo === undefined ? [] : [selfProtectionEntry(repo, configPath)];
+  const withSelf: ResolvedConstitution = {
+    ...workResolved,
+    protectedPaths: unionProtectedPaths(selfProtection, workResolved.protectedPaths),
+  };
+  if (source.kind !== 'git') return { resolved: withSelf, findings: [] };
+  const baseline = await resolveBaselineConstitution({
+    repo: source.repo,
+    baseline: source.baseline,
+    configPath,
+    resolveOptions: input.resolveOptions,
+  });
+  if (baseline.kind === 'absent') return { resolved: withSelf, findings: [] };
+  if (baseline.kind === 'unreadable') {
+    // Something IS there and we could not resolve it. Falling back to
+    // the work side here would be the bypass wearing a different hat.
+    return {
+      resolved: withSelf,
+      findings: [
+        {
+          ruleId: 'governance.baseline-constitution-unreadable',
+          severity: 'CRITICAL',
+          category: 'governance',
+          evidence: baseline.reason,
+          message:
+            `The constitution could not be resolved as of the baseline ref, so this diff ` +
+            `cannot be held to the protections that existed before it. Refusing to fall back to ` +
+            `the diff's own config — that fallback is exactly how a change disarms the rule ` +
+            `that would have caught it. Fix the baseline config, or verify against a ref where ` +
+            `it resolves. (${baseline.reason})`,
+          source: { kind: 'rule', ruleId: 'governance.baseline-constitution-unreadable' },
+        },
+      ],
+    };
+  }
+  return {
+    resolved: {
+      ...withSelf,
+      protectedPaths: unionProtectedPaths(baseline.protectedPaths, withSelf.protectedPaths),
+    },
+    findings: [],
+  };
+}
+
 export async function verify(input: VerifyInput): Promise<VerifyResult> {
-  const resolved = resolveConstitution(
-    input.config,
-    withBuiltInPresets(input.resolveOptions ?? {}),
-  );
+  const resolveOptions = withBuiltInPresets(input.resolveOptions ?? {});
+  const workResolved = resolveConstitution(input.config, resolveOptions);
+  // The constitution that judges a diff is the one that existed BEFORE
+  // it. Without this, a commit that sets `protected: []` deletes the
+  // rule that would have caught it and passes with zero findings.
+  const ratchet = await ratchetProtections({
+    source: input.source,
+    configPath: input.configPath,
+    resolveOptions,
+    workResolved,
+  });
+  const resolved = ratchet.resolved;
   const scope = resolveScope(input.scope, resolved);
   const customChecks = { ...builtInChecks, ...input.customChecks };
   const artifacts = input.artifacts ?? {};
@@ -217,7 +320,9 @@ export async function verify(input: VerifyInput): Promise<VerifyResult> {
     const skipCategorySet = new Set<RuleCategory>(input.skipCategories ?? []);
     const skipRuleSet = new Set<string>(input.skipRules ?? []);
     const skipped: SkippedRule[] = [];
-    const findings: Finding[] = [];
+    // Ratchet findings lead: if the baseline constitution could not be
+    // resolved, that outranks anything the rules below have to say.
+    const findings: Finding[] = [...ratchet.findings];
     for (const rule of resolved.rules.values()) {
       if (skipRuleSet.has(rule.id)) {
         skipped.push({ ruleId: rule.id, reason: 'rule-excluded' });

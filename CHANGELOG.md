@@ -6,6 +6,39 @@ project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **A diff can no longer disarm the constitution that judges it.**
+  `verify` resolved its config from the working tree — the WORK side of
+  the comparison — and protected paths came from that config. So a
+  single commit could set `protected: []` and edit a protected file in
+  the same breath, and the run passed with `verdict: pass, findings: 0`:
+  the diff deleted the rule that would have caught it. This held in
+  local verify and in CI's own self-application step, and it falsified
+  the guarantee `docs/decisions.md` stated in those words —
+  "`protected-paths-respected` fires. Always."
+
+  Two changes make the sentence true. **The protections are the
+  baseline's**: a git-source run now also resolves the config as of the
+  baseline ref and holds the diff to the union of what was protected
+  before and what the diff protects now, so adding protection is
+  immediate while removing it takes effect on the next diff, after a
+  reviewer has seen the removal. And **the constitution protects
+  itself, structurally** — the entry covering the config file does not
+  come from the `protected` list, so emptying that list cannot remove
+  it, and the attempt to disarm is itself always a finding.
+
+  A baseline config that exists but cannot be resolved now fails closed
+  with a CRITICAL (`governance.baseline-constitution-unreadable`)
+  instead of falling back to the work side; that fallback is the same
+  bypass wearing a different hat. An absent baseline config is treated
+  as first adoption, not failure. Deleting the config outright leaves
+  `verify` unable to run at all — exit 2, loudly.
+
+  The general principle is worth more than the fix: a rule that reads
+  its own configuration from the thing it is judging is not a rule.
+  Found by the pre-publish five-agent review (H1).
+
 ## [1.0.0] — 2026-09-03
 
 **effective leaves beta.** The version number is the whole message: the
