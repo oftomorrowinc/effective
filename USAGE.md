@@ -623,6 +623,22 @@ for (const task of tasks) {
 
 Format: `-- <exception-id>: <inline justification>`
 
+**A citation is checked against the exception's binding, not just its
+existence.** An exception may declare `appliesTo` (path globs) and
+`rules` (the tool rules it may silence); a citation outside either is
+CRITICAL, with a message naming the mismatch. An exception that
+declares neither is accepted anywhere against anything — that is
+reported at MED so the registry's weak spots are visible rather than
+implied clean. Scope the exceptions you cite:
+
+```ts
+'caller-validated-dynamic-key': {
+  // ...
+  rules: ['security/detect-object-injection'],
+  appliesTo: ['src/registry/**'],
+},
+```
+
 The `exceptions.must-cite-justification` rule (active in the recommended
 preset) checks every escape hatch in the diff and validates:
 

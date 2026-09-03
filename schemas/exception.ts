@@ -205,6 +205,36 @@ export const Exception = z.object({
    * creation. Same provenance idea as catalogue entries.
    */
   reference: z.string().url().optional(),
+
+  /**
+   * Where this exception may be cited — glob patterns matched against
+   * the suppression's file path.
+   *
+   * An exception without `appliesTo` is a **skeleton key**: a valid
+   * citation to it silences a suppression anywhere in the repo. That
+   * was the pre-1.0 behavior for every exception, and it made the
+   * registry's promise ("sanctioned, tracked, retire-able deviations")
+   * much weaker than it reads — a `tty-bound` coverage carve-out could
+   * be cited to wave through a security suppression in a request
+   * handler, and nothing in the report said so.
+   *
+   * Scope every exception you can. Omit only when the condition really
+   * is repo-wide, and expect `exceptions.scoped-citations` to say so.
+   */
+  appliesTo: z.array(z.string().min(1)).min(1).optional(),
+
+  /**
+   * Which underlying tool rules this exception may silence — e.g.
+   * `['security/detect-non-literal-fs-filename']` for an
+   * `eslint-disable`. Matched against the rule names parsed out of the
+   * suppression comment.
+   *
+   * Same reasoning as `appliesTo`, on the other axis: without it, an
+   * exception registered for one lint rule silences every lint rule.
+   * Mechanisms that name no rules (`c8-ignore`, `prettier-ignore`,
+   * bare `ts-expect-error`) are unaffected — there is nothing to bind.
+   */
+  rules: z.array(z.string().min(1)).min(1).optional(),
 });
 export type Exception = z.infer<typeof Exception>;
 

@@ -318,12 +318,29 @@ What doesn't ship as a built-in:
   context: 'Why this exception is a recurring legitimate pattern.',
   retirementCondition: 'What would let this exception retire.',
   addedDate: '2026-05-13',
+  rules: ['no-continue'],          // which tool rules it may silence
+  appliesTo: ['src/**'],           // where it may be cited
 }
 ```
 
 The `mechanism` field declares which suppression syntax the
 exception applies to. Use `null` for exceptions that apply via
 `appliesTo` rather than via suppression comments.
+
+**Bind the exception.** `rules` and `appliesTo` are what keep an
+exception a carve-out rather than a skeleton key. Without them, a
+valid citation is accepted anywhere in the repo against any rule — a
+coverage carve-out could be cited to wave through a security
+suppression in a request handler, and until 1.0 nothing said so.
+Citing an exception that binds neither reports at MED
+(`unscopedExceptionSeverity`, raise it once your registry is clean);
+citing one outside its binding is CRITICAL.
+
+Built-in categories are portable TEMPLATES, so they bind `rules` where
+the category names specific tool rules and leave `appliesTo` to the
+adopting project — paths are not portable. When you spread
+`seeds.builtInExceptions` into your config, narrowing the ones you
+actually cite is the intended next step, not optional polish.
 
 The `retirementCondition` is required and shouldn't be "never" —
 even if the condition is decades away, name it. Categories with

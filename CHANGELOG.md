@@ -70,6 +70,41 @@ project adheres to [Semantic Versioning](https://semver.org/).
   The predicate it guards is security-relevant and now has real types
   and real tests; a `.mjs` file could carry neither.
 
+### Added
+
+- **Exceptions can be bound to paths and rules — and 1.0.0 freezes that
+  shape.** A validly cited exception used to silence any suppression
+  anywhere: `Exception` had no path scoping and no rule binding, and
+  the validator checked only existence, status and mechanism. Since
+  `mechanism: null` matches every hatch kind, and `init` seeds twenty
+  built-in exceptions into every new project (three of them
+  mechanism-null), every fresh adopter shipped with the keys pre-cut.
+  Proven: an `eval` suppression citing an unrelated coverage exception
+  passed with zero findings.
+
+  `Exception` gains `appliesTo` (path globs) and `rules` (the tool
+  rules a citation may silence), and the validator enforces both. A
+  citation outside its binding is CRITICAL and the message names the
+  mismatch — "registered for `n/no-process-exit` … but this suppression
+  silences `security/detect-eval-with-expression`". A citation to an
+  exception that binds NEITHER is reported at MED
+  (`unscopedExceptionSeverity`): not a violation, a disclosure, so the
+  registry's weak spots appear in the report instead of being implied
+  clean by a passing count. Raise it to CRITICAL once your registry is
+  scoped.
+
+  The nine built-in categories whose contexts already named specific
+  tool rules are now bound to them. The rest deliberately leave
+  `appliesTo` unset — built-ins are portable templates and paths are
+  not portable; narrowing them per project is the documented next step
+  after spreading `seeds.builtInExceptions`.
+
+  This landed before 1.0.0 rather than after because it is a schema
+  change, and the schema is what a 1.0 freezes. Freezing the broken
+  shape would have made the fix a breaking change forever. Found by the
+  pre-publish five-agent review (H3), independently by two of its
+  agents.
+
 ## [1.0.0] — 2026-09-03
 
 **effective leaves beta.** The version number is the whole message: the

@@ -39,6 +39,9 @@ const cliFatalExit: Exception = {
     "CLI entrypoints have an `if (process.argv[1] === fileURLToPath(import.meta.url))` (or similar `require.main === module`) dispatch branch that fires only when the file is invoked directly via tsx/node, never when imported as a module by tests. The branch typically calls a top-level orchestration function and translates its result into process.exit(N). Both halves are exercised by integration tests that shell out to the CLI; the unit-coverage gate doesn't see them. The terminating `process.exit` call also trips `n/no-process-exit` / `unicorn/no-process-exit` — which are right to flag the call everywhere EXCEPT a CLI's outermost handler, where translating an exit code IS the legitimate semantics.",
   retirementCondition:
     "Retire when an integration-coverage harness exercises every CLI's argv[1] dispatch AND the eslint rule supports a 'this-is-the-outer-handler' annotation. Until then, the CLI's outermost translate-to-exit-code line is the load-bearing site for both suppressions.",
+  // Bound to the rules this category actually covers: an exception is a
+  // carve-out for a condition, not a pass for whatever else is on the line.
+  rules: ['n/no-process-exit', 'unicorn/no-process-exit'],
   addedDate: '2026-04-22',
   status: 'active',
 };
@@ -123,6 +126,9 @@ const sequentialByDesignAwait: Exception = {
     "Some loops MUST run sequentially: per-task dispatch where each iteration's side effects feed the next, per-attempt frontmatter writes with ordering invariants, per-file format/lint passes against shared state. Parallelizing them via Promise.all would change semantics; the no-await-in-loop rule fires on the (correct) sequential shape.",
   retirementCondition:
     "Retire only if ESLint's no-await-in-loop learns to recognize sequential-by-design markers. Currently no upstream proposal; this exception is structural.",
+  // Bound to the rules this category actually covers: an exception is a
+  // carve-out for a condition, not a pass for whatever else is on the line.
+  rules: ['no-await-in-loop'],
   addedDate: '2026-04-22',
   status: 'active',
 };
@@ -135,6 +141,9 @@ const typedPrivateDotNotation: Exception = {
     "ESLint's dot-notation rule prefers obj.foo over obj['foo'] for static keys. When obj is typed with a [key: string]: T index signature plus specific named members, TypeScript requires bracket notation for the index-signature keys but the lint rule wants dots. The disable is on the legitimate bracket notation.",
   retirementCondition:
     "Retire per-site when ESLint's dot-notation rule recognizes index-signature-only keys (TypeScript-aware variants in @typescript-eslint may already do this).",
+  // Bound to the rules this category actually covers: an exception is a
+  // carve-out for a condition, not a pass for whatever else is on the line.
+  rules: ['dot-notation', '@typescript-eslint/dot-notation'],
   addedDate: '2026-04-22',
   status: 'active',
 };
@@ -147,6 +156,9 @@ const canonicalUnderscoreDiscriminator: Exception = {
     "Schema discipline often uses leading-underscore field names (_kind, _version, _schema) to mark canonical-frame metadata distinct from domain fields. ESLint's no-underscore-dangle rule fires on the leading underscore. Project-specific allowlists at the rule level would also work, but the per-site disable is acceptable.",
   retirementCondition:
     "Retire when no-underscore-dangle is configured with an allow-list for the project's canonical discriminator names and the per-site disable becomes redundant.",
+  // Bound to the rules this category actually covers: an exception is a
+  // carve-out for a condition, not a pass for whatever else is on the line.
+  rules: ['no-underscore-dangle', 'camelcase'],
   addedDate: '2026-04-22',
   status: 'active',
 };
@@ -159,6 +171,9 @@ const mutuallyRecursiveWalker: Exception = {
     "Tree-walker dispatch helpers (walkSchema + per-kind sub-walkers; walkAndPrompt + per-shape sub-prompters) are mutually recursive: the dispatch function calls each sub-walker, and each sub-walker calls back into the dispatch function for child nodes. ESLint's no-use-before-define fires on the forward reference; reordering definitions would force one function to be inlined (defeating extraction) or push the dispatch fn to the bottom (defeating top-down readability).",
   retirementCondition:
     'Retire when the lint rule is configured to recognize tree-walker patterns explicitly (no upstream proposal; this is structural).',
+  // Bound to the rules this category actually covers: an exception is a
+  // carve-out for a condition, not a pass for whatever else is on the line.
+  rules: ['no-use-before-define', '@typescript-eslint/no-use-before-define'],
   addedDate: '2026-04-22',
   status: 'active',
 };
@@ -171,6 +186,9 @@ const earlyExitContinue: Exception = {
     "Filesystem walk loops and scan loops over directive lines use `continue;` for early-exit guards (entry-not-a-directory, line-not-a-table-row, ref-already-seen). ESLint's no-continue rule fires on the legitimate guard; refactoring to nested if blocks deepens cyclomatic complexity and reduces readability.",
   retirementCondition:
     'Retire when the project switches off no-continue blanket-on, or when filter-then-iterate patterns replace the inline-guard idiom across the affected files.',
+  // Bound to the rules this category actually covers: an exception is a
+  // carve-out for a condition, not a pass for whatever else is on the line.
+  rules: ['no-continue'],
   addedDate: '2026-04-22',
   status: 'active',
 };
@@ -183,6 +201,9 @@ const mutatedBindingNoDestructure: Exception = {
     'A loop body or conditional that reassigns a variable holding the result of a function call would, under prefer-destructuring, be rewritten as `const { field } = obj;` followed by a separate `let result = field;` reassignment chain — splitting one statement into two and forcing readers to track the binding across lines. Sites where the binding is shadowed and mutated within the same block keep the pre-destructure form for readability.',
   retirementCondition:
     "Retire per-site when ESLint's prefer-destructuring learns a mutated-binding exemption (none on the roadmap; this is structural).",
+  // Bound to the rules this category actually covers: an exception is a
+  // carve-out for a condition, not a pass for whatever else is on the line.
+  rules: ['prefer-destructuring'],
   addedDate: '2026-04-22',
   status: 'active',
 };
@@ -255,6 +276,9 @@ const intentionalSourceTreeWalker: Exception = {
     "Filesystem walkers that consume caller-supplied directory paths (`fs.readdir(dir)`, `fs.readFile(absolutePath)` inside a recursive crawler) trip `security/detect-non-literal-fs-filename`. The whole point of the walker is dynamic-path traversal — that's the contract its caller invoked it for. Common sites: audit/lint-style scanners walking a repository tree, plugin loaders enumerating an extensions directory, build tools collecting source files. The eslint rule is conservative; the read happens at a path the caller authorized to enter.",
   retirementCondition:
     'Retire per-site when the walker no longer reads paths it derived from traversal (e.g., the caller passes an explicit allow-list and the walker becomes a literal-path consumer), or when the eslint rule gains a trusted-source annotation for documented walker patterns.',
+  // Bound to the rules this category actually covers: an exception is a
+  // carve-out for a condition, not a pass for whatever else is on the line.
+  rules: ['security/detect-non-literal-fs-filename'],
   addedDate: '2026-05-12',
   status: 'active',
 };
@@ -267,6 +291,9 @@ const callerValidatedDynamicKey: Exception = {
     "Dynamic key access (`record[someKey]`) and dynamic regex construction (`new RegExp(pattern)`) trip `security/detect-object-injection` and `security/detect-non-literal-regexp`. The pattern fires legitimately when the key/pattern is bounded by upstream validation: a registry lookup with the keys typed via a Zod-parsed config, a regex constructed from a rule's `pattern` field whose source already lives in the constitution. The eslint rule can't see the upstream validation; the suppression accepts that responsibility.",
   retirementCondition:
     'Retire per-site when the dynamic shape becomes static (e.g., switch to a Map keyed by a string-literal union, or a pre-compiled regex table), or when the eslint rule supports trust annotations linked to a typed validator.',
+  // Bound to the rules this category actually covers: an exception is a
+  // carve-out for a condition, not a pass for whatever else is on the line.
+  rules: ['security/detect-object-injection', 'security/detect-non-literal-regexp'],
   addedDate: '2026-05-12',
   status: 'active',
 };
