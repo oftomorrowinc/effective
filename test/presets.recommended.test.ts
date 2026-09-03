@@ -243,17 +243,42 @@ describe('verify() — extends: ["recommended"] auto-loads the built-in preset',
     expect(result.verdict).toBe('pass');
   });
 
-  it('toolchain.lint-clean fails when no toolchain results are supplied (helpful error path)', async () => {
+  it('SKIPS toolchain rules whose tool the project never configured', async () => {
+    // A newcomer with no typecheck or coverage script used to get
+    // CRITICALs on a clean diff for gates they never asked for, with
+    // guidance ("Write the missing test.") that could not help. An
+    // unconfigured tool is not a failure — it is a gate that does not
+    // exist here.
     const config: Constitution = { extends: ['recommended'] };
     const result = await verify({
       scope: scope('free-form'),
       config,
       source: { kind: 'inline', changedFiles: [] },
     });
-    // toolchain rules report "no toolchain result supplied" finding when the
-    // user hasn't run the tool — this is expected for inline sources.
-    expect(result.verdict).toBe('fail');
+    const ids = new Set(result.findings.map((f) => f.ruleId));
+    expect(ids).not.toContain('toolchain.lint-clean');
+    expect(ids).not.toContain('toolchain.typecheck-clean');
+    expect(ids).not.toContain('toolchain.coverage-meets-threshold');
+    // Skipped, not silent: the report names the rule and the reason.
+    const skipped = new Map(result.skipped?.map((entry) => [entry.ruleId, entry.reason]));
+    expect(skipped.get('toolchain.lint-clean')).toBe('toolchain-command-not-configured');
+    expect(result.verdict).toBe('pass');
+  });
+
+  it('still fires when a tool IS configured but produced no result', async () => {
+    // The genuinely helpful error path, which must survive the fix:
+    // a configured gate that produced nothing is a misconfiguration.
+    const config: Constitution = {
+      extends: ['recommended'],
+      toolchain: { lint: 'pnpm lint --format json' },
+    };
+    const result = await verify({
+      scope: scope('free-form'),
+      config,
+      source: { kind: 'inline', changedFiles: [] },
+    });
     const ids = new Set(result.findings.map((f) => f.ruleId));
     expect(ids).toContain('toolchain.lint-clean');
+    expect(result.verdict).toBe('fail');
   });
 });

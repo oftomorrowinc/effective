@@ -105,6 +105,35 @@ project adheres to [Semantic Versioning](https://semver.org/).
   pre-publish five-agent review (H3), independently by two of its
   agents.
 
+- **The documented first run no longer fails out of the box.** Two
+  independent breaks on the exact path a 1.0 invites a newcomer down.
+
+  `init` printed `npx effective verify` as the next step, and bare
+  `verify` exits 2 — it needs a baseline ref. The newcomer's very first
+  instruction failed. It now prints `effective audit`, which is what a
+  first run wants anyway: read-only, no ref, reports across the whole
+  codebase rather than a diff that does not exist yet, with the
+  `verify --against main` form given as the follow-on.
+
+  And the recommended preset required typecheck and coverage
+  unconditionally while `init` only scaffolds commands it detects — so
+  a project with neither script got CRITICALs on a clean one-line diff
+  ("expected results for typecheck but none were supplied") carrying
+  guidance ("Write the missing test.") that could not help. A toolchain
+  rule whose tool has no configured command is now SKIPPED with the
+  reason `toolchain-command-not-configured`, in both `verify` and
+  `audit`. It is skipped rather than silent: verify's `Rules:` line now
+  reports a skipped count and names the unconfigured rules, because a
+  rule that did not run must never look like a rule that passed. A tool
+  that IS configured but produced no result still fires — that is a
+  real misconfiguration and the helpful error path for it is unchanged.
+
+  Verified end to end against a fresh project installed from the
+  packed tarball: `init` → its printed next step → a clean one-line
+  diff now gives `PASS, 0 findings`, where 1.0.0 gave FAIL.
+  Found by the pre-publish five-agent review (H4), independently by two
+  of its agents.
+
 ## [1.0.0] — 2026-09-03
 
 **effective leaves beta.** The version number is the whole message: the

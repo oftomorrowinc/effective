@@ -52,15 +52,24 @@ function prettyReport(result: VerifyResult, governance?: readonly Finding[]): st
     );
     const disabled = result.disabledRulesCount;
     const hatches = result.escapeHatchCount;
-    if (disabled !== undefined || hatches !== undefined) {
-      // No "skipped" component for verify — verify runs every applicable
-      // rule (audit is where skip-because-context exists). Emit just the
-      // pieces we have, in the same `Rules:` row used by audit so the
-      // two surfaces stay legible side-by-side.
+    const skipped = result.skipped ?? [];
+    if (disabled !== undefined || hatches !== undefined || skipped.length > 0) {
+      // Same `Rules:` row audit uses, so the two surfaces stay legible
+      // side-by-side. `skipped` is not decoration: a rule that did not
+      // run must never be indistinguishable from a rule that passed.
       const parts: string[] = [];
       if (disabled !== undefined) parts.push(`${String(disabled)} disabled`);
+      if (skipped.length > 0) parts.push(`${String(skipped.length)} skipped`);
       if (hatches !== undefined) parts.push(`${String(hatches)} escape hatches`);
       out.push(`Rules:    ${parts.join(', ')}`);
+    }
+    const unconfigured = skipped.filter(
+      (entry) => entry.reason === 'toolchain-command-not-configured',
+    );
+    if (unconfigured.length > 0) {
+      out.push(
+        `          ${unconfigured.map((entry) => entry.ruleId).join(', ')} — no command configured for that tool; the gate is absent, not passing.`,
+      );
     }
   }
   if (result.findings.length === 0) {

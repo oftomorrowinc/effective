@@ -549,9 +549,14 @@ export async function runInitCommand(args: ParsedArgs, cwd: string): Promise<Ini
   lines.push(
     '',
     'Next step:',
-    `  Run \`${nextStepCommand(ctx.pm)}\` to see what the constitution flags. Your`,
-    '  first verify will be slower (1-5 minutes) while it installs an',
-    '  isolated node_modules; subsequent runs use the cached install.',
+    `  Run \`${nextStepCommand(ctx.pm)}\` to see what the constitution flags`,
+    '  across the codebase. Audit is read-only and always exits 0 — it is a',
+    '  report, not a gate.',
+    '',
+    '  When you are ready to gate a diff, that is',
+    `  \`${nextStepCommand(ctx.pm).replace('audit', 'verify --against main')}\`. The first verify is`,
+    '  slower (1-5 minutes) while it installs an isolated node_modules;',
+    '  subsequent runs use the cached install.',
   );
 
   return {
@@ -563,8 +568,17 @@ export async function runInitCommand(args: ParsedArgs, cwd: string): Promise<Ini
   };
 }
 
+/**
+ * The command to hand a newcomer.
+ *
+ * `verify` is the wrong one: it needs a baseline ref, so bare
+ * `effective verify` exits 2 with a usage error — init's own printed
+ * next step used to fail. `audit` is what a first run actually wants
+ * anyway: read-only, no ref, reports on the whole codebase rather than
+ * on a diff that does not exist yet.
+ */
 function nextStepCommand(pm: PackageManager): string {
-  if (pm === 'pnpm') return 'pnpm exec effective verify';
-  if (pm === 'yarn') return 'yarn effective verify';
-  return 'npx effective verify';
+  if (pm === 'pnpm') return 'pnpm exec effective audit';
+  if (pm === 'yarn') return 'yarn effective audit';
+  return 'npx effective audit';
 }

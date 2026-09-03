@@ -138,6 +138,12 @@ export type Verdict = z.infer<typeof Verdict>;
  *                      passed to `verify()`
  * - `toolchain-not-included` audit default; caller did not pass
  *                      `--include-toolchain` / `includeToolchain: true`
+ * - `toolchain-command-not-configured` the rule wraps a tool the
+ *                      project has not configured a command for. Firing
+ *                      CRITICAL here would fail a newcomer's clean diff
+ *                      over a gate they never asked for; staying silent
+ *                      would hide a real misconfiguration. So the rule
+ *                      is skipped and SAYS it was skipped.
  * - `category-excluded`  caller passed the rule's `category` in
  *                      `skipCategories`
  * - `rule-excluded`    caller passed the rule's id in `skipRules`
@@ -149,6 +155,7 @@ export const SkippedRule = z.object({
     'lane-no-scope',
     'meta-no-report',
     'toolchain-not-included',
+    'toolchain-command-not-configured',
     'category-excluded',
     'rule-excluded',
   ]),

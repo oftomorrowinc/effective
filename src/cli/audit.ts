@@ -84,6 +84,7 @@ function renderPretty(result: AuditResult): string {
       '  lane-no-scope: lane rules need a scope.editable to check against — audit has no scope.',
       '  meta-no-report: meta rules read an agent self-report; absent in audit.',
       '  toolchain-not-included: pass `--include-toolchain` to run lint/typecheck/test/coverage rules.',
+      '  toolchain-command-not-configured: no command configured for that tool in `toolchain` — the gate is absent, not passing.',
     );
   }
   lines.push(
