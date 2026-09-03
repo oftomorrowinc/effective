@@ -4,6 +4,7 @@ import path from 'node:path';
 
 import { resolveBaselineConstitution, unionProtectedPaths } from './config/baseline.js';
 import { toolchainCommandConfigured } from './toolchain/configured.js';
+import { applyToolFindingOverrides } from './rules/tool-overrides.js';
 import { checkRule } from './rules/check.js';
 import { ruleAppliesToRole } from './rules/selection.js';
 import { loadInlineSource } from './source/inline.js';
@@ -355,7 +356,10 @@ export async function verify(input: VerifyInput): Promise<VerifyResult> {
       }
     }
 
-    const deduped = dedupeBySignature(findings);
+    // Parser-emitted findings carry the parser's hardcoded severity;
+    // this is where a config `override` for a `tool:name` id reaches them.
+    const overridden = applyToolFindingOverrides(findings, resolved.toolFindingOverrides);
+    const deduped = dedupeBySignature(overridden);
     const escapeHatchCount = scanFilesForEscapeHatches(ctx.changedFiles).length;
     const disabledRulesCount = Object.keys(input.config.disable ?? {}).length;
     const verdict = computeVerdict(deduped);

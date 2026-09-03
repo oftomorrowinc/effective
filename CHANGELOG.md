@@ -134,6 +134,49 @@ project adheres to [Semantic Versioning](https://semver.org/).
   Found by the pre-publish five-agent review (H4), independently by two
   of its agents.
 
+- **Severity overrides now reach parser-emitted findings.** Findings a
+  parser produces — `coverage:lines-below-threshold`, `eslint:<rule>`,
+  `tsc:<code>` — carry severities the parser hardcodes. They are not
+  rules, so an `override` entry for one threw `override references
+unknown rule`, and overriding the _wrapping_ toolchain rule did not
+  help either: the parser finding carried its own severity into the
+  verdict. An adopter ratcheting coverage up from 62% could downgrade
+  `toolchain.coverage-meets-threshold` and still fail the run, with no
+  supported way out short of disabling the gate. Override ids of the
+  form `tool:name` are now accepted and applied to matching findings in
+  both `verify` and `audit`; a bare unknown id still throws, because a
+  typo is still a typo. Same class as the escape-hatch severity bug,
+  one layer down. (Review fix-soon, correctness F1.)
+- **The output-truncation notice names the cap and the command, and
+  fires on passing gates.** It previously appeared only on failures —
+  so the dangerous case, a gate that _passed_ over truncated output,
+  was the one case that said nothing. A truncated pass is not a
+  measurement, and now reports HIGH. (Review fix-soon, correctness F5.)
+- **A missing `zod` explains itself.** zod is a peer dependency, so
+  package managers that do not auto-install peers left consumers with a
+  raw `MODULE_NOT_FOUND` stack naming a package they never asked for.
+  The CLI now says what to install and why the dependency is a peer.
+  (Review fix-soon, release M.)
+
+### Changed
+
+- **This repo's own coverage-disable rationale was false; corrected.**
+  It claimed vitest enforces "the same per-metric thresholds" as the
+  rule. It does not: the parser gates a flat 90, `vitest.config.ts`
+  gates 80/60/85/80 (calibrated to how v8 counts arrow callbacks and
+  jiti-loaded modules), and the pre-push hook runs `pnpm test`, not
+  `pnpm test:coverage`. Disabling the rule here is still right — CI is
+  the load-bearing gate — but a constitution whose own rationale is
+  untrue is exactly the drift this project exists to catch.
+  (Review fix-soon, governance F5.)
+- **`docs/known-bugs.md` is no longer empty, deliberately.** Two review
+  findings are real, are not fixed, and are now written down rather
+  than dropped: catalogue rules with stubbed detection present as
+  active at the CLI surface (README discloses it; the tool does not),
+  and two mutation survivors in verify's finding assembly that mask
+  each other. An empty known-bugs file is a claim, and it should only
+  be made when it is true.
+
 ## [1.0.0] — 2026-09-03
 
 **effective leaves beta.** The version number is the whole message: the

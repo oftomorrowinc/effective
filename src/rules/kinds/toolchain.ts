@@ -34,8 +34,16 @@ function truncateLine(line: string): string {
  * exit code in that case is a generic signal kill, so without this line
  * a truncated run is indistinguishable from an ordinary failure.
  */
-const OVERFLOW_NOTICE =
-  'NOTE: the command produced more output than can be captured; it was terminated and the output below is truncated. This report may be incomplete.';
+/** Matches MAX_BUFFER_BYTES in src/toolchain/run.ts. */
+const OUTPUT_CAP_MIB = 50;
+
+function overflowNotice(result: ToolchainResult): string {
+  return (
+    `NOTE: \`${result.tool}\` produced more than ${String(OUTPUT_CAP_MIB)} MiB of output; ` +
+    'it was terminated and what follows is truncated, so this report may be incomplete. ' +
+    'Re-run the command directly, or narrow its reporter, to see the full result.'
+  );
+}
 
 function outputTail(result: ToolchainResult): string {
   const raw = result.stderr.trim().length > 0 ? result.stderr : result.stdout;
@@ -115,7 +123,22 @@ export function checkToolchain(rule: ToolchainRule, ctx: VerifyContext): Finding
     ];
   }
   if (!shouldFail(rule, result)) {
-    return result.findings ? [...result.findings] : [];
+    const passing = result.findings ? [...result.findings] : [];
+    // A gate that passed on truncated output did not measure what it
+    // claims to have measured. Previously the notice appeared only on
+    // failures, so the dangerous case — a silent pass over partial
+    // data — was the one case that said nothing.
+    if (result.overflowed === true) {
+      passing.push({
+        ruleId: rule.id,
+        severity: 'HIGH',
+        category: rule.category,
+        evidence: `${resultKey(rule)} output was truncated at ${String(OUTPUT_CAP_MIB)} MiB`,
+        message: `${resultKey(rule)} passed, but ${overflowNotice(result)}`,
+        source: { kind: 'toolchain', tool: rule.tool === 'custom' ? 'custom' : rule.tool },
+      });
+    }
+    return passing;
   }
   // Only include the raw-output tail when no parsed findings exist —
   // when the parser produced structured per-issue findings, the tail
@@ -128,7 +151,7 @@ export function checkToolchain(rule: ToolchainRule, ctx: VerifyContext): Finding
   // findings drawn from a truncated stream are incomplete too, and a
   // report that hides that reads as a full measurement.
   const extra: string[] = [];
-  if (result.overflowed === true) extra.push(OVERFLOW_NOTICE);
+  if (result.overflowed === true) extra.push(overflowNotice(result));
   if (tail.length > 0) extra.push(tail);
   const message =
     extra.length === 0

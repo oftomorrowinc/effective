@@ -24,8 +24,16 @@ export default defineConfig({
       'Pre-push hook runs `pnpm typecheck` directly; avoids worktree node_modules dependency.',
     'toolchain.tests-pass':
       'Pre-push hook runs `pnpm test` directly; avoids worktree node_modules dependency.',
+    // NB: "the same thresholds" was false and is corrected here. The
+    // parser gates a flat 90 across all four metrics; vitest.config.ts
+    // gates 80/60/85/80, calibrated to how v8 counts arrow callbacks
+    // and jiti-loaded modules. And the pre-push hook runs `pnpm test`,
+    // not `pnpm test:coverage`, so coverage is enforced in CI only.
+    // Disabling here is still right — CI is the load-bearing gate and
+    // running coverage twice through the worktree path buys nothing —
+    // but the rationale has to say what is actually true.
     'toolchain.coverage-meets-threshold':
-      'Vitest config already enforces the same per-metric thresholds at test time; running this through the worktree-isolated path would duplicate the work and require the worktree node_modules cache to be primed.',
+      "CI enforces coverage directly via `pnpm test:coverage`, against vitest.config.ts's per-metric thresholds (80/60/85/80, calibrated to v8 counting) rather than this rule's flat 90. Running it again through the worktree-isolated path would duplicate CI's work and require the worktree node_modules cache to be primed.",
   },
 
   // Exception registry — built-in templates spread with any project-
