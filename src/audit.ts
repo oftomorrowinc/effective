@@ -3,6 +3,7 @@ import path from 'node:path';
 import { resolveConstitution, resolveScope } from './resolve.js';
 import type { ResolveOptions, ResolvedConstitution } from './resolve.js';
 import { toolchainCommandConfigured } from './toolchain/configured.js';
+import { applyToolFindingOverrides } from './rules/tool-overrides.js';
 import { checkRule } from './rules/check.js';
 import { presets, builtInChecks } from './presets/index.js';
 import { compilePatterns } from './glob.js';
@@ -209,7 +210,8 @@ export async function audit(input: AuditInput): Promise<AuditResult> {
     findings.push(...ruleFindings);
   }
 
-  const deduped = dedupeBySignature(findings);
+  const overridden = applyToolFindingOverrides(findings, resolved.toolFindingOverrides);
+  const deduped = dedupeBySignature(overridden);
   const escapeHatchCount = scanFilesForEscapeHatches(changedFiles).length;
   const disabledRulesCount = Object.keys(input.config.disable ?? {}).length;
   return {

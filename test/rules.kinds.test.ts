@@ -140,6 +140,33 @@ describe('checkToolchain', () => {
     expect(aggregate?.message).toMatch(/truncated/);
   });
 
+  it('reports truncation on a PASSING gate — a truncated pass is not a measurement', () => {
+    const findings = checkToolchain(
+      baseRule,
+      ctx({ toolchainResults: { lint: tcResult({ exitCode: 0, overflowed: true }) } }),
+    );
+    expect(findings.length).toBe(1);
+    expect(findings[0]?.severity).toBe('HIGH');
+    expect(findings[0]?.message).toMatch(/truncated/);
+  });
+
+  it('names the cap and the tool in the truncation notice', () => {
+    const findings = checkToolchain(
+      baseRule,
+      ctx({ toolchainResults: { lint: tcResult({ exitCode: 128, overflowed: true }) } }),
+    );
+    expect(findings[0]?.message).toMatch(/50 MiB/);
+    expect(findings[0]?.message).toMatch(/`lint`/);
+  });
+
+  it('stays quiet on a passing gate that did not overflow', () => {
+    const findings = checkToolchain(
+      baseRule,
+      ctx({ toolchainResults: { lint: tcResult({ exitCode: 0 }) } }),
+    );
+    expect(findings).toEqual([]);
+  });
+
   it('says nothing about truncation on an ordinary failure', () => {
     const findings = checkToolchain(
       baseRule,

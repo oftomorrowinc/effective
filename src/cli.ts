@@ -109,6 +109,19 @@ async function main(): Promise<void> {
     process.exit(result.exitCode);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
+    // zod is a PEER dependency, so package managers that do not
+    // auto-install peers (yarn classic, npm with legacy settings) leave
+    // a consumer with a raw MODULE_NOT_FOUND stack naming a package
+    // they never asked for. Say the actionable thing instead.
+    if (/Cannot find (?:module|package) ['"]?zod/.test(message)) {
+      process.stderr.write(
+        'effective: zod is required but not installed.\n' +
+          '  effective declares zod as a peer dependency (>=3.22.0 <5) so you control the version.\n' +
+          '  Install it:  npm install zod    (or pnpm add zod / yarn add zod)\n',
+      );
+      // eslint-disable-next-line n/no-process-exit, unicorn/no-process-exit -- exception-id: cli-fatal-exit
+      process.exit(2);
+    }
     process.stderr.write(`effective: ${message}\n`);
     // eslint-disable-next-line n/no-process-exit, unicorn/no-process-exit -- exception-id: cli-fatal-exit
     process.exit(2);

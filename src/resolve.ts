@@ -6,6 +6,7 @@ import type {
   RuleCategory,
   RoleDefinition,
   Scope,
+  Severity,
   ToolchainConfig,
 } from './schemas.js';
 
@@ -30,6 +31,19 @@ export interface ResolvedConstitution {
    * is rare but valid.
    */
   readonly protectedPaths: readonly ProtectedPath[];
+
+  /**
+   * Severity overrides for findings a PARSER emits rather than a rule —
+   * `coverage:lines-below-threshold`, `eslint:<rule>`, `tsc:<code>` and
+   * friends. Those ids are namespaced `tool:name` and never appear in
+   * `rules`, so an `override` entry for one used to throw "unknown
+   * rule" while the parser's hardcoded severity stood. Overriding the
+   * wrapping toolchain rule did not help either: the parser finding
+   * carried its own severity into the verdict.
+   *
+   * Keyed by the full finding id.
+   */
+  readonly toolFindingOverrides: ReadonlyMap<string, Severity>;
 }
 
 export interface ResolveOptions {
@@ -97,6 +111,7 @@ function resolveWithStack(
   // same path. Insertion order is preserved by Map, which makes the
   // resulting list stable.
   const protectedPathMap = new Map<string, ProtectedPath>();
+  const toolFindingOverrides = new Map<string, Severity>();
 
   for (const presetName of config.extends ?? []) {
     // eslint-disable-next-line security/detect-object-injection -- exception-id: caller-validated-dynamic-key
@@ -123,6 +138,7 @@ function resolveWithStack(
     toolchain = { ...toolchain, ...presetResolved.toolchain };
     metaParts.push(presetResolved.meta);
     for (const entry of presetResolved.protectedPaths) protectedPathMap.set(entry.path, entry);
+    for (const [id, sev] of presetResolved.toolFindingOverrides) toolFindingOverrides.set(id, sev);
   }
 
   // Last-wins merging is deliberate ACROSS extends layers (a project
@@ -152,9 +168,17 @@ function resolveWithStack(
   for (const [id, override] of Object.entries(config.override ?? {})) {
     const rule = rules.get(id);
     if (!rule) {
+      // `tool:name` ids belong to parser-emitted findings, not rules.
+      // They are legitimate override targets; a bare unknown id is still
+      // a typo and still throws.
+      if (id.includes(':')) {
+        toolFindingOverrides.set(id, override.severity);
+        continue;
+      }
       throw new Error(
         `override references unknown rule "${id}". ` +
-          `Overrides must reference rule ids that exist after extends + this constitution's rules are merged.`,
+          `Overrides must reference rule ids that exist after extends + this constitution's rules are merged, ` +
+          `or a parser finding id of the form "tool:name" (e.g. "coverage:lines-below-threshold").`,
       );
     }
     rules.set(id, { ...rule, defaultSeverity: override.severity });
@@ -184,6 +208,7 @@ function resolveWithStack(
     toolchain,
     meta,
     protectedPaths: [...protectedPathMap.values()],
+    toolFindingOverrides,
   };
 }
 

@@ -67,6 +67,60 @@ tracking or to close as `cannot-reproduce` with a final note.
 
 ---
 
+## Catalogue rules with stubbed detection present as active at the CLI surface
+
+**The bug.** Fourteen catalogue rules ship prompt-projected with their
+detection stubbed — `checkRef` returns `[]`. They appear in
+`effective rules` with a live severity (CRITICAL or HIGH) and no marker,
+and `audit` counts them among the rules it evaluated. README § Status
+lists them honestly; the tool itself does not. An adopter reading
+`effective rules` reasonably concludes the rule is enforced.
+
+**Reported.** Pre-publish five-agent review, 2026-09-03 (governance
+agent, F4). Confirmed by inspection.
+
+**Reproduction.** Confirmed: run `effective rules` and compare the
+listing against README § Status.
+
+**Suspected cause.** (confirmed) Stub detection was a deliberate
+shipping strategy — the prompt projection is real and useful before the
+check exists — but nothing tags the rule as stubbed in the data model,
+so no surface can disclose what the docs disclose.
+
+**Next step.** Add a `detection: 'stubbed' | 'implemented'` marker to the
+rule shape, surface it in `rules` output and in audit's summary, and
+generate README § Status from it so the two cannot drift. Deferred past
+1.0.0 because it is additive (a new optional field plus presentation),
+so it lands in a 1.x without breaking the frozen schema.
+
+**Workaround.** README § Status is accurate; treat it as authoritative
+over the CLI listing until this lands.
+
+## Two mutation survivors in `verify`'s finding assembly
+
+**The bug.** The unconsumed-toolchain-findings fold-in and
+`dedupeBySignature` can each be deleted individually with the full suite
+still green — they mask each other. Whichever one is removed, the other
+produces the same observable output for every case the tests cover.
+
+**Reported.** Pre-publish five-agent review, 2026-09-03 (correctness
+agent, F4). Verified by the reviewer running the deletions.
+
+**Reproduction.** Confirmed: delete either block, run `pnpm test`,
+observe 520/520 still passing.
+
+**Suspected cause.** (confirmed) No test constructs the case that
+distinguishes them — a duplicate finding arriving from BOTH a rule and
+an unconsumed parser result, where dedupe is what collapses it.
+
+**Next step.** Write the distinguishing fixture, then pin both paths
+separately. The behavior is believed correct; what is missing is the
+test that would notice if it stopped being correct. Coverage is not the
+gap — both lines execute; equivalence is.
+
+**Workaround.** None needed; no known incorrect output. This is a
+regression-net hole, not a live defect.
+
 ## Future additions
 
 This section is a placeholder. New bug reports — surfaced during
