@@ -156,7 +156,29 @@ function lintReporterFlag(framework: LintFramework | undefined): string | undefi
 function testReporterFlag(framework: TestFramework | undefined): string | undefined {
   if (framework === 'vitest') return '--reporter json';
   if (framework === 'jest') return '--json';
-  if (framework === 'node-test') return '--test-reporter spec';
+  // TAP, not spec: `parseNodeTest` recognizes failures from `not ok` lines.
+  // Spec output yields zero parsed failures, which is a silently green gate.
+  if (framework === 'node-test') return '--test-reporter tap';
+  return undefined;
+}
+
+/**
+ * Where every JSON coverage reporter writes its summary. The reporters
+ * emit a FILE, not stdout, so the generated command has to cat it —
+ * see `composeCoverageCommand`.
+ */
+const COVERAGE_SUMMARY_PATH = 'coverage/coverage-summary.json';
+
+/**
+ * The reporter flag that makes a framework emit `coverage-summary.json`
+ * (the shape `parseV8` / `parseIstanbul` read). Returns undefined for
+ * frameworks with no such reporter — node's built-in coverage emits
+ * lcov/text only, so the gate degrades to the command's exit code
+ * rather than parsing a report that was never produced.
+ */
+function coverageReporterFlag(framework: TestFramework | undefined): string | undefined {
+  if (framework === 'vitest') return '--coverage.reporter=json-summary';
+  if (framework === 'jest') return '--coverageReporters=json-summary';
   return undefined;
 }
 
@@ -179,6 +201,43 @@ function composeCommand(pm: PackageManager, scriptName: string, forwardedFlag?: 
   }
   if (pm === 'npm') return `npm run ${scriptName} -- ${forwardedFlag}`;
   return `${pm} ${scriptName} ${forwardedFlag}`;
+}
+
+/**
+ * The coverage command needs the coverage summary on STDOUT, because
+ * that is where the parser reads it — but the json-summary reporters
+ * write a file. So the generated command runs the reporter and cats
+ * what it wrote. Without a coverage reporter for the framework, the
+ * bare script runs and the gate falls back to its exit code.
+ */
+function composeCoverageCommand(
+  pm: PackageManager,
+  scriptName: string,
+  framework: TestFramework | undefined,
+): string {
+  const flag = coverageReporterFlag(framework);
+  const base = composeCommand(pm, scriptName, flag);
+  if (flag === undefined) return base;
+  return `${base} && cat ${COVERAGE_SUMMARY_PATH}`;
+}
+
+/**
+ * Parser hints for what init detected, emitted only where the detected
+ * framework differs from the engine default (eslint / tsc / vitest / v8)
+ * — otherwise the engine would parse, say, jest output with the vitest
+ * parser and see no failures. `biome` and `oxlint` have no parser yet;
+ * the honest hint degrades those to exit-code gating instead of
+ * mis-parsing their output as eslint's.
+ */
+function buildParserLines(ctx: InitContext): string[] {
+  const lines: string[] = [];
+  if (ctx.lintFramework !== undefined && ctx.lintFramework !== 'eslint') {
+    lines.push(`      lint: ${tsString(ctx.lintFramework)},`);
+  }
+  if (ctx.testFramework !== undefined && ctx.testFramework !== 'vitest') {
+    lines.push(`      test: ${tsString(ctx.testFramework)},`);
+  }
+  return lines;
 }
 
 function buildToolchainBlock(ctx: InitContext): {
@@ -210,8 +269,14 @@ function buildToolchainBlock(ctx: InitContext): {
     lines.push(`    test: ${tsString(cmd)},`);
   }
   if (ctx.scripts.coverage !== undefined) {
-    const cmd = composeCommand(ctx.pm, ctx.scripts.coverage, testReporterFlag(ctx.testFramework));
+    const cmd = composeCoverageCommand(ctx.pm, ctx.scripts.coverage, ctx.testFramework);
     lines.push(`    coverage: ${tsString(cmd)},`);
+  }
+  if (lines.length > 0) {
+    const parserLines = buildParserLines(ctx);
+    if (parserLines.length > 0) {
+      lines.push('    parsers: {', ...parserLines, '    },');
+    }
   }
   return { lines, ambiguityComments };
 }
@@ -245,6 +310,11 @@ ${exportStmt} defineConfig({
   // How to run your toolchain. Detected from package.json scripts and
   // devDependencies. Reporter flags are appended for the JSON parsers
   // \`effective\` ships; if a script already emits JSON, the flag is harmless.
+  // The coverage command cats \`coverage-summary.json\` because the parser
+  // reads stdout while the reporters write a file. A \`parsers\` block appears
+  // only when the detected tool differs from the default (eslint / tsc /
+  // vitest / v8); \`biome\` and \`oxlint\` have no parser yet, so those hints
+  // degrade the gate to the command's exit code rather than mis-parsing.
 ${toolchainBlock}
 
   // Disable rules that don't fit your project. Rationale required.
