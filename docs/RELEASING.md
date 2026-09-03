@@ -144,6 +144,18 @@ git push origin vX.Y.Z
 Tag **after** merge, **on main** — tags on unmerged feature branches
 point at commits that squash-merges may discard.
 
+**Moving a tag.** Normally you don't: a tag is a promise about a commit.
+The one case where moving it is legitimate is a tag that was cut but
+**never published** — the publish is what makes a version real, so an
+unpublished tag has no consumer and froze nothing. That happened at
+1.0.0: the tag was cut, a pre-publish review returned HOLD with four
+release-blocking findings, and the fixes landed before any publish.
+Moving the tag was right there, because the alternative was shipping a
+1.0.0 whose schema had "frozen" a shape we had already decided was
+wrong. Confirm with `npm view <pkg> versions` that the version is
+genuinely absent from the registry before moving anything; once
+published, a version is immutable and the answer is a new one.
+
 A tag push normally skips the local pre-push gate, because
 `scripts/pre-push.ts` checks whether every commit being pushed is
 already on the remote — a tag on a merged commit adds no new history,

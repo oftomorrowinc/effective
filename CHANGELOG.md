@@ -6,71 +6,80 @@ project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-### Fixed
+## [1.0.0] — 2026-09-03
 
-- **A diff can no longer disarm the constitution that judges it.**
-  `verify` resolved its config from the working tree — the WORK side of
-  the comparison — and protected paths came from that config. So a
-  single commit could set `protected: []` and edit a protected file in
-  the same breath, and the run passed with `verdict: pass, findings: 0`:
-  the diff deleted the rule that would have caught it. This held in
-  local verify and in CI's own self-application step, and it falsified
-  the guarantee `docs/decisions.md` stated in those words —
-  "`protected-paths-respected` fires. Always."
+**effective leaves beta.** The version number is the whole message: the
+API is stable, and the project is inviting contributors who need that
+promise before they build against it.
 
-  Two changes make the sentence true. **The protections are the
-  baseline's**: a git-source run now also resolves the config as of the
-  baseline ref and holds the diff to the union of what was protected
-  before and what the diff protects now, so adding protection is
-  immediate while removing it takes effect on the next diff, after a
-  reviewer has seen the removal. And **the constitution protects
-  itself, structurally** — the entry covering the config file does not
-  come from the `protected` list, so emptying that list cannot remove
-  it, and the attempt to disarm is itself always a finding.
+What 1.0.0 asserts is narrow and worth stating exactly. The exported
+functions (`prepare`, `verify`, `audit`, `kickBack`), the exported
+schemas and types, the five CLI commands and their flags, and the
+config shape `defineConfig` accepts will not break inside the 1.x
+line. What it does **not** assert is that the catalogue is finished —
+part of it still ships prompt-projected with detection stubbed, and
+the README's Status section names every rule on each side of that
+line. A stable interface around a growing catalogue is the honest
+description, and it is the one the docs now give.
 
-  A baseline config that exists but cannot be resolved now fails closed
-  with a CRITICAL (`governance.baseline-constitution-unreadable`)
-  instead of falling back to the work side; that fallback is the same
-  bypass wearing a different hat. An absent baseline config is treated
-  as first adoption, not failure. Deleting the config outright leaves
-  `verify` unable to run at all — exit 2, loudly.
+Getting here meant closing the repo's own exit criteria rather than
+declaring them closed:
 
-  The general principle is worth more than the fix: a rule that reads
-  its own configuration from the thing it is judging is not a rule.
-  Found by the pre-publish five-agent review (H1).
+- **The known bugs were fixed rather than reclassified** — the
+  severity-override bug, the `init` scaffolding that produced
+  silently-decorative gates, and the invisible output-buffer overflow,
+  all with repro-first tests. `docs/known-bugs.md` does not ship empty:
+  a pre-publish review surfaced two further defects that are real, are
+  not fixed here, and are written down with repro, cause and next step
+  instead. An empty known-bugs file is a claim, and it should only be
+  made when it is true.
+- **Every entry in `docs/open-issues.md` carries a stamp**, and six of
+  them were decided outright and written up in `docs/decisions.md`.
+  The file can now distinguish deferred-by-decision from
+  deferred-by-drift, which is the distinction a 1.0 stands on.
+- **The docs were re-read against what a stranger actually meets** —
+  which turned up a documented setup command that did not work and a
+  governance workflow an outside contributor could not physically
+  follow.
+- **Every change in this release went through effective's own
+  governance machinery**, protected-path refusals and `governance`
+  labels included. Where a bypass was authorized, the PR body says so.
+  A project that enforces a constitution should be visible obeying it.
 
-- **The pre-push fast path no longer trusts ref names.** The gate
-  skipped whenever every REMOTE ref in a push was under `refs/tags/`.
-  That reads the destination, which the pusher chooses:
-  `git push origin my-branch:refs/tags/v9.9.9` printed "tag-only push —
-  skipping the gate" and uploaded never-verified commits. Since tag
-  pushes also triggered no CI, that was a complete zero-check path from
-  a working copy to the remote. The predicate is now about content, not
-  naming: a push skips only when every commit in it is already on the
-  remote, which a genuine tag push satisfies and a spoofed one does
-  not. Anything unprovable — a git failure, unreadable stdin, a
-  malformed ref line — runs the full gate. Ten tests pin the truth
-  table, including one that asserts the sha is passed as a rev rather
-  than after a `--`, where git reads it as a pathspec and the guard
-  silently becomes a rubber stamp (a bug this fix hit in development).
-- **Tag pushes now run CI** (`tags: ['v*']`). A release is cut from a
-  tag and published from a tag, so "the commits were gated when they
-  landed" is now verified rather than assumed.
-- **Applying the `governance` label re-runs CI.** CONTRIBUTING told
-  contributors the label would trigger a re-run with `--governance-pr`;
-  the workflow had no `labeled` trigger, so the only working path was
-  an extra push. Added `labeled` — and `unlabeled`, so removing the
-  label re-gates the PR rather than leaving elevation in place after
-  the marker that justified it is gone.
-
-### Changed
-
-- The pre-push hook is `scripts/pre-push.ts`, run through `tsx`
-  (matching the other two hooks, which already go through `pnpm exec`).
-  The predicate it guards is security-relevant and now has real types
-  and real tests; a `.mjs` file could carry neither.
+- **The publish was held for a five-agent pre-publish review**, which
+  returned two HOLDs against a green build. Every mechanical claim
+  verified — but the machinery does not ask whether a diff can disarm
+  the constitution judging it, whether a push can be spelled as a tag,
+  whether a valid exception citation means anything, or whether the
+  documented first run works. It could not: nothing had thought to
+  test those. All four are fixed below, each proven by reproducing it
+  against the original tag first.
 
 ### Added
+
+- **`--governance-pr` is the supported elevation path** for PRs whose
+  purpose IS a protected-path edit (shipped in rc.8, now the documented
+  answer rather than an experiment). Protected-path findings move out
+  of the gating set and into a printed `Governance changes` section;
+  everything else in the diff still gates. CI applies it when the PR
+  carries the `governance` label, so elevation is a deliberate human
+  act with a public marker.
+
+- **`src/presets/**` is now a protected path.\*\* The config that selects
+  the rules was governed while the rules themselves were not — a PR
+  could narrow a CRITICAL rule's glob with no review surface. Closing
+  that asymmetry was gated on an elevation valve existing; it does now.
+
+- **A pinned checklist says the rest of the constitution still
+  applies.** `prepare()` narrows the Pre-Success Checklist to
+  `scope.relatedRules` when a scope pins them, but `verify()` has
+  always checked every resolved rule — so a finding could cite a rule
+  the prompt never showed, against a prompt that said the rules above
+  would be checked. The checklist now carries a one-line footer on
+  pinned scopes. The gate is unchanged; the prompt stops describing a
+  narrower one.
+
+- **`RunResult.overflowed`** — see Fixed.
 
 - **Exceptions can be bound to paths and rules — and 1.0.0 freezes that
   shape.** A validly cited exception used to silence any suppression
@@ -147,11 +156,13 @@ unknown rule`, and overriding the _wrapping_ toolchain rule did not
   both `verify` and `audit`; a bare unknown id still throws, because a
   typo is still a typo. Same class as the escape-hatch severity bug,
   one layer down. (Review fix-soon, correctness F1.)
+
 - **The output-truncation notice names the cap and the command, and
   fires on passing gates.** It previously appeared only on failures —
   so the dangerous case, a gate that _passed_ over truncated output,
   was the one case that said nothing. A truncated pass is not a
   measurement, and now reports HIGH. (Review fix-soon, correctness F5.)
+
 - **A missing `zod` explains itself.** zod is a peer dependency, so
   package managers that do not auto-install peers left consumers with a
   raw `MODULE_NOT_FOUND` stack naming a package they never asked for.
@@ -159,99 +170,6 @@ unknown rule`, and overriding the _wrapping_ toolchain rule did not
   (Review fix-soon, release M.)
 
 ### Changed
-
-- **This repo's own coverage-disable rationale was false; corrected.**
-  It claimed vitest enforces "the same per-metric thresholds" as the
-  rule. It does not: the parser gates a flat 90, `vitest.config.ts`
-  gates 80/60/85/80 (calibrated to how v8 counts arrow callbacks and
-  jiti-loaded modules), and the pre-push hook runs `pnpm test`, not
-  `pnpm test:coverage`. Disabling the rule here is still right — CI is
-  the load-bearing gate — but a constitution whose own rationale is
-  untrue is exactly the drift this project exists to catch.
-  (Review fix-soon, governance F5.)
-- **`docs/known-bugs.md` is no longer empty, deliberately.** Two review
-  findings are real, are not fixed, and are now written down rather
-  than dropped: catalogue rules with stubbed detection present as
-  active at the CLI surface (README discloses it; the tool does not),
-  and two mutation survivors in verify's finding assembly that mask
-  each other. An empty known-bugs file is a claim, and it should only
-  be made when it is true.
-
-## [1.0.0] — 2026-09-03
-
-**effective leaves beta.** The version number is the whole message: the
-API is stable, and the project is inviting contributors who need that
-promise before they build against it.
-
-What 1.0.0 asserts is narrow and worth stating exactly. The exported
-functions (`prepare`, `verify`, `audit`, `kickBack`), the exported
-schemas and types, the five CLI commands and their flags, and the
-config shape `defineConfig` accepts will not break inside the 1.x
-line. What it does **not** assert is that the catalogue is finished —
-part of it still ships prompt-projected with detection stubbed, and
-the README's Status section names every rule on each side of that
-line. A stable interface around a growing catalogue is the honest
-description, and it is the one the docs now give.
-
-Getting here meant closing the repo's own exit criteria rather than
-declaring them closed:
-
-- **`docs/known-bugs.md` ships empty**, by fixing rather than
-  reclassifying. The severity-override bug, the `init` scaffolding
-  that produced silently-decorative gates, and the invisible
-  output-buffer overflow all landed with repro-first tests.
-- **Every entry in `docs/open-issues.md` carries a stamp**, and six of
-  them were decided outright and written up in `docs/decisions.md`.
-  The file can now distinguish deferred-by-decision from
-  deferred-by-drift, which is the distinction a 1.0 stands on.
-- **The docs were re-read against what a stranger actually meets** —
-  which turned up a documented setup command that did not work and a
-  governance workflow an outside contributor could not physically
-  follow.
-- **Every change in this release went through effective's own
-  governance machinery**, protected-path refusals and `governance`
-  labels included. Where a bypass was authorized, the PR body says so.
-  A project that enforces a constitution should be visible obeying it.
-
-### Added
-
-- **`--governance-pr` is the supported elevation path** for PRs whose
-  purpose IS a protected-path edit (shipped in rc.8, now the documented
-  answer rather than an experiment). Protected-path findings move out
-  of the gating set and into a printed `Governance changes` section;
-  everything else in the diff still gates. CI applies it when the PR
-  carries the `governance` label, so elevation is a deliberate human
-  act with a public marker.
-- **`src/presets/**` is now a protected path.\*\* The config that selects
-  the rules was governed while the rules themselves were not — a PR
-  could narrow a CRITICAL rule's glob with no review surface. Closing
-  that asymmetry was gated on an elevation valve existing; it does now.
-- **A pinned checklist says the rest of the constitution still
-  applies**, so `prepare()` stops promising a narrower gate than the
-  one `verify()` runs.
-- **`RunResult.overflowed`** — see Fixed.
-
-- **A pinned checklist says the rest of the constitution still
-  applies.** `prepare()` narrows the Pre-Success Checklist to
-  `scope.relatedRules` when a scope pins them, but `verify()` has
-  always checked every resolved rule — so a finding could cite a rule
-  the prompt never showed, against a prompt that said the rules above
-  would be checked. The checklist now carries a one-line footer on
-  pinned scopes. The gate is unchanged; the prompt stops describing a
-  narrower one.
-
-### Changed
-
-- **`docs/RELEASING.md` rewritten for stable semver**, including the
-  rule that catches people: a rule change is an API change. The manual
-  `npm dist-tag add` step is retired — a stable publish moves `latest`
-  by itself.
-- **`docs/open-issues.md` gained a stamp vocabulary** and a rule that
-  an unstamped entry is a bug in the file.
-- **`docs/decisions.md` gained six sections** recording the 1.0.0
-  policy decisions with their reasoning.
-- **CONTRIBUTING corrected** on four counts a first-time contributor
-  would have hit.
 
 - **`docs/RELEASING.md` rewritten for stable semver.** The runbook was
   written for the rc series and still described the dist-tag dance its
@@ -332,6 +250,29 @@ effective audit` fails with `Command "effective" not found` inside
   - **Elevated / governance-PR mode** — closed as shipped in rc.8; its
     residual persisted-audit-trail question stays open and stamped.
 
+- The pre-push hook is `scripts/pre-push.ts`, run through `tsx`
+  (matching the other two hooks, which already go through `pnpm exec`).
+  The predicate it guards is security-relevant and now has real types
+  and real tests; a `.mjs` file could carry neither.
+
+- **This repo's own coverage-disable rationale was false; corrected.**
+  It claimed vitest enforces "the same per-metric thresholds" as the
+  rule. It does not: the parser gates a flat 90, `vitest.config.ts`
+  gates 80/60/85/80 (calibrated to how v8 counts arrow callbacks and
+  jiti-loaded modules), and the pre-push hook runs `pnpm test`, not
+  `pnpm test:coverage`. Disabling the rule here is still right — CI is
+  the load-bearing gate — but a constitution whose own rationale is
+  untrue is exactly the drift this project exists to catch.
+  (Review fix-soon, governance F5.)
+
+- **`docs/known-bugs.md` is no longer empty, deliberately.** Two review
+  findings are real, are not fixed, and are now written down rather
+  than dropped: catalogue rules with stubbed detection present as
+  active at the CLI surface (README discloses it; the tool does not),
+  and two mutation survivors in verify's finding assembly that mask
+  each other. An empty known-bugs file is a claim, and it should only
+  be made when it is true.
+
 ### Fixed
 
 - **Output-buffer overflow is no longer invisible to callers.** When a
@@ -385,6 +326,63 @@ effective audit` fails with `Command "effective" not found` inside
   by the external Python+JS pilot during the rc.5→rc.6 cycle and
   tracked in `docs/known-bugs.md` until now.
 
+- **A diff can no longer disarm the constitution that judges it.**
+  `verify` resolved its config from the working tree — the WORK side of
+  the comparison — and protected paths came from that config. So a
+  single commit could set `protected: []` and edit a protected file in
+  the same breath, and the run passed with `verdict: pass, findings: 0`:
+  the diff deleted the rule that would have caught it. This held in
+  local verify and in CI's own self-application step, and it falsified
+  the guarantee `docs/decisions.md` stated in those words —
+  "`protected-paths-respected` fires. Always."
+
+  Two changes make the sentence true. **The protections are the
+  baseline's**: a git-source run now also resolves the config as of the
+  baseline ref and holds the diff to the union of what was protected
+  before and what the diff protects now, so adding protection is
+  immediate while removing it takes effect on the next diff, after a
+  reviewer has seen the removal. And **the constitution protects
+  itself, structurally** — the entry covering the config file does not
+  come from the `protected` list, so emptying that list cannot remove
+  it, and the attempt to disarm is itself always a finding.
+
+  A baseline config that exists but cannot be resolved now fails closed
+  with a CRITICAL (`governance.baseline-constitution-unreadable`)
+  instead of falling back to the work side; that fallback is the same
+  bypass wearing a different hat. An absent baseline config is treated
+  as first adoption, not failure. Deleting the config outright leaves
+  `verify` unable to run at all — exit 2, loudly.
+
+  The general principle is worth more than the fix: a rule that reads
+  its own configuration from the thing it is judging is not a rule.
+  Found by the pre-publish five-agent review (H1).
+
+- **The pre-push fast path no longer trusts ref names.** The gate
+  skipped whenever every REMOTE ref in a push was under `refs/tags/`.
+  That reads the destination, which the pusher chooses:
+  `git push origin my-branch:refs/tags/v9.9.9` printed "tag-only push —
+  skipping the gate" and uploaded never-verified commits. Since tag
+  pushes also triggered no CI, that was a complete zero-check path from
+  a working copy to the remote. The predicate is now about content, not
+  naming: a push skips only when every commit in it is already on the
+  remote, which a genuine tag push satisfies and a spoofed one does
+  not. Anything unprovable — a git failure, unreadable stdin, a
+  malformed ref line — runs the full gate. Ten tests pin the truth
+  table, including one that asserts the sha is passed as a rev rather
+  than after a `--`, where git reads it as a pathspec and the guard
+  silently becomes a rubber stamp (a bug this fix hit in development).
+
+- **Tag pushes now run CI** (`tags: ['v*']`). A release is cut from a
+  tag and published from a tag, so "the commits were gated when they
+  landed" is now verified rather than assumed.
+
+- **Applying the `governance` label re-runs CI.** CONTRIBUTING told
+  contributors the label would trigger a re-run with `--governance-pr`;
+  the workflow had no `labeled` trigger, so the only working path was
+  an extra push. Added `labeled` — and `unlabeled`, so removing the
+  label re-gates the PR rather than leaving elevation in place after
+  the marker that justified it is gone.
+
 ### Security
 
 - **Transitive devDependency advisories cleared ahead of 1.0.0.** CI's
@@ -400,7 +398,14 @@ effective audit` fails with `Command "effective" not found` inside
   versions via `pnpm.overrides` rather than bumping devDependency
   majors on the eve of a stable release: 21 advisories (19 HIGH,
   1 MODERATE, 1 LOW) to zero, with lint, typecheck, 509 tests, build,
-  jscpd, knip, dependency-cruiser and `pack:check` all still green.
+  jscpd, knip, dependency-cruiser and `pack:check` all still green. A
+  further advisory (`fflate`, reached through `@arethetypeswrong/cli`)
+  published during this release cycle itself and was cleared by
+  updating that tool to 0.18.5 — forcing the transitive via
+  `pnpm.overrides` also cleared the advisory but broke `attw`, so the
+  tool bump is the honest fix. This is the whole argument for keeping
+  `pnpm audit:ci` in the release preconditions rather than trusting
+  the last green run.
 
 ## [0.1.0-rc.8] — 2026-07-07
 
