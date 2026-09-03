@@ -442,7 +442,7 @@ describe('runInitCommand — stdout', () => {
   it('includes the first-run slowness note', async () => {
     await withFixture({ tsconfig: true }, async (dir) => {
       const result = await runInitCommand(parseArgs(['init']), dir);
-      expect(result.stdout).toContain('first verify will be slower');
+      expect(result.stdout).toContain('first verify is');
       expect(result.stdout).toContain('1-5 minutes');
     });
   });
@@ -450,7 +450,9 @@ describe('runInitCommand — stdout', () => {
   it('suggests the right next-step command per package manager', async () => {
     await withFixture({ tsconfig: true, lockfile: 'pnpm' }, async (dir) => {
       const result = await runInitCommand(parseArgs(['init']), dir);
-      expect(result.stdout).toContain('pnpm exec effective verify');
+      // init's printed next step must be RUNNABLE: bare `verify` exits 2
+      // (it needs a baseline ref), so a newcomer's first instruction failed.
+      expect(result.stdout).toContain('pnpm exec effective audit');
     });
   });
 });

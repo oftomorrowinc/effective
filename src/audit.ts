@@ -1,7 +1,8 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { resolveConstitution, resolveScope } from './resolve.js';
-import type { ResolveOptions } from './resolve.js';
+import type { ResolveOptions, ResolvedConstitution } from './resolve.js';
+import { toolchainCommandConfigured } from './toolchain/configured.js';
 import { checkRule } from './rules/check.js';
 import { presets, builtInChecks } from './presets/index.js';
 import { compilePatterns } from './glob.js';
@@ -100,11 +101,20 @@ function withBuiltInPresets(options: ResolveOptions): ResolveOptions {
   };
 }
 
-function shouldSkip(rule: Rule, includeToolchain: boolean): SkippedRule['reason'] | undefined {
+function shouldSkip(
+  rule: Rule,
+  includeToolchain: boolean,
+  toolchain: ResolvedConstitution['toolchain'],
+): SkippedRule['reason'] | undefined {
   if (rule.diffOnly === true) return 'diff-only';
   if (rule.kind === 'lane') return 'lane-no-scope';
   if (rule.kind === 'meta') return 'meta-no-report';
   if (rule.kind === 'toolchain' && !includeToolchain) return 'toolchain-not-included';
+  // A tool the project never configured a command for is not a failure
+  // to report; it is a gate that does not exist here. Skipped, and said.
+  if (rule.kind === 'toolchain' && !toolchainCommandConfigured(rule, toolchain)) {
+    return 'toolchain-command-not-configured';
+  }
   return undefined;
 }
 
@@ -190,7 +200,7 @@ export async function audit(input: AuditInput): Promise<AuditResult> {
 
   for (const rule of resolved.rules.values()) {
     if (input.onlyRuleId !== undefined && rule.id !== input.onlyRuleId) continue;
-    const skipReason = shouldSkip(rule, input.includeToolchain ?? false);
+    const skipReason = shouldSkip(rule, input.includeToolchain ?? false, resolved.toolchain);
     if (skipReason !== undefined) {
       skipped.push({ ruleId: rule.id, reason: skipReason });
       continue;

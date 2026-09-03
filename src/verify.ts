@@ -3,6 +3,7 @@ import type { ResolveOptions, ResolvedConstitution, ProtectedPath } from './reso
 import path from 'node:path';
 
 import { resolveBaselineConstitution, unionProtectedPaths } from './config/baseline.js';
+import { toolchainCommandConfigured } from './toolchain/configured.js';
 import { checkRule } from './rules/check.js';
 import { ruleAppliesToRole } from './rules/selection.js';
 import { loadInlineSource } from './source/inline.js';
@@ -330,6 +331,10 @@ export async function verify(input: VerifyInput): Promise<VerifyResult> {
       }
       if (skipCategorySet.has(rule.category)) {
         skipped.push({ ruleId: rule.id, reason: 'category-excluded' });
+        continue;
+      }
+      if (rule.kind === 'toolchain' && !toolchainCommandConfigured(rule, resolved.toolchain)) {
+        skipped.push({ ruleId: rule.id, reason: 'toolchain-command-not-configured' });
         continue;
       }
       if (!ruleAppliesToRole(rule, scope.role)) continue;
