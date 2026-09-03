@@ -17,6 +17,7 @@ for the cases where the right answer is genuinely unclear.
 Use this format:
 
 - Title with status tag: `## [Bug | Precision | Design | Feature] <short title>`
+- `**Stamp:**` line — see below
 - Opener: `**The bug.**` or `**The question.**`
 - Context paragraphs explaining what was observed and where
 - Numbered candidate paths (`1. ...`, `2. ...`, `3. ...`)
@@ -30,8 +31,27 @@ Tag meanings:
 - `[Design]` — a real open question about the constitution's shape; needs decision
 - `[Feature]` — a deferred capability with an established adopter need
 
-New entries go above the "Other items observed but not yet pressing"
-section near the bottom.
+## Stamps
+
+Every entry in this file carries a stamp. The stamp is the difference
+between deferred-by-decision and deferred-by-drift — a 1.0 can ship
+the first and cannot honestly ship the second. Introduced in the
+1.0.0 triage (2026-09-03), when every entry then open was stamped.
+
+- **`post-1.0 — <milestone>`** — deliberately deferred to a named
+  milestone. The stamp says WHY it is safe to defer: the workaround
+  that exists, the reason the gate stays sound without it, or the
+  evidence the decision is waiting on. "We didn't get to it" is not
+  a reason; if that is the true one, the entry wants a different
+  stamp.
+- **`decide-now`** — the answer ships in or before the named release.
+  A decide-now entry is transient: it leaves this file as soon as the
+  decision is written down.
+- **`closed — <reason>`** — won't do, or overtaken by events. The
+  entry leaves the file; the reason lands in the commit and, if it is
+  a decision anyone will need to re-read, in `docs/decisions.md`.
+
+An entry with no stamp is a bug in this file.
 
 **Entry lifecycle.** When an item moves from "open issue" to "decided,
 in flight," remove it from this file and capture the decision in
@@ -42,7 +62,10 @@ audit trail of each entry's history lives in git.
 ## Table of contents
 
 Grouped by status tag. Body order below stays chronological so the
-audit trail of when each issue surfaced is preserved.
+audit trail of when each issue surfaced is preserved. Every entry
+below is stamped `post-1.0`; the entries decided during the 1.0.0
+triage left this file for `docs/decisions.md` (see "Decided in the
+1.0.0 triage" at the bottom).
 
 ### Bugs
 
@@ -56,18 +79,12 @@ _No bug entries currently tracked here — bugs awaiting reproduction live in `d
 
 ### Design
 
-- [Formalizing the agent vs human protected-path workflow](#design-formalizing-the-agent-vs-human-protected-path-workflow)
 - [verify --against main semantics on long-lived integration branches](#design-verify---against-main-semantics-on-long-lived-integration-branches)
-- [Elevated / governance-PR mode for protected-path edits](#design-elevated--governance-pr-mode-for-protected-path-edits)
-- [Block-weakening vs block-every-edit on protected configs](#design-block-weakening-vs-block-every-edit-on-protected-configs)
-- [Should src/presets/\*\* rule definitions be protected paths?](#design-should-srcpresets-rule-definitions-be-protected-paths)
 - [Audit walker built-in skips can hide tracked code](#design-audit-walker-built-in-skips-can-hide-tracked-code-dot-entries-basename-anywhere-ignored-dirs)
 - [Content-scanner hardening: file-size caps, regex budget, region-classifier limits](#design-content-scanner-hardening-file-size-caps-regex-budget-region-classifier-limits)
-- [verify() ignores scope.relatedRules while prepare() honors it](#design-verify-ignores-scoperelatedrules-while-prepare-honors-it)
 
 ### Feature
 
-- [Baseline / ratchet for existing-codebase adoption](#feature-baseline--ratchet-for-existing-codebase-adoption)
 - [Modular governance-only preset](#feature-modular-governance-only-preset)
 - [Configurable coverage threshold](#feature-configurable-coverage-threshold)
 
@@ -77,78 +94,15 @@ _No bug entries currently tracked here — bugs awaiting reproduction live in `d
 
 ---
 
-## [Design] Formalizing the agent vs human protected-path workflow
-
-**The convention today**: protected-path edits (e.g., `package.json`
-version bumps, `tsconfig.json` paths) require `--no-verify` to push
-because the pre-push hook fires CRITICAL on the diff. The convention
-that's emerged across rc.2 → rc.5:
-
-- **Human path**: edits a protected file, pushes with `--no-verify`
-  citing rationale in the commit message. PR review + CI gate +
-  reviewer-pass (future) are the load-bearing layers; `--no-verify`
-  on the human's local push is ergonomics.
-- **Agent path**: never `--no-verify` on a protected-path push. The
-  agent flags the constitutional change needed, the human runs the
-  push with elevation.
-
-This is captured in three places informally:
-
-- `CONTRIBUTING.md § "The two-path constitutional-change workflow"`
-- `docs/reviewer-spec-forward.md § "What the reviewer checks on
-protected-path edits"`
-- Conversation memory (`feedback_governance_layering.md`)
-
-**Gap found and closed (2026-07-07)**: the pre-push hook verified
-`--against HEAD~1` — the tip commit only — so a protected-path edit
-buried one commit deep sailed through the agent-side gate: any
-subsequent innocuous commit would carry it to the remote unchecked.
-The hook now verifies `--against origin/main` (the full outgoing
-range), matching what CI checks and what the maintainer runs by hand.
-Consequence: on a branch that already contains an elevated
-constitutional commit, every later push re-fires the CRITICAL locally
-until merge — the human `--no-verify` path covers those pushes, and
-the CI gate (with `--governance-pr` + label) remains load-bearing.
-
-**The question**: is informal capture sufficient, or should this be a
-first-class part of effective's surface? Options:
-
-1. **Leave as-is.** The convention is documented in
-   `CONTRIBUTING.md`; agent tooling that reads
-   `docs/agent-prompt.md` already gets the right framing. New
-   adopters infer it from the docs.
-2. **Promote to a rule.** Add a rule like
-   `governance.agent-must-not-bypass-protected-paths` that activates
-   when an agent identifies itself (e.g., via a CI environment
-   variable or a `scope.actor: 'agent'` field) and a protected-path
-   diff is present without elevation evidence. Surfaces violations
-   mechanically rather than relying on convention.
-3. **Bake into the CLI.** A `--actor=agent` flag (or auto-detection
-   via env) that, combined with a protected-path diff, refuses to
-   proceed with a CRITICAL rather than just flagging. Hard
-   guard-rail; harder to misconfigure.
-
-**Open question**: when (if ever) does this transition from
-documented-convention to enforced-rule? Probably tied to the
-`effective-reviewer` package, since the reviewer is the layer that
-checks substance on protected-path PRs. Worth discussing once that
-package's shape firms up.
-
-The risk of doing nothing: as more agents adopt effective, the
-convention drifts unless something mechanical preserves it. The risk
-of doing it too early: prematurely formalizing a workflow that's still
-evolving.
-
-**Related governance-thread entries:**
-
-- [verify --against main semantics on long-lived integration branches](#design-verify---against-main-semantics-on-long-lived-integration-branches)
-- [Elevated / governance-PR mode for protected-path edits](#design-elevated--governance-pr-mode-for-protected-path-edits)
-- [Block-weakening vs block-every-edit on protected configs](#design-block-weakening-vs-block-every-edit-on-protected-configs)
-- [Should src/presets/\*\* rule definitions be protected paths?](#design-should-srcpresets-rule-definitions-be-protected-paths)
-
----
-
 ## [Precision] `new-exports-have-non-test-callers` blind to tsx scripts + Next.js page modules
+
+**Stamp:** post-1.0 — 1.1. False-positive precision, not a
+missed detection: the rule over-reports uncalled exports rather than
+under-reporting them, so the gate stays sound while the fix waits.
+The walk needs a per-convention extension (tsx entry scripts, Next.js
+page modules), which wants real adopter repos to shape it rather than
+guesses. Adopters hitting it today `disable` or `override` the rule
+with the retirement condition in the rationale.
 
 **The bug.** The rule walks the import graph to decide whether a new
 exported symbol has a non-test caller. The walk works for code reached
@@ -200,6 +154,12 @@ extend.
 
 ## [Precision] `migration-has-exercising-test` fires on pure DDL migrations
 
+**Stamp:** post-1.0 — 1.1. Same class as the entry above: a false
+positive on a real pattern (pure DDL migrations), with `disable` /
+`override` as the documented interim. Fixing it means teaching the
+rule to read migration content, which is a detection-precision
+project rather than a release blocker.
+
 **The bug.** The rule's stated rationale is "catches defensive no-op
 migrations that never fire against the condition they were nominally
 defending." That logic applies cleanly to data-transforming migrations
@@ -249,6 +209,12 @@ edited to match observed behavior. Right now they're drifting apart.
 ---
 
 ## [Design] `verify --against main` semantics on long-lived integration branches
+
+**Stamp:** post-1.0 — 1.x. Long-lived integration branches are a
+workflow effective does not yet have adopters running at scale; the
+semantics should be settled against a real one rather than in the
+abstract. `--against` already accepts an explicit ref, so the
+workaround is complete if unergonomic.
 
 **The bug.** The current verify-against-main flow reports findings as a
 snapshot of the diff: every protected-file edit, every new export, every
@@ -300,86 +266,20 @@ branch noise." That's worse than reviewers learning the system: once
 "ignore CRITICALs unless they're recent" becomes the norm, the rule's
 weight evaporates.
 
-**Related governance-thread entries:**
-
-- [Formalizing the agent vs human protected-path workflow](#design-formalizing-the-agent-vs-human-protected-path-workflow)
-- [Elevated / governance-PR mode for protected-path edits](#design-elevated--governance-pr-mode-for-protected-path-edits)
-- [Block-weakening vs block-every-edit on protected configs](#design-block-weakening-vs-block-every-edit-on-protected-configs)
-- [Should src/presets/\*\* rule definitions be protected paths?](#design-should-srcpresets-rule-definitions-be-protected-paths)
-
----
-
-## [Feature] Baseline / ratchet for existing-codebase adoption
-
-**The bug.** First-time `effective verify` on a non-trivial existing
-codebase emits hundreds-to-thousands of findings: LOW for formatting
-/ debug-output / pure-style rules, MEDIUM for hygiene rules,
-CRITICAL for any pre-existing escape-hatch usage that was never
-registered. An external adopter trying effective on a production
-Python+JS repo reported 930 LOW findings on the first run.
-
-No team is going to clear a 930-finding wall before turning effective
-on. The current workarounds — disable rules, raise severity
-thresholds, silence the pre-push hook entirely — all sacrifice
-detection. The right shape is the same pattern other static-analysis
-tools use: snapshot existing findings into a baseline file, then fail
-only on findings introduced after that snapshot. mypy's `--baseline`,
-eslint's `eslint-baseline`, ruff's `--add-noqa`, and rubocop's
-`.rubocop_todo.yml` are roughly the same idea expressed differently.
-effective needs its own version.
-
-**Three paths**:
-
-1. **`.effective-baseline.yml` snapshot file.** `effective baseline
-capture` writes one entry per current finding (rule id +
-   anchor-hash + file path); `verify --baseline` ignores findings
-   matching the snapshot. New findings fail the run as today.
-   Refresh via `effective baseline regenerate` after a cleanup pass.
-   Pure-additive surface; existing semantics unchanged when
-   `--baseline` isn't passed.
-2. **Per-rule severity floors.** A `seeds.adoptionMode: true` config
-   flag downgrades LOW → ignore, MEDIUM → LOW, CRITICAL → MEDIUM
-   globally until a `seeds.adoptionDeadline` date. Simpler to ship;
-   less precise (silences NEW LOW findings too, which defeats the
-   ratchet); date-driven escape hatches age badly.
-3. **Document staged adoption.** Recommend adopters enable rules one
-   at a time, fix the findings each surfaces, then enable the next.
-   No code change; relies on adopter discipline; doesn't solve the
-   "all the rules on, just don't fail on what's already there" use
-   case that every other static-analysis ratchet exists to solve.
-
-**Open question**: should the baseline match strictly on anchor-hash
-identity (moving a finding to a new line invalidates it and it gets
-re-reported) or fuzzily (finding moves with the file, still
-considered "known"). Strict is the safer default; lenient is
-friendlier to refactors but obscures whether the finding genuinely
-re-emerged. The baseline-refresh story (`effective baseline
-regenerate`) should also be guarded — a silent regenerate could mask
-new findings landing in the same PR as a cleanup pass.
-
-Adoption-critical. Without it, "try effective on your repo" is a
-non-starter for anything older than a few months. The risk of doing
-nothing isn't a slow drift — it's that no team adopts.
-
-**Adjacent: coverage non-decreasing as a related ratchet.** The same
-"compare current state to a known-good prior state" pattern shows
-up for coverage. `toolchain.coverage-meets-threshold` was renamed
-in rc.4 to match what the engine actually does (per-metric threshold
-check at 90%), but the original "did coverage drop from main?"
-semantic is a real adopter need that the rename deferred rather than
-solved. The implementation shape is parallel to baseline/ratchet:
-snapshot prior coverage (`.effective-coverage-baseline.yml` or
-similar), fail only on metrics that dropped from the snapshot. Same
-open question about strict-vs-fuzzy matching applies (per-file
-coverage hash vs. per-metric totals). Worth designing alongside the
-findings ratchet — both expose the same "ratchet against a snapshot"
-primitive — even if they ship as separate features. The two could
-share an `.effective-baseline/` directory convention so adopters
-learn one mental model that applies to both.
+**Related governance-thread entries:** the other four entries this one
+sat alongside were all decided in the 1.0.0 triage and now live in
+`docs/decisions.md` — "Who may elevate a protected-path edit", "Block
+every protected-path edit, or only weakening ones?", and "Are the
+shipped presets protected paths?". This entry is what remains open in
+that thread.
 
 ---
 
 ## [Precision] `verify` mode-banner ergonomics
+
+**Stamp:** post-1.0 — 1.1. Presentation only — the banner reports
+the right mode, it just reports it noisily. No behavior depends on
+it, and no adopter is blocked.
 
 **The bug.** `effective verify` and `effective verify --staged` do
 materially different things — the first checks the committed diff
@@ -422,146 +322,14 @@ insurance.
 
 ---
 
-## [Design] Elevated / governance-PR mode for protected-path edits
-
-**The bug.** When a PR is intentionally changing the constitution —
-adding a new rule, adjusting a threshold, registering a new protected
-path, bumping a package's pinned major — the
-`protected-paths-respected` rule fires CRITICAL on the very change
-that's the PR's purpose. The current escape hatches are blunt:
-`--no-verify` on push (silences the gate for unrelated findings in
-the same diff) or disable the rule for the run (same blast radius).
-Both JS-first adopters and the external Python+JS pilot flagged this
-as friction.
-
-Closely related to the earlier "Formalizing the agent vs human
-protected-path workflow" entry above — that one is about WHO can
-elevate; this one is about HOW the elevation surfaces in verify
-output. Both should likely land together as part of the
-effective-reviewer scope.
-
-**Three paths**:
-
-1. **`--governance-pr` flag.** Verify with this flag treats
-   protected-path findings as INFO instead of CRITICAL, prints them
-   on a separate "governance changes" line, and exits 0 if no other
-   CRITICALs are present. CI configures the flag based on a PR label
-   or commit-message tag. Explicit; testable; couples the CI half to
-   the verify half cleanly.
-2. **Commit-message tag.** `[governance]` (or `[constitution]`) in
-   the PR's commit message auto-flips the rule to informational
-   severity for the run. No new flag; requires adopters to discover
-   the tag from docs. Tag could be abused — any commit could opt out
-   — which inverts the rule's intent.
-3. **Allowlist file in the PR.** A `.effective/governance.yml`
-   committed in the PR enumerates the intentional protected-path
-   touches with rationale per path. Verify suppresses findings on
-   those paths only. Most precise; highest ceremony. Closest to the
-   "register the exception" pattern effective already uses elsewhere.
-
-**Open question**: does effective track the elevation as a
-first-class observable (so the reviewer pass can audit it later) or
-is it ephemeral to the verify run? An audit trail of "this PR was
-elevated, here's the rationale" is what makes the reviewer-pass
-capable of substantively reviewing constitutional changes; without
-it, elevation is a silent bypass.
-
-The risk of doing nothing: governance PRs ship via `--no-verify` or
-rule-disable, both of which silence findings on OTHER files in the
-same diff. A real bug in a non-governance file lands invisibly.
-
-**Decision (2026-07-07): path 1 shipped.** `verify --governance-pr`
-moves protected-path findings (identified by wiring to the built-in
-`protectedPathsRespected` check, not by rule id) out of the gating
-set; verdict and exit code recompute from the rest. Elevated findings
-are printed in a dedicated `Governance changes` section (JSON:
-`governanceFindings`) — visible, not silenced. CI passes the flag
-when the PR carries the `governance` label, so elevation is a
-deliberate per-PR human action with a public marker. Remaining open:
-the persisted audit-trail question above (a record the
-effective-reviewer pass can consume later, beyond the run output),
-and whether the label convention should be checkable itself.
-
-**Related governance-thread entries:**
-
-- [Formalizing the agent vs human protected-path workflow](#design-formalizing-the-agent-vs-human-protected-path-workflow)
-- [verify --against main semantics on long-lived integration branches](#design-verify---against-main-semantics-on-long-lived-integration-branches)
-- [Block-weakening vs block-every-edit on protected configs](#design-block-weakening-vs-block-every-edit-on-protected-configs)
-- [Should src/presets/\*\* rule definitions be protected paths?](#design-should-srcpresets-rule-definitions-be-protected-paths)
-
----
-
-## [Design] Block-weakening vs block-every-edit on protected configs
-
-**The bug.** Today `protected-paths-respected` treats any edit to a
-protected config file (`tsconfig.json`, `package.json`,
-`eslint.config.ts`, `.husky/*`) as CRITICAL. Correct for the
-strict-by-default case but blunt: it blocks legitimate additive
-changes (new dependency, new lint rule, new script entry) with the
-same severity as actively-harmful ones (removing `strict: true`,
-dropping a husky hook, disabling a lint rule).
-
-External-adopter feedback flagged this on first contact: the rule
-fires on every package.json bump and every script addition, which
-trains adopters to `--no-verify` reflexively rather than reading the
-diff. Over time `--no-verify`-fatigue becomes its own anti-pattern —
-operators stop reading what they're bypassing.
-
-The semantic distinction the rule wants is _weakening_ vs
-_strengthening or orthogonal_. Implementation requires per-file
-understanding of what counts as weakening: removing strictness flags
-from `tsconfig.json`, dropping a script in the protected-script set
-or downgrading lockfile pinning in `package.json`, disabling rules or
-raising severity from `error` to `warn` in `eslint.config.ts`,
-touching `.husky/*` at all. Strengthening edits (adding strictness
-flags, adding lint rules, tightening pins) and orthogonal edits
-(most version bumps, adding scripts, changing `outDir`) shouldn't
-trigger CRITICAL.
-
-**Three paths**:
-
-1. **Per-file-type weakening-detector rules.** Each protected config
-   gets a dedicated parser + rule (`tsconfig-not-weakened`,
-   `package-json-not-weakened`, etc.) that compares the diff's
-   before/after structurally and flags only weakening edits. Highest
-   precision; substantial implementation surface (one parser per
-   config kind).
-2. **Severity ladder by edit class.** Same
-   `protected-paths-respected` rule but distinguishes "additive"
-   (LOW), "modifying" (MEDIUM), and "removing" (CRITICAL) edits via
-   diff-line classification. Cheaper than per-file parsing; less
-   precise — a script rename looks like "remove + add" to a
-   line-level classifier.
-3. **Keep block-all; widen the "rationale required" surface.** Status
-   quo plus a requirement that every protected-path edit includes an
-   inline `// effective: rationale: ...` comment or an entry in a
-   per-PR rationale file. Doesn't reduce gate friction; does force
-   the operator to articulate why before bypassing. Low
-   implementation cost.
-
-**Open question**: do we ship the weakening-detectors as built-in
-rules or as opt-in modules? Built-in matches "secure defaults";
-opt-in matches the per-adopter-config pattern effective uses
-elsewhere. The risk of built-in is false-positive volume if any
-parser misclassifies an edit. Probably ship as opt-in modules first;
-promote to built-in once the parsers are battle-tested against real
-diffs.
-
-The risk of doing nothing: `--no-verify`-fatigue erodes the rule's
-weight. Once operators bypass protected-path findings reflexively the
-rule becomes ritual rather than signal — same failure mode flagged
-in the long-lived integration branches entry above.
-
-**Related governance-thread entries:**
-
-- [Formalizing the agent vs human protected-path workflow](#design-formalizing-the-agent-vs-human-protected-path-workflow)
-- [verify --against main semantics on long-lived integration branches](#design-verify---against-main-semantics-on-long-lived-integration-branches)
-- [Elevated / governance-PR mode for protected-path edits](#design-elevated--governance-pr-mode-for-protected-path-edits)
-- [Should src/presets/\*\* rule definitions be protected paths?](#design-should-srcpresets-rule-definitions-be-protected-paths)
-
----
-
 ## [Feature] Modular governance-only preset
+
+**Stamp:** post-1.0 — 1.1. A new preset is purely additive
+(`extends: ['governance']` alongside the existing names), so shipping
+it in a 1.x costs nothing that shipping it in 1.0.0 would buy. What
+it needs first is the polyglot adopter evidence to say which rules
+belong in it — a preset assembled from guesses is the thing this
+project's catalogue bar exists to prevent.
 
 **The question.** External-adopter feedback (Python+JS pilot)
 suggested a "polyglot preset" that ships protected-paths + lane
@@ -607,82 +375,16 @@ the adopter's signal isn't lost; not in scope for the next version.
 
 ---
 
-## [Design] Should `src/presets/**` rule definitions be protected paths?
-
-**The question.** `src/presets/recommended.ts` is the
-constitution-as-code — the source of truth for what rules ship, at
-what severity, scoped to what files. Adopters who extend
-`recommended` trust that scope changes go through the same
-constitutional-change workflow that governs `effective.config.ts`.
-Today they don't: `src/presets/**` is not in the protected-paths
-list (which currently covers `effective.config.ts`,
-`eslint.config.*`, `tsconfig*.json`, `vitest.config.*`, prettier
-configs, `.github/workflows/**`, and `package.json`).
-
-Surfaced in PR 2 of the rc.6 → rc.7 open-issues cleanup: that PR
-narrowed `no-hardcoded-secrets`'s `in` glob without triggering the
-`protected-paths-respected` rule. The change was correct on the
-merits and verified by tests, but the same loophole would let a
-less careful PR silently weaken a critical rule's scope — convert a
-broad CRITICAL rule into a narrow one with no review surface.
-
-The scope of the question isn't just `recommended.ts`. The same
-concern applies to anything in `src/presets/**`:
-`recommendedExceptions.ts`, `recommendedProtectedPaths.ts`, future
-preset modules. They are all "the constitution shipped to adopters."
-
-**Three paths**:
-
-1. **Add `src/presets/**`to the protected-paths list.** Behaves
-like the other constitutional files today: edits trigger CRITICAL
-on push, human path uses`--no-verify` with rationale, agent path
-   defers to human. Simplest move. Friction cost is highest at
-   first — every preset evolution becomes a deliberate process,
-   which the bluntness of the current protected-paths rule amplifies
-   (every edit is the same severity regardless of weakening vs.
-   strengthening, the failure mode flagged in the block-weakening
-   entry).
-2. **Add `src/presets/**`to protected paths AND ship the`--governance-pr`elevation flag as a coordinated landing.**
-Preset edits go through the elevation surface, which keeps the
-audit trail visible to the reviewer pass without forcing every
-edit through the blunt`--no-verify`. Higher upfront engineering
-   cost; substantially cleaner steady state.
-3. **Document the convention and leave the rule unenforced.** A
-   CONTRIBUTING note saying "preset edits go through review with
-   severity/scope rationale" without mechanical enforcement.
-   Cheapest; least durable — same drift risk as every other
-   "convention without enforcement" entry in this thread.
-
-**Open question**: should this land as part of the governance-PR
-elevation rollout (path #2), or ship first as a standalone
-protection (path #1) with elevation as a follow-up? Probably tied
-to the same `effective-reviewer` package readiness that the
-elevation entry depends on — landing path #1 first would create
-immediate friction without the elevation valve, which is exactly
-the failure mode that trains adopters to `--no-verify` reflexively
-(flagged in the block-weakening entry).
-
-The risk of doing nothing: preset evolution silently bypasses the
-constitutional-change workflow that adopters were told governs the
-rules they're being held to. A future PR could narrow a CRITICAL
-rule's `in` glob — converting it to silent precision — without any
-review surface firing. Three adjacent governance threads (`agent vs
-human protected-path workflow`, `elevated governance-PR mode`,
-`block-weakening vs block-every-edit`) already point at elevation
-as the unlock; adding `src/presets/**` to the protected scope is
-the third (now fourth) piece of evidence that the elevation feature
-is the load-bearing capability.
-
-**Related governance-thread entries:**
-
-- [Formalizing the agent vs human protected-path workflow](#design-formalizing-the-agent-vs-human-protected-path-workflow)
-- [verify --against main semantics on long-lived integration branches](#design-verify---against-main-semantics-on-long-lived-integration-branches)
-- [Elevated / governance-PR mode for protected-path edits](#design-elevated--governance-pr-mode-for-protected-path-edits)
-- [Block-weakening vs block-every-edit on protected configs](#design-block-weakening-vs-block-every-edit-on-protected-configs)
-
----
-
 ## [Design] Audit walker built-in skips can hide tracked code (dot-entries, basename-anywhere ignored dirs)
+
+**Stamp:** post-1.0 — 1.1. Kept visible deliberately: this is the
+residual evasion channel the rc.8 gitignore work left, and it is a
+real one. It is not a release blocker because the invariant it
+violates (`tracked wins`) is documented as applying to ignore rules
+specifically, not to built-in skips — so 1.0.0 ships a boundary that
+is stated rather than a promise that is broken. Closing it means
+deciding whether `tracked wins` generalizes, which is the open
+question in the entry.
 
 **The question.** The rc.8 gitignore work established an invariant for
 ignore _rules_: a tracked file is always scanned, even when a
@@ -735,6 +437,13 @@ ignore rule can't hide committed code" while a directory rename
 
 ## [Design] Content-scanner hardening: file-size caps, regex budget, region-classifier limits
 
+**Stamp:** post-1.0 — 1.1. Turns on the unresolved question in the
+entry: whether the scan layer is a security boundary or a convenience
+layer in front of the toolchain gate. 1.0.0 ships the current stance
+(convenience; the toolchain gate is authoritative) documented in the
+trust model, which is what makes deferring the hardening honest
+rather than silent.
+
 **The question.** The 2026-07-07 security review traced three
 scanner-hardening gaps that share one trust-model root — repo
 _content_ is semi-adversarial (the product premise), yet the scanners
@@ -786,47 +495,14 @@ the failure presents as a hang rather than a finding.
 
 ---
 
-## [Design] `verify()` ignores `scope.relatedRules` while `prepare()` honors it
-
-**The question.** `selectApplicableRules` (src/rules/selection.ts)
-narrows the rule set by `scope.relatedRules` and is used by
-`prepare()` — the agent's prompt shows only the pinned rules. But
-`verify()` iterates every resolved rule and filters only by role, so
-a scope pinned via `relatedRules` is verified against the full set.
-The direction is safe (verify checks more than it promised), but the
-prompt's "the rules above will be checked" contract is broken:
-findings can cite rules the prompt never showed. Surfaced by the
-2026-07-07 code-quality review; the stale doc comment claiming verify
-uses the selection was corrected in the same session, so what remains
-is the genuine design question.
-
-**Three paths**:
-
-1. **Make verify honor `relatedRules`.** Symmetric with prepare;
-   narrows enforcement, so a mis-authored scope could accidentally
-   exempt work from foundation rules — the gate's strength would
-   depend on prompt-authoring discipline.
-2. **Keep verify-checks-everything; make prepare say so.** One line in
-   the prompt footer ("other constitutional rules still apply") plus
-   docs. Preserves gate strength; the prompt stops over-promising.
-3. **Split the field.** `relatedRules` stays prompt-only emphasis;
-   a separate explicit `scope.onlyRules` (opt-in, loud) narrows
-   verification for the rare caller who truly wants it.
-
-**Open question**: is `relatedRules` emphasis (2) or scoping (1)?
-Current behavior treats it as emphasis; the name suggests emphasis;
-the doc drift suggests the original intent was scoping. Leaning (2) —
-gate strength should not be prompt-authorable.
-
-The risk of doing nothing: agents optimized against the prompt learn
-that unlisted rules still bite, which is the right failure direction —
-but human scope authors keep writing `relatedRules` expecting it to
-scope verification, and their mental model breaks on the first
-surprise finding.
-
----
-
 ## [Feature] Configurable coverage threshold
+
+**Stamp:** post-1.0 — 1.1. Additive config knob, semver-clean to
+add in a 1.x. The entry's own open question — parser-level vs
+rule-level threshold — should be settled alongside the coverage
+ratchet described in the baseline entry (now decided in
+`docs/decisions.md`), since both move coverage policy out of the
+parser.
 
 **The question.** `parseV8` hard-codes `COVERAGE_THRESHOLD = 90`
 (src/toolchain/parsers/v8.ts); `ToolchainConfig` offers no knob, and
@@ -866,14 +542,23 @@ entirely, losing the gate instead of tuning it.
 
 Quick log of things that surfaced during rc.3 → rc.5 prep but didn't
 need immediate action. None are bugs; each is a "we should think
-about this before stable":
+about this before stable".
+
+**Stamp (whole section):** post-1.0 — 1.1, except the two marked
+below. Each item here is a known, bounded shortcoming with the
+behavior documented where an adopter would meet it; none changes what
+`verify` accepts or rejects, so none gates a stable release. They are
+noted, not assigned.
 
 - **`npm dist-tag latest` requires manual sync after every rc
   publish.** First publish set `latest = rc.3`; subsequent `pnpm
 publish --tag rc` only updates `rc`. Could be scripted (a
   `release` npm script that runs publish + `npm dist-tag add` in
   sequence). Resolves automatically when 0.1.0 stable ships (the
-  unstamped publish moves `latest` naturally).
+  unstamped publish moves `latest` naturally). **Stamp: closed at
+  1.0.0** — the stable publish moves `latest` with no manual sync, and
+  `docs/RELEASING.md` no longer carries the dist-tag step. This item
+  ends here.
 
 - **`git.ts` gitlink dead-defense arms look unreachable.** The
   `content === undefined` skip arms in `loadGitDiff`/`loadStagedDiff`
@@ -919,7 +604,13 @@ show` SUCCEEDS on a gitlink whose commit exists in the repo (prints
   is `>=3.22.0 <5`, while devDependencies/CI pin zod 3.x. Either CI
   should add a zod-4 matrix leg or the range should narrow until
   someone verifies v4 compatibility (`z.record` signatures and
-  error-shape changes are the likely break points).
+  error-shape changes are the likely break points). **Stamp:
+  post-1.0 — 1.1, flagged as the one item here with a stability
+  consequence:** a declared peer range is an API promise, and this one
+  promises more than CI proves. It does not block 1.0.0 because the
+  range is unchanged from the rc series that adopters already run
+  against, but either the matrix leg or the narrowed range should land
+  early in 1.x rather than drift.
 
 - **`no-hardcoded-secrets` is a partial overlay, not the real
   secrets net.** The rule's `in` glob (narrowed in rc.7) covers
@@ -941,6 +632,34 @@ These are noted, not assigned, not blocking. (The former
 "`CHANGELOG.md` not in the npm tarball" item graduated: `files` now
 ships `CHANGELOG.md` and `USAGE.md` as of the 2026-07-07 review
 session.)
+
+---
+
+## Decided in the 1.0.0 triage (2026-09-03)
+
+Six entries left this file when the 1.0.0 triage decided them. Each is
+written up in `docs/decisions.md`, which is where the reasoning lives
+now; git history holds the entries as they stood:
+
+- **Formalizing the agent vs human protected-path workflow** →
+  § "Who may elevate a protected-path edit". The actor split stays a
+  convention; effective does not enforce self-declared identity.
+- **Elevated / governance-PR mode for protected-path edits** → same
+  section. Path 1 shipped in rc.8 as `--governance-pr`; the residual
+  persisted-audit-trail question is the one part still open, and it is
+  tracked under the long-lived-branches entry's governance thread.
+- **Block-weakening vs block-every-edit on protected configs** →
+  § "Block every protected-path edit, or only weakening ones?".
+  Block-every-edit stays; elevation is the answer to the friction.
+- **Baseline / ratchet for existing-codebase adoption** →
+  § "Adopting effective on an existing codebase". 1.0.0 ships no
+  baseline; the shape is settled and the build is post-1.0.
+- **`verify()` ignores `scope.relatedRules` while `prepare()` honors
+  it** → § "`scope.relatedRules`: emphasis, not scoping". Verify keeps
+  checking everything; the prompt stops over-promising.
+- **Should `src/presets/**`rule definitions be protected paths?** →
+§ "Are the shipped presets protected paths?". Yes — added to`protected`in 1.0.0, now that`--governance-pr` exists to pair with
+  it.
 
 ---
 

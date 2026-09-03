@@ -112,6 +112,16 @@ export function renderChecklist(input: ChecklistInput): string {
       `_Filtering for role \`${input.scope.role}\` produced fewer than ${String(MIN_FILTERED_ITEMS)} items; showing the full ${String(input.allRules.length)}-rule set as a defensive fallback._`,
     );
   }
+  // A pinned scope narrows what the checklist EMPHASIZES; `verify()`
+  // still checks the whole constitution. Saying so keeps the prompt
+  // from promising a narrower gate than the one that runs — see
+  // docs/decisions.md § "`scope.relatedRules`: emphasis, not scoping".
+  if (explicitlyPinned) {
+    lines.push(
+      '',
+      "_This checklist is narrowed to the rules pinned for this scope. The constitution's other rules still apply and are still checked._",
+    );
+  }
   for (const group of groups) {
     lines.push('', `### ${group.header}`);
     for (const r of group.rules) {

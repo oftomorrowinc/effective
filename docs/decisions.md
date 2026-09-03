@@ -379,3 +379,274 @@ shipping the same recurring failure mode twice across rc.3 and
 rc.7. New pattern rules in the preset should adopt the narrow
 default; the discussion that was tracked in `docs/open-issues.md`
 under "no-hardcoded-secrets rule scope" closes here.
+
+---
+
+## Who may elevate a protected-path edit
+
+`protected-paths-respected` fires CRITICAL on any diff touching a
+protected file. Someone has to be allowed to change those files
+anyway — otherwise the constitution could never evolve. Who?
+
+The convention that emerged across rc.2 → rc.8, and that
+`CONTRIBUTING.md` documents as the two-path workflow:
+
+- **Human path** — edit the protected file, push with `--no-verify`
+  citing rationale, open a PR labelled `governance`. The local hook
+  bypass is ergonomics; the CI gate and the reviewer are what hold.
+- **Agent path** — never `--no-verify`. Surface the block as a
+  kick-back and stop; a human with elevated scope makes the change.
+
+The recurring question was whether to make that split mechanical: a
+`governance.agent-must-not-bypass-protected-paths` rule, or a
+`--actor=agent` flag that refuses to proceed.
+
+**The decision (1.0.0): no. The actor split stays a convention, and
+effective does not attempt to verify it.**
+
+Actor identity is self-declared. An agent that would bypass the
+protected-path block is an agent that would also pass
+`--actor=human`, so a flag or a rule keyed on actor identity buys
+no guarantee — it buys the appearance of one, which is worse. Actor
+identity is not a trust boundary, and effective should not present
+it as one.
+
+What effective _can_ guarantee, and does, is that no protected-path
+edit is invisible:
+
+```
+Q1: Did the diff touch a protected path?
+    YES → `protected-paths-respected` fires. Always. There is no
+          actor, flag, or environment that suppresses it.
+    NO  → nothing to elevate.
+
+Q2: Is the protected-path edit the PR's actual purpose?
+    YES → label the PR `governance`. CI runs verify with
+          `--governance-pr`: the finding moves out of the gating set
+          and into a printed `Governance changes` section. Visible,
+          attributable to a person who applied the label, and still
+          reviewed.
+    NO  → the finding gates. Fix the diff — the protected-path edit
+          does not belong in this PR.
+```
+
+### Rule of thumb
+
+The mechanical layer answers "was a protected file changed, and did
+a person deliberately mark that change as intentional?" — both
+checkable. It does not answer "who typed it," which is not. Keep the
+enforcement on the checkable question.
+
+This closes the `docs/open-issues.md` entries "Formalizing the agent
+vs human protected-path workflow" and "Elevated / governance-PR mode
+for protected-path edits"; the latter's chosen path (`--governance-pr`)
+shipped in rc.8. The residual question it raised — whether elevation
+should leave a _persisted_ audit trail a future reviewer pass can
+consume, beyond the run output — is deferred post-1.0 and stays
+tracked there.
+
+---
+
+## Block every protected-path edit, or only weakening ones?
+
+`protected-paths-respected` treats every edit to a protected config
+as CRITICAL — a new script entry the same as deleting `strict: true`.
+The obvious refinement is to classify: flag _weakening_ edits, wave
+through _strengthening_ and _orthogonal_ ones. Adopters asked for it
+directly; the rule fires on every version bump.
+
+**The decision (1.0.0): keep block-every-edit. The answer to the
+friction is elevation, not classification.**
+
+The friction the request describes is real, but it was friction
+against a missing valve, not against the rule's bluntness. rc.8
+shipped the valve: `--governance-pr`, driven by a PR label. The
+adopter who was reaching for `--no-verify` on every package.json bump
+now labels the PR instead, and the finding stays visible in the
+report rather than being silenced.
+
+Classification would trade that for a parser per config kind —
+`tsconfig`, `package.json`, `eslint.config`, and one for every format
+an adopter protects — each of which can misjudge an edit. A
+misclassification here fails _open_: a weakening edit waved through
+as "additive" is precisely the change the rule exists to catch. A
+blunt rule with a visible, marked override fails closed.
+
+```
+Q1: Is the protected-path edit the point of this PR?
+    YES → label it `governance`. That is the supported path, and it
+          leaves a public marker.
+    NO  → the edit is incidental. Split it out.
+
+Q2: Is labelling every such PR too much ceremony for your project?
+    YES → the paths in `protected` are too broad for how you work.
+          Narrow the list — protection you route around constantly
+          is protection you have already lost.
+    NO  → you are on the supported path.
+```
+
+### Rule of thumb
+
+Prefer a blunt rule with a loud, marked override to a clever rule
+that can be wrong quietly. Weakening-detectors remain a good idea
+and are tracked post-1.0 — as opt-in modules first, promoted to
+built-in only once their parsers have been tried against real
+diffs.
+
+This closes the `docs/open-issues.md` entry "Block-weakening vs
+block-every-edit on protected configs."
+
+---
+
+## Adopting effective on an existing codebase
+
+First `verify` on a codebase of any age emits a wall of findings —
+an external pilot reported 930 LOW on run one. No team clears that
+before switching a gate on, and every workaround that fits in a day
+(disable the rules, raise the thresholds, silence the hook)
+sacrifices the detection that was the point.
+
+The standard answer is a baseline: snapshot today's findings, fail
+only on what appears after. mypy, eslint, ruff and rubocop all ship
+a version of it.
+
+**The decision (1.0.0): effective ships without a baseline. The
+shape of the eventual one is settled; the build is post-1.0.**
+
+Deferring costs nothing in stability terms, which is what made this
+decidable now: a baseline arrives as `verify --baseline` plus a
+capture command — purely additive, so it lands in a 1.x without
+touching the API 1.0.0 declares stable. Shipping it _rushed_ into
+1.0.0 would be the expensive mistake, because the hard part is not
+the snapshot, it is the match semantics (does a finding that moved
+three lines count as known?) and the refresh guard (a silent
+regenerate hides new findings inside a cleanup PR). Those want real
+adopter diffs to settle against.
+
+Until then, adoption is staged, using config that already exists:
+
+```
+Q1: How many findings does the first `effective audit` produce?
+    A HANDFUL → fix them. You do not need a staged rollout.
+    A WALL    → Q2.
+
+Q2: Which rules produce most of the wall?
+    → Start there. For each, decide with the "Disable vs. override a
+      rule" tree at the top of this document:
+        - inapplicable to this project → `disable` with rationale;
+        - applicable but not satisfiable yet → `override` to a lower
+          severity, with the promotion condition in the rationale
+          ("back to CRITICAL once audit-escapes is clean").
+
+Q3: How do you make progress rather than freeze the exceptions?
+    → Every `override` rationale names its retirement condition, and
+      you promote rules back as the debt clears. An override with no
+      stated condition is a disable wearing a costume.
+```
+
+### Rule of thumb
+
+`override` with a written promotion condition is the 1.0 ratchet: it
+is manual where a baseline would be mechanical, but it fails in the
+right direction — a stalled adoption is visible in the config as a
+list of conditions nobody met, rather than invisible in a snapshot
+file nobody regenerated.
+
+This closes the `docs/open-issues.md` entry "Baseline / ratchet for
+existing-codebase adoption." The chosen shape — a `.effective-baseline`
+snapshot with `verify --baseline`, sharing a directory convention with
+the coverage-non-decreasing ratchet described in the same entry — is
+recorded here as the decision; implementation is tracked post-1.0.
+
+---
+
+## `scope.relatedRules`: emphasis, not scoping
+
+`prepare()` narrows the prompt to the rules named in
+`scope.relatedRules`. `verify()` does not narrow — it checks every
+resolved rule. So a finding can cite a rule the prompt never showed,
+against a prompt that said "the rules above will be checked."
+
+**The decision (1.0.0): `relatedRules` is prompt emphasis. `verify()`
+continues to check everything, and `prepare()` stops over-promising.**
+
+The alternative — making verify honor `relatedRules` — puts the
+gate's strength in the hands of whoever authored the scope. A
+mis-typed or optimistically-narrow `relatedRules` would quietly
+exempt work from foundation rules, and the failure would be silent
+in exactly the direction that matters. Gate strength must not be
+prompt-authorable.
+
+So the fix is in the prompt, not the gate: `prepare()` now states
+that the constitution's other rules still apply. A caller who
+genuinely wants to narrow _verification_ has no supported way to do
+it in 1.0, and that is deliberate; if the need turns out to be real,
+it arrives as an explicit, loud `scope.onlyRules` rather than as a
+side effect of an emphasis field.
+
+### Rule of thumb
+
+Fields that shape what an agent is _told_ and fields that shape what
+it is _held to_ are different fields. When one name is doing both
+jobs, the prompt-side reading is the safe one to keep.
+
+This closes the `docs/open-issues.md` entry "`verify()` ignores
+`scope.relatedRules` while `prepare()` honors it."
+
+---
+
+## Are the shipped presets protected paths?
+
+`effective.config.ts` is protected: workers must not edit the rules
+they are held to. But `src/presets/**` — `recommended.ts` and its
+companions — is the constitution _adopters_ extend, and it was not
+protected. The gap surfaced concretely during the rc.6 → rc.7 cleanup,
+when a PR narrowed `no-hardcoded-secrets`'s `in` glob without
+`protected-paths-respected` firing once. That change was right on the
+merits; the point is that a wrong one would have looked identical to
+the gate.
+
+The entry that tracked this deferred on a stated precondition: adding
+the protection before an elevation valve existed would force every
+preset edit through `--no-verify`, which is the habit the whole
+governance thread is trying to break. That precondition is now met —
+`--governance-pr` shipped in rc.8.
+
+**The decision (1.0.0): yes. `src/presets/**` joins the protected
+paths.\*\*
+
+A preset edit changes what every downstream adopter is held to, at
+what severity, over which files. That is the definition of a
+constitutional change, and it should meet the same surface as editing
+`effective.config.ts`. The asymmetry — governing the config that
+selects the rules while leaving the rules themselves unguarded — was
+the loophole, and it is a poor thing for a project whose credibility
+rests on enforcing its own constitution to ship into a 1.0.
+
+```
+Q1: Does your change alter a rule's severity, scope (`in` glob),
+    or whether it ships in a preset at all?
+    YES → constitutional. Label the PR `governance`, state the
+          rationale, and expect the reviewer to weigh the change on
+          its merits rather than its diff size.
+    NO  → Q2.
+
+Q2: Is it a refactor with no behavioral change to any shipped rule
+    (renaming an internal helper, splitting a file)?
+    YES → still protected, still labelled — the gate reads paths, not
+          intent. Keep such refactors in their own PR so the label
+          means what it says.
+    NO  → you are changing rule behavior. See Q1.
+```
+
+### Rule of thumb
+
+Protect the rules, not just the file that selects them. The friction
+this adds is the friction that was missing: a preset change now costs
+a label and a sentence of rationale, which is roughly what it should
+cost.
+
+This closes the `docs/open-issues.md` entry "Should `src/presets/**`
+rule definitions be protected paths?" — resolved along the entry's own
+path 2 (protection plus elevation), once elevation existed to pair it
+with.

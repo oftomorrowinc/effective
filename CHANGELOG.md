@@ -23,6 +23,59 @@ project adheres to [Semantic Versioning](https://semver.org/).
   1 MODERATE, 1 LOW) to zero, with lint, typecheck, 509 tests, build,
   jscpd, knip, dependency-cruiser and `pack:check` all still green.
 
+### Changed
+
+- **Every open-issues entry is now stamped, and six of them are
+  decided.** `docs/open-issues.md` had accumulated fifteen entries with
+  no disposition — the file could not distinguish deferred-by-decision
+  from deferred-by-drift, and a stable release cannot honestly ship the
+  second. Every entry now carries a `**Stamp:**` line saying what
+  happens to it and why deferring is safe (the workaround that exists,
+  the reason the gate stays sound without it, or the evidence the
+  decision waits on); the stamp vocabulary is documented in the file's
+  format guide. Six entries were decided outright and moved to
+  `docs/decisions.md`:
+  - **Who may elevate a protected-path edit** — the agent/human split
+    stays a convention. Actor identity is self-declared and therefore
+    not a trust boundary; a rule or flag keyed on it would buy the
+    appearance of a guarantee rather than one. What is enforced is the
+    checkable question: a protected-path edit always fires, and
+    elevation requires a public per-PR marker.
+  - **Block every protected-path edit, or only weakening ones?** —
+    block-every-edit stays. The friction adopters reported was against
+    a missing valve, and rc.8 shipped it (`--governance-pr`);
+    classification would trade a rule that fails closed for parsers
+    that can fail open. Weakening-detectors stay post-1.0, opt-in
+    first.
+  - **Adopting effective on an existing codebase** — 1.0.0 ships no
+    baseline. The shape is settled (`verify --baseline` plus a capture
+    command, purely additive and so semver-clean to add in a 1.x); the
+    hard parts — match semantics and the refresh guard — want real
+    adopter diffs. Staged adoption via `override` with a written
+    promotion condition is the documented 1.0 path.
+  - **`scope.relatedRules`: emphasis, not scoping** — `verify()` keeps
+    checking the whole constitution; gate strength must not be
+    prompt-authorable. `prepare()` stops over-promising instead: a
+    pinned checklist now states that the constitution's other rules
+    still apply.
+  - **Are the shipped presets protected paths?** — yes. `src/presets/**`
+    joins `protected`, closing the asymmetry where the config selecting
+    the rules was governed while the rules themselves were not. The
+    entry had deferred pending an elevation valve; rc.8 provided it.
+  - **Elevated / governance-PR mode** — closed as shipped in rc.8; its
+    residual persisted-audit-trail question stays open and stamped.
+
+### Added
+
+- **A pinned checklist says the rest of the constitution still
+  applies.** `prepare()` narrows the Pre-Success Checklist to
+  `scope.relatedRules` when a scope pins them, but `verify()` has
+  always checked every resolved rule — so a finding could cite a rule
+  the prompt never showed, against a prompt that said the rules above
+  would be checked. The checklist now carries a one-line footer on
+  pinned scopes. The gate is unchanged; the prompt stops describing a
+  narrower one.
+
 ### Fixed
 
 - **Output-buffer overflow is no longer invisible to callers.** When a
